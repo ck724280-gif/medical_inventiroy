@@ -59,7 +59,7 @@ export default function PurchasesPage() {
     queryKey: ['suppliers'],
     queryFn: async () => {
       const res = await apiClient.get('/suppliers');
-      return res.data || [];
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
   });
 

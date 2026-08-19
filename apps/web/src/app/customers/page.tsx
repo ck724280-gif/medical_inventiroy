@@ -37,7 +37,7 @@ export default function CustomersPage() {
       const res = await apiClient.get('/customers', {
         params: { search: search || undefined },
       });
-      return res.data || [];
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
   });
 
@@ -140,7 +140,7 @@ export default function CustomersPage() {
                         Loading customer records...
                       </td>
                     </tr>
-                  ) : customers?.map((c: any) => (
+                  ) : (Array.isArray(customers) ? customers : []).map((c: any) => (
                     <tr key={c.id} className="hover:bg-slate-50">
                       <td className="py-3 px-4 font-bold text-slate-900">{c.name}</td>
                       <td className="py-3 px-4 font-mono text-sky-800 font-semibold">{c.mobile || '—'}</td>

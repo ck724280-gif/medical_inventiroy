@@ -43,7 +43,7 @@ export default function SuppliersPage() {
       const res = await apiClient.get('/suppliers', {
         params: { search: search || undefined },
       });
-      return res.data || [];
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
   });
 
@@ -162,7 +162,7 @@ export default function SuppliersPage() {
                         Loading suppliers...
                       </td>
                     </tr>
-                  ) : suppliers?.map((sup: any) => (
+                  ) : (Array.isArray(suppliers) ? suppliers : []).map((sup: any) => (
                     <tr key={sup.id} className="hover:bg-slate-50">
                       <td className="py-3 px-4 font-bold text-slate-900">{sup.name}</td>
                       <td className="py-3 px-4 text-slate-700">{sup.contactPerson || '—'}</td>
