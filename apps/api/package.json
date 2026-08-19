@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "build": "nest build",
+    "postbuild": "node -e \"const fs = require('fs'); const path = require('path'); if (fs.existsSync('./dist/apps/api/src')) { fs.cpSync('./dist/apps/api/src', './dist', { recursive: true }); }\"",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start:prod": "node dist/main.js",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
