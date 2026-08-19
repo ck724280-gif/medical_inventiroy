@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #0284c7;
+  --color-secondary: #0f172a;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* POS Quick Scan animations */
+@keyframes flash-green {
+  0% { background-color: rgba(34, 197, 94, 0.2); }
+  100% { background-color: transparent; }
+}
+
+.flash-item-added {
+  animation: flash-green 0.6s ease-out;
+}

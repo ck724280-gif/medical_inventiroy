@@ -1,0 +1,870 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ============================================================
+// 1. AUTHENTICATION & ACCESS CONTROL
+// ============================================================
+
+model User {
+  id               String             @id @default(uuid())
+  email            String             @unique
+  mobile           String?            @unique
+  passwordHash     String             @map("password_hash")
+  firstName        String             @map("first_name")
+  lastName         String             @map("last_name")
+  isActive         Boolean            @default(true) @map("is_active")
+  mfaEnabled       Boolean            @default(false) @map("mfa_enabled")
+  failedLoginCount Int                @default(0) @map("failed_login_count")
+  lockedUntil      DateTime?          @map("locked_until")
+  lastLoginAt      DateTime?          @map("last_login_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  roles            UserRole[]
+  branches         BranchMembership[]
+  refreshTokens    RefreshToken[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  createdPurchases PurchaseInvoice[]  @relation("PurchaseCreator")
+  approvedPurchases PurchaseInvoice[] @relation("PurchaseApprover")
+  createdSales     SalesInvoice[]     @relation("SalesCreator")
+  createdMovements StockMovement[]
+  expenses         Expense[]
+  uploads          FileUpload[]
+
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique
+  description String?
+  isSystem    Boolean          @default(false) @map("is_system")
+  isActive    Boolean          @default(true) @map("is_active")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique
+  module      String
+  description String
+  createdAt   DateTime         @default(now()) @map("created_at")
+
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id")
+  permissionId String     @map("permission_id")
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  token      String    @unique
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  deviceInfo String?   @map("device_info")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model BranchMembership {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  branchId  String   @map("branch_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  branch    Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, branchId])
+  @@map("branch_memberships")
+}
+
+// ============================================================
+// 2. BUSINESS PROFILE, BRANDING & MULTI-BRANCH CONFIGURATION
+// ============================================================
+
+model BusinessSettings {
+  id              String   @id @default("default")
+  name            String   @default("MedCare Pharmacy")
+  logo            String?
+  favicon         String?
+  address         String   @default("123 Healthcare Avenue")
+  city            String   @default("Bangalore")
+  state           String   @default("Karnataka")
+  country         String   @default("India")
+  pinZip          String   @default("560001") @map("pin_zip")
+  phone           String   @default("+91 9876543210")
+  altPhone        String?  @map("alt_phone")
+  email           String   @default("contact@medcarepharmacy.com")
+  website         String?
+  gstNumber       String?  @map("gst_number")
+  pharmacyLicense String?  @map("pharmacy_license")
+  description     String?
+  currencyCode    String   @default("INR") @map("currency_code")
+  currencySymbol  String   @default("₹") @map("currency_symbol")
+  timezone        String   @default("Asia/Kolkata")
+  dateFormat      String   @default("DD-MM-YYYY") @map("date_format")
+  timeFormat      String   @default("12h") @map("time_format")
+  defaultLanguage String   @default("en") @map("default_language")
+  businessHours   String?    @map("business_hours")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("business_settings")
+}
+
+model BusinessBranding {
+  id                 String   @id @default("default")
+  primaryColor       String   @default("#0284c7") @map("primary_color")
+  secondaryColor     String   @default("#0f172a") @map("secondary_color")
+  invoiceLogo        String?  @map("invoice_logo")
+  thermalReceiptLogo String?  @map("thermal_receipt_logo")
+  loginBranding      String?    @map("login_branding")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("business_branding")
+}
+
+model Branch {
+  id            String            @id @default(uuid())
+  name          String
+  code          String            @unique
+  address       String
+  city          String
+  state         String
+  phone         String
+  email         String?
+  businessHours String?             @map("business_hours")
+  isActive      Boolean           @default(true) @map("is_active")
+  isDefault     Boolean           @default(false) @map("is_default")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  settings      BranchSettings?
+  memberships   BranchMembership[]
+  batches       Batch[]
+  purchases     PurchaseInvoice[]
+  sales         SalesInvoice[]
+  movements     StockMovement[]
+  adjustments   StockAdjustment[]
+  transfersFrom StockTransfer[]   @relation("FromBranch")
+  transfersTo   StockTransfer[]   @relation("ToBranch")
+  expenses      Expense[]
+  printers      PrinterSetting[]
+  salesReturns  SalesReturn[]
+  purchaseReturns PurchaseReturn[]
+
+  @@map("branches")
+}
+
+model BranchSettings {
+  id                 String   @id @default(uuid())
+  branchId           String   @unique @map("branch_id")
+  invoicePrefix      String   @default("INV") @map("invoice_prefix")
+  invoiceNextNumber  Int      @default(1) @map("invoice_next_number")
+  thermalPaperWidth  String   @default("58mm") @map("thermal_paper_width")
+  printerConfig      String?    @map("printer_config")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  branch             Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("branch_settings")
+}
+
+// ============================================================
+// 3. MEDICINE MASTER, CATEGORIES, UNITS & BARCODES
+// ============================================================
+
+model MedicineCategory {
+  id          String             @id @default(uuid())
+  name        String
+  description String?
+  parentId    String?            @map("parent_id")
+  isActive    Boolean            @default(true) @map("is_active")
+  createdAt   DateTime           @default(now()) @map("created_at")
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  parent      MedicineCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    MedicineCategory[] @relation("CategoryHierarchy")
+  medicines   Medicine[]         @relation("MedicineCategory")
+  subCategoryMedicines Medicine[] @relation("MedicineSubCategory")
+
+  @@unique([name, parentId])
+  @@map("medicine_categories")
+}
+
+model Manufacturer {
+  id            String     @id @default(uuid())
+  name          String     @unique
+  contactPerson String?    @map("contact_person")
+  phone         String?
+  email         String?
+  address       String?
+  isActive      Boolean    @default(true) @map("is_active")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  medicines     Medicine[]
+
+  @@map("manufacturers")
+}
+
+model Unit {
+  id           String         @id @default(uuid())
+  name         String         @unique
+  abbreviation String         @unique
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  medicines    Medicine[]     @relation("BaseUnit")
+  fromUnits    MedicineUnit[] @relation("FromUnit")
+  toUnits      MedicineUnit[] @relation("ToUnit")
+
+  @@map("units")
+}
+
+model MedicineUnit {
+  id               String   @id @default(uuid())
+  medicineId       String   @map("medicine_id")
+  fromUnitId       String   @map("from_unit_id")
+  toUnitId         String   @map("to_unit_id")
+  conversionFactor Float    @map("conversion_factor")
+
+  medicine         Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  fromUnit         Unit     @relation("FromUnit", fields: [fromUnitId], references: [id], onDelete: Restrict)
+  toUnit           Unit     @relation("ToUnit", fields: [toUnitId], references: [id], onDelete: Restrict)
+
+  @@unique([medicineId, fromUnitId, toUnitId])
+  @@map("medicine_units")
+}
+
+model Medicine {
+  id                   String            @id @default(uuid())
+  name                 String
+  genericName          String?           @map("generic_name")
+  brandName            String?           @map("brand_name")
+  composition          String?
+  strength             String?
+  dosageForm           String            @default("TABLET") @map("dosage_form")
+  categoryId           String?           @map("category_id")
+  subCategoryId        String?           @map("sub_category_id")
+  manufacturerId       String?           @map("manufacturer_id")
+  sku                  String            @unique
+  barcode              String?
+  eanUpcGtin           String?           @map("ean_upc_gtin")
+  hsnCode              String?           @map("hsn_code")
+  taxPercent           Float             @default(0) @map("tax_percent")
+  baseUnitId           String            @map("base_unit_id")
+  packSize             String?           @map("pack_size")
+  boxQty               Int?              @map("box_qty")
+  stripQty             Int?              @map("strip_qty")
+  tabletQty            Int?              @map("tablet_qty")
+  mrp                  Float             @default(0)
+  defaultPurchasePrice Float             @default(0) @map("default_purchase_price")
+  defaultSellingPrice  Float             @default(0) @map("default_selling_price")
+  reorderLevel         Int               @default(10) @map("reorder_level")
+  reorderQty           Int               @default(50) @map("reorder_qty")
+  maxStock             Int               @default(1000) @map("max_stock")
+  prescriptionRequired Boolean           @default(false) @map("prescription_required")
+  isActive             Boolean           @default(true) @map("is_active")
+  notes                String?
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  category             MedicineCategory? @relation("MedicineCategory", fields: [categoryId], references: [id], onDelete: SetNull)
+  subCategory          MedicineCategory? @relation("MedicineSubCategory", fields: [subCategoryId], references: [id], onDelete: SetNull)
+  manufacturer         Manufacturer?     @relation(fields: [manufacturerId], references: [id], onDelete: SetNull)
+  baseUnit             Unit              @relation("BaseUnit", fields: [baseUnitId], references: [id], onDelete: Restrict)
+  units                MedicineUnit[]
+  barcodes             Barcode[]
+  batches              Batch[]
+  movements            StockMovement[]
+  adjustments          StockAdjustment[]
+  purchaseItems        PurchaseItem[]
+  salesItems           SalesItem[]
+  transferItems        StockTransferItem[]
+  purchaseReturnItems  PurchaseReturnItem[]
+  salesReturnItems     SalesReturnItem[]
+
+  @@index([name])
+  @@index([genericName])
+  @@index([barcode])
+  @@map("medicines")
+}
+
+model Barcode {
+  id           String   @id @default(uuid())
+  medicineId   String   @map("medicine_id")
+  barcodeValue String   @unique @map("barcode_value")
+  barcodeType  String   @default("EAN13") @map("barcode_type")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  medicine     Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+
+  @@map("barcodes")
+}
+
+// ============================================================
+// 4. BATCH-WISE INVENTORY & MOVEMENTS
+// ============================================================
+
+model Batch {
+  id                String            @id @default(uuid())
+  medicineId        String            @map("medicine_id")
+  branchId          String            @map("branch_id")
+  batchNumber       String            @map("batch_number")
+  mfgDate           DateTime          @map("mfg_date")
+  expiryDate        DateTime          @map("expiry_date")
+  supplierId        String?           @map("supplier_id")
+  purchaseInvoiceId String?           @map("purchase_invoice_id")
+  purchasePrice     Float             @default(0) @map("purchase_price")
+  mrp               Float             @default(0)
+  sellingPrice      Float             @default(0) @map("selling_price")
+  taxPercent        Float             @default(0) @map("tax_percent")
+  initialQty        Int               @default(0) @map("initial_qty")
+  currentQty        Int               @default(0) @map("current_qty")
+  reservedQty       Int               @default(0) @map("reserved_qty")
+  damagedQty        Int               @default(0) @map("damaged_qty")
+  expiredQty        Int               @default(0) @map("expired_qty")
+  status            String            @default("ACTIVE")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+
+  medicine          Medicine          @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  branch            Branch            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  supplier          Supplier?         @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  movements         StockMovement[]
+  adjustments       StockAdjustment[]
+  salesItems        SalesItem[]
+  transferItems     StockTransferItem[]
+  purchaseItems     PurchaseItem[]
+  purchaseReturnItems PurchaseReturnItem[]
+  salesReturnItems  SalesReturnItem[]
+
+  @@unique([medicineId, branchId, batchNumber])
+  @@index([expiryDate])
+  @@index([status])
+  @@map("batches")
+}
+
+model StockMovement {
+  id            String   @id @default(uuid())
+  branchId      String   @map("branch_id")
+  medicineId    String   @map("medicine_id")
+  batchId       String   @map("batch_id")
+  qty           Int
+  unitId        String?  @map("unit_id")
+  direction     String   @map("direction") // IN / OUT
+  type          String   @map("type")      // OPENING_STOCK, PURCHASE, SALE, etc.
+  referenceType String?  @map("reference_type")
+  referenceId   String?  @map("reference_id")
+  userId        String   @map("user_id")
+  reason        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  branch        Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  medicine      Medicine @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+  batch         Batch    @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([medicineId, batchId])
+  @@index([createdAt])
+  @@map("stock_movements")
+}
+
+model StockAdjustment {
+  id               String   @id @default(uuid())
+  branchId         String   @map("branch_id")
+  medicineId       String   @map("medicine_id")
+  batchId          String   @map("batch_id")
+  existingQty      Int      @map("existing_qty")
+  adjustmentQty    Int      @map("adjustment_qty")
+  newQty           Int      @map("new_qty")
+  reason           String
+  approvalStatus   String   @default("APPROVED") @map("approval_status")
+  adjustedByUserId String   @map("adjusted_by_user_id")
+  approvedByUserId String?  @map("approved_by_user_id")
+  notes            String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  branch           Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  medicine         Medicine @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+  batch            Batch    @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@map("stock_adjustments")
+}
+
+model StockTransfer {
+  id                 String              @id @default(uuid())
+  fromBranchId       String              @map("from_branch_id")
+  toBranchId         String              @map("to_branch_id")
+  status             String              @default("DRAFT")
+  transferredByUserId String             @map("transferred_by_user_id")
+  receivedByUserId   String?             @map("received_by_user_id")
+  notes              String?
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  fromBranch         Branch              @relation("FromBranch", fields: [fromBranchId], references: [id], onDelete: Restrict)
+  toBranch           Branch              @relation("ToBranch", fields: [toBranchId], references: [id], onDelete: Restrict)
+  items              StockTransferItem[]
+
+  @@map("stock_transfers")
+}
+
+model StockTransferItem {
+  id         String        @id @default(uuid())
+  transferId String        @map("transfer_id")
+  medicineId String        @map("medicine_id")
+  batchId    String        @map("batch_id")
+  qty        Int
+  unitId     String?       @map("unit_id")
+
+  transfer   StockTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  medicine   Medicine      @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+  batch      Batch         @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@map("stock_transfer_items")
+}
+
+// ============================================================
+// 5. SUPPLIERS & CUSTOMERS
+// ============================================================
+
+model Supplier {
+  id             String            @id @default(uuid())
+  name           String
+  company        String?
+  contactPerson  String?           @map("contact_person")
+  phone          String
+  email          String?
+  address        String?
+  gstNumber      String?           @map("gst_number")
+  paymentTerms   String?           @map("payment_terms")
+  creditLimit    Float             @default(0) @map("credit_limit")
+  openingBalance Float             @default(0) @map("opening_balance")
+  currentBalance Float             @default(0) @map("current_balance")
+  isActive       Boolean           @default(true) @map("is_active")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  batches        Batch[]
+  purchases      PurchaseInvoice[]
+  returns        PurchaseReturn[]
+
+  @@map("suppliers")
+}
+
+model Customer {
+  id           String         @id @default(uuid())
+  name         String
+  mobile       String?        @unique
+  email        String?
+  address      String?
+  dob          DateTime?
+  notes        String?
+  isActive     Boolean        @default(true) @map("is_active")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+
+  sales        SalesInvoice[]
+  returns      SalesReturn[]
+
+  @@index([name])
+  @@index([mobile])
+  @@map("customers")
+}
+
+// ============================================================
+// 6. PURCHASES & INCOMING STOCK
+// ============================================================
+
+model PurchaseInvoice {
+  id               String            @id @default(uuid())
+  invoiceNumber    String            @unique @map("invoice_number")
+  supplierId       String            @map("supplier_id")
+  branchId         String            @map("branch_id")
+  status           String            @default("DRAFT")
+  subtotal         Float             @default(0)
+  discountAmount   Float             @default(0) @map("discount_amount")
+  taxAmount        Float             @default(0) @map("tax_amount")
+  totalAmount      Float             @default(0) @map("total_amount")
+  notes            String?
+  createdByUserId  String            @map("created_by_user_id")
+  approvedByUserId String?           @map("approved_by_user_id")
+  confirmedAt      DateTime?         @map("confirmed_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  supplier         Supplier          @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  branch           Branch            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  createdByUser    User              @relation("PurchaseCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  approvedByUser   User?             @relation("PurchaseApprover", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+  items            PurchaseItem[]
+  payments         PurchasePayment[]
+  returns          PurchaseReturn[]
+
+  @@map("purchase_invoices")
+}
+
+model PurchaseItem {
+  id                String             @id @default(uuid())
+  purchaseInvoiceId String             @map("purchase_invoice_id")
+  medicineId        String             @map("medicine_id")
+  batchId           String?            @map("batch_id")
+  batchNumber       String             @map("batch_number")
+  mfgDate           DateTime           @map("mfg_date")
+  expiryDate        DateTime           @map("expiry_date")
+  qty               Int
+  unitId            String?            @map("unit_id")
+  purchasePrice     Float              @map("purchase_price")
+  mrp               Float
+  sellingPrice      Float              @map("selling_price")
+  taxPercent        Float              @default(0) @map("tax_percent")
+  discountPercent   Float              @default(0) @map("discount_percent")
+  lineTotal         Float              @map("line_total")
+
+  purchaseInvoice   PurchaseInvoice    @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+  medicine          Medicine           @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+  batch             Batch?             @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  returnItems       PurchaseReturnItem[]
+
+  @@map("purchase_items")
+}
+
+model PurchasePayment {
+  id                String          @id @default(uuid())
+  purchaseInvoiceId String          @map("purchase_invoice_id")
+  supplierId        String          @map("supplier_id")
+  amount            Float
+  paymentMode       String          @default("BANK_TRANSFER") @map("payment_mode")
+  referenceNumber   String?         @map("reference_number")
+  notes             String?
+  paidAt            DateTime        @default(now()) @map("paid_at")
+  createdByUserId   String          @map("created_by_user_id")
+
+  purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Cascade)
+
+  @@map("purchase_payments")
+}
+
+model PurchaseReturn {
+  id                String               @id @default(uuid())
+  returnNumber      String               @unique @map("return_number")
+  purchaseInvoiceId String               @map("purchase_invoice_id")
+  supplierId        String               @map("supplier_id")
+  branchId          String               @map("branch_id")
+  status            String               @default("PENDING")
+  totalAmount       Float                @default(0) @map("total_amount")
+  notes             String?
+  createdByUserId   String               @map("created_by_user_id")
+  createdAt         DateTime             @default(now()) @map("created_at")
+
+  purchaseInvoice   PurchaseInvoice      @relation(fields: [purchaseInvoiceId], references: [id], onDelete: Restrict)
+  supplier          Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  branch            Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  items             PurchaseReturnItem[]
+
+  @@map("purchase_returns")
+}
+
+model PurchaseReturnItem {
+  id             String         @id @default(uuid())
+  returnId       String         @map("return_id")
+  purchaseItemId String         @map("purchase_item_id")
+  medicineId     String         @map("medicine_id")
+  batchId        String         @map("batch_id")
+  returnQty      Int            @map("return_qty")
+  reason         String?
+
+  returnRecord   PurchaseReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  purchaseItem   PurchaseItem   @relation(fields: [purchaseItemId], references: [id], onDelete: Restrict)
+  medicine       Medicine       @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+  batch          Batch          @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@map("purchase_return_items")
+}
+
+// ============================================================
+// 7. SALES, INVOICES & PAYMENTS (POS)
+// ============================================================
+
+model SalesInvoice {
+  id              String         @id @default(uuid())
+  invoiceNumber   String         @unique @map("invoice_number")
+  branchId        String         @map("branch_id")
+  customerId      String?        @map("customer_id")
+  status          String         @default("COMPLETED")
+  subtotal        Float          @default(0)
+  discountAmount  Float          @default(0) @map("discount_amount")
+  taxAmount       Float          @default(0) @map("tax_amount")
+  totalAmount     Float          @default(0) @map("total_amount")
+  paymentStatus   String         @default("PAID") @map("payment_status")
+  createdByUserId String         @map("created_by_user_id")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  branch          Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  customer        Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  createdByUser   User           @relation("SalesCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items           SalesItem[]
+  payments        SalesPayment[]
+  returns         SalesReturn[]
+
+  @@index([invoiceNumber])
+  @@index([createdAt])
+  @@map("sales_invoices")
+}
+
+model SalesItem {
+  id              String            @id @default(uuid())
+  salesInvoiceId  String            @map("sales_invoice_id")
+  medicineId      String            @map("medicine_id")
+  batchId         String            @map("batch_id")
+  qty             Int
+  unitId          String?           @map("unit_id")
+  rate            Float
+  mrp             Float
+  discountPercent Float             @default(0) @map("discount_percent")
+  taxPercent      Float             @default(0) @map("tax_percent")
+  lineTotal       Float             @map("line_total")
+
+  salesInvoice    SalesInvoice      @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
+  medicine        Medicine          @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+  batch           Batch             @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  returnItems     SalesReturnItem[]
+
+  @@map("sales_items")
+}
+
+model SalesPayment {
+  id              String       @id @default(uuid())
+  salesInvoiceId  String       @map("sales_invoice_id")
+  amount          Float
+  paymentMode     String       @default("CASH") @map("payment_mode")
+  referenceNumber String?      @map("reference_number")
+  paidAt          DateTime     @default(now()) @map("paid_at")
+  createdByUserId String       @map("created_by_user_id")
+
+  salesInvoice    SalesInvoice @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
+
+  @@map("sales_payments")
+}
+
+model SalesReturn {
+  id              String            @id @default(uuid())
+  returnNumber    String            @unique @map("return_number")
+  salesInvoiceId  String            @map("sales_invoice_id")
+  branchId        String            @map("branch_id")
+  customerId      String?           @map("customer_id")
+  status          String            @default("COMPLETED")
+  refundAmount    Float             @default(0) @map("refund_amount")
+  refundMode      String            @default("CASH") @map("refund_mode")
+  storeCredit     Float             @default(0) @map("store_credit")
+  notes           String?
+  createdByUserId String            @map("created_by_user_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+
+  salesInvoice    SalesInvoice      @relation(fields: [salesInvoiceId], references: [id], onDelete: Restrict)
+  branch          Branch            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  customer        Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  items           SalesReturnItem[]
+
+  @@map("sales_returns")
+}
+
+model SalesReturnItem {
+  id           String      @id @default(uuid())
+  returnId     String      @map("return_id")
+  salesItemId  String      @map("sales_item_id")
+  medicineId   String      @map("medicine_id")
+  batchId      String      @map("batch_id")
+  returnQty    Int         @map("return_qty")
+  condition    String      @default("RESALABLE")
+  reason       String?
+
+  returnRecord SalesReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  salesItem    SalesItem   @relation(fields: [salesItemId], references: [id], onDelete: Restrict)
+  medicine     Medicine    @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+  batch        Batch       @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@map("sales_return_items")
+}
+
+// ============================================================
+// 8. EXPENSES & FINANCIAL OPERATIONS
+// ============================================================
+
+model Expense {
+  id              String   @id @default(uuid())
+  branchId        String   @map("branch_id")
+  category        String   @default("MISCELLANEOUS")
+  amount          Float
+  date            DateTime @default(now())
+  paymentMethod   String   @default("CASH") @map("payment_method")
+  notes           String?
+  attachmentPath  String?  @map("attachment_path")
+  createdByUserId String   @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  branch          Branch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  createdByUser   User     @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@map("expenses")
+}
+
+// ============================================================
+// 9. AUDIT LOGS, NOTIFICATIONS & SYSTEM CONFIGURATION
+// ============================================================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  entity     String
+  entityId   String?  @map("entity_id")
+  oldValue   String?    @map("old_value")
+  newValue   String?    @map("new_value")
+  ipAddress  String?  @map("ip_address")
+  deviceInfo String?  @map("device_info")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  title     String
+  message   String
+  isRead    Boolean  @default(false) @map("is_read")
+  metadata  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model FileUpload {
+  id               String   @id @default(uuid())
+  filename         String
+  originalName     String   @map("original_name")
+  mimeType         String   @map("mime_type")
+  size             Int
+  path             String
+  uploadedByUserId String?  @map("uploaded_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  uploadedByUser   User?    @relation(fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("file_uploads")
+}
+
+model MessageLog {
+  id               String    @id @default(uuid())
+  recipientType    String    @map("recipient_type") // EMAIL / SMS / WHATSAPP
+  recipientAddress String    @map("recipient_address")
+  subject          String?
+  body             String
+  status           String    @default("PENDING")
+  sentAt           DateTime? @map("sent_at")
+  errorMessage     String?   @map("error_message")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  @@map("message_logs")
+}
+
+model PrinterSetting {
+  id               String   @id @default(uuid())
+  branchId         String   @map("branch_id")
+  name             String
+  type             String   @default("USB") // USB / BLUETOOTH / NETWORK
+  connectionString String?  @map("connection_string")
+  paperWidth       String   @default("58mm") @map("paper_width")
+  isDefault        Boolean  @default(false) @map("is_default")
+  config           String?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  branch           Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@map("printer_settings")
+}
+
+model InvoiceTemplate {
+  id         String   @id @default(uuid())
+  name       String   @default("Standard A4 Tax Invoice")
+  type       String   @default("A4") // A4 / THERMAL
+  headerHtml String?  @map("header_html")
+  footerHtml String?  @map("footer_html")
+  bodyTemplate String? @map("body_template")
+  config     String?
+  isDefault  Boolean  @default(true) @map("is_default")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("invoice_templates")
+}
+
+model ReceiptTemplate {
+  id              String   @id @default(uuid())
+  name            String   @default("Default Thermal Receipt")
+  paperWidth      String   @default("58mm") @map("paper_width")
+  showLogo        Boolean  @default(true) @map("show_logo")
+  showGst         Boolean  @default(true) @map("show_gst")
+  showLicense     Boolean  @default(true) @map("show_license")
+  headerText      String?  @map("header_text")
+  footerText      String?  @map("footer_text")
+  thankYouMessage String?  @default("Thank You! Get Well Soon") @map("thank_you_message")
+  returnPolicy    String?  @default("Goods once sold can only be returned within 7 days with original invoice.") @map("return_policy")
+  displayFields   String?    @map("display_fields")
+  isDefault       Boolean  @default(true) @map("is_default")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("receipt_templates")
+}

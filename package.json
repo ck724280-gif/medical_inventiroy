@@ -1,0 +1,49 @@
+{
+  "name": "medical-inventory-erp-pos",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Production-ready, Single-Business Medical Inventory & Pharmacy ERP/POS System",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:api": "npm run dev --workspace=@medical-inventory/api",
+    "dev:web": "npm run dev --workspace=@medical-inventory/web",
+    "dev:mobile": "npm run start --workspace=@medical-inventory/mobile",
+    "build": "turbo run build",
+    "build:api": "npm run build --workspace=@medical-inventory/api",
+    "build:web": "npm run build --workspace=@medical-inventory/web",
+    "lint": "turbo run lint",
+    "test": "tsx --test tests/runner.ts",
+    "test:e2e": "tsx --test tests/runner.ts",
+    "test:all": "tsx --test tests/runner.ts",
+    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "db:push": "prisma db push --schema=./prisma/schema.prisma",
+    "db:seed": "tsx ./prisma/seed/index.ts",
+    "clean": "turbo run clean && rimraf node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "prisma": "^5.22.0",
+    "rimraf": "^6.0.1",
+    "tsx": "^4.19.2",
+    "turbo": "^2.3.3",
+    "typescript": "^5.6.3"
+  },
+  "optionalDependencies": {
+    "@next/swc-win32-x64-msvc": "^14.2.20"
+  },
+  "overrides": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "packageManager": "npm@10.8.2",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

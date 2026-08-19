@@ -1,0 +1,35 @@
+import { z } from 'zod';
+import { DosageForm } from '@medical-inventory/shared-types';
+
+export const createMedicineSchema = z.object({
+  name: z.string().min(1, 'Medicine name is required').max(200),
+  genericName: z.string().max(200).optional().nullable(),
+  brandName: z.string().max(200).optional().nullable(),
+  composition: z.string().max(500).optional().nullable(),
+  strength: z.string().max(100).optional().nullable(),
+  dosageForm: z.nativeEnum(DosageForm),
+  categoryId: z.string().optional().nullable(),
+  subCategoryId: z.string().optional().nullable(),
+  manufacturerId: z.string().optional().nullable(),
+  sku: z.string().min(1, 'SKU is required').max(100),
+  barcode: z.string().max(100).optional().nullable(),
+  eanUpcGtin: z.string().max(50).optional().nullable(),
+  hsnCode: z.string().max(20).optional().nullable(),
+  taxPercent: z.number().min(0).max(100).default(0),
+  baseUnitId: z.string().min(1, 'Base unit is required'),
+  packSize: z.string().max(50).optional().nullable(),
+  boxQty: z.number().int().min(1).optional().nullable(),
+  stripQty: z.number().int().min(1).optional().nullable(),
+  tabletQty: z.number().int().min(1).optional().nullable(),
+  mrp: z.number().min(0, 'MRP cannot be negative'),
+  defaultPurchasePrice: z.number().min(0, 'Purchase price cannot be negative'),
+  defaultSellingPrice: z.number().min(0, 'Selling price cannot be negative'),
+  reorderLevel: z.number().int().min(0).default(10),
+  reorderQty: z.number().int().min(1).default(50),
+  maxStock: z.number().int().min(0).default(1000),
+  prescriptionRequired: z.boolean().default(false),
+  isActive: z.boolean().default(true),
+  notes: z.string().max(1000).optional().nullable(),
+});
+
+export const updateMedicineSchema = createMedicineSchema.partial();

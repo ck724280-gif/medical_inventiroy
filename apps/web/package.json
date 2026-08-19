@@ -1,0 +1,51 @@
+{
+  "name": "@medical-inventory/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start -p 3000",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^3.9.1",
+    "@medical-inventory/constants": "*",
+    "@medical-inventory/shared-types": "*",
+    "@medical-inventory/shared-utils": "*",
+    "@medical-inventory/validation": "*",
+    "@react-three/drei": "^9.121.4",
+    "@react-three/fiber": "^8.17.10",
+    "@tanstack/react-query": "^5.62.7",
+    "axios": "^1.7.9",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
+    "framer-motion": "^11.15.0",
+    "gsap": "^3.12.5",
+    "lucide-react": "^0.468.0",
+    "next": "14.2.20",
+    "react": "^18.3.1",
+    "react-barcode": "^1.5.3",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.54.1",
+    "react-to-print": "^3.0.2",
+    "recharts": "^2.15.0",
+    "tailwind-merge": "^2.5.5",
+    "three": "^0.171.0",
+    "zod": "^3.23.8",
+    "zustand": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/three": "^0.171.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "typescript": "^5.6.3"
+  },
+  "optionalDependencies": {
+    "@next/swc-win32-x64-msvc": "^14.2.20"
+  }
+}

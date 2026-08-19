@@ -1,0 +1,165 @@
+export enum DosageForm {
+  TABLET = 'TABLET',
+  CAPSULE = 'CAPSULE',
+  SYRUP = 'SYRUP',
+  INJECTION = 'INJECTION',
+  CREAM = 'CREAM',
+  OINTMENT = 'OINTMENT',
+  DROPS = 'DROPS',
+  POWDER = 'POWDER',
+  INHALER = 'INHALER',
+  SUSPENSION = 'SUSPENSION',
+  GEL = 'GEL',
+  LOTION = 'LOTION',
+  SPRAY = 'SPRAY',
+  OTHER = 'OTHER',
+}
+
+export enum RoleName {
+  OWNER = 'OWNER',
+  ADMIN = 'ADMIN',
+  MANAGER = 'MANAGER',
+  PHARMACIST = 'PHARMACIST',
+  CASHIER = 'CASHIER',
+  INVENTORY_STAFF = 'INVENTORY_STAFF',
+  ACCOUNTANT = 'ACCOUNTANT',
+}
+
+export enum BatchStatus {
+  ACTIVE = 'ACTIVE',
+  EXPIRED = 'EXPIRED',
+  BLOCKED = 'BLOCKED',
+  QUARANTINED = 'QUARANTINED',
+  RECALLED = 'RECALLED',
+}
+
+export enum StockMovementType {
+  OPENING_STOCK = 'OPENING_STOCK',
+  PURCHASE = 'PURCHASE',
+  SALE = 'SALE',
+  SALES_RETURN = 'SALES_RETURN',
+  PURCHASE_RETURN = 'PURCHASE_RETURN',
+  TRANSFER_IN = 'TRANSFER_IN',
+  TRANSFER_OUT = 'TRANSFER_OUT',
+  ADJUSTMENT = 'ADJUSTMENT',
+  DAMAGE = 'DAMAGE',
+  EXPIRY = 'EXPIRY',
+  OTHER = 'OTHER',
+}
+
+export enum MovementDirection {
+  IN = 'IN',
+  OUT = 'OUT',
+}
+
+export enum PurchaseStatus {
+  DRAFT = 'DRAFT',
+  CONFIRMED = 'CONFIRMED',
+  APPROVED = 'APPROVED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum SaleStatus {
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  RETURNED = 'RETURNED',
+  PARTIALLY_RETURNED = 'PARTIALLY_RETURNED',
+}
+
+export enum PaymentMode {
+  CASH = 'CASH',
+  UPI = 'UPI',
+  CARD = 'CARD',
+  BANK_TRANSFER = 'BANK_TRANSFER',
+  CREDIT = 'CREDIT',
+  CHEQUE = 'CHEQUE',
+  OTHER = 'OTHER',
+}
+
+export enum PaymentStatus {
+  PAID = 'PAID',
+  PARTIAL = 'PARTIAL',
+  UNPAID = 'UNPAID',
+  REFUNDED = 'REFUNDED',
+}
+
+export enum ReturnCondition {
+  RESALABLE = 'RESALABLE',
+  QUARANTINED = 'QUARANTINED',
+  DAMAGED = 'DAMAGED',
+  EXPIRED = 'EXPIRED',
+}
+
+export enum PaperWidth {
+  WIDTH_58MM = '58mm',
+  WIDTH_80MM = '80mm',
+}
+
+export enum PrinterType {
+  USB = 'USB',
+  BLUETOOTH = 'BLUETOOTH',
+  NETWORK = 'NETWORK',
+}
+
+export enum BarcodeType {
+  EAN13 = 'EAN13',
+  EAN8 = 'EAN8',
+  UPC_A = 'UPC_A',
+  UPC_E = 'UPC_E',
+  CODE128 = 'CODE128',
+  QR = 'QR',
+  DATAMATRIX = 'DATAMATRIX',
+  INTERNAL = 'INTERNAL',
+}
+
+export enum NotificationType {
+  LOW_STOCK = 'LOW_STOCK',
+  CRITICAL_STOCK = 'CRITICAL_STOCK',
+  EXPIRY_WARNING = 'EXPIRY_WARNING',
+  EXPIRED_STOCK = 'EXPIRED_STOCK',
+  PENDING_PAYMENT = 'PENDING_PAYMENT',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  STOCK_ADJUSTMENT = 'STOCK_ADJUSTMENT',
+  BACKUP_FAILURE = 'BACKUP_FAILURE',
+  SYSTEM = 'SYSTEM',
+}
+
+export enum MessageChannel {
+  EMAIL = 'EMAIL',
+  SMS = 'SMS',
+  WHATSAPP = 'WHATSAPP',
+}
+
+export enum MessageStatus {
+  PENDING = 'PENDING',
+  SENT = 'SENT',
+  FAILED = 'FAILED',
+}
+
+export enum ExpenseCategory {
+  RENT = 'RENT',
+  ELECTRICITY = 'ELECTRICITY',
+  SALARY = 'SALARY',
+  TRANSPORT = 'TRANSPORT',
+  INTERNET = 'INTERNET',
+  MAINTENANCE = 'MAINTENANCE',
+  PACKAGING = 'PACKAGING',
+  MARKETING = 'MARKETING',
+  MISCELLANEOUS = 'MISCELLANEOUS',
+}
+
+export enum TransferStatus {
+  DRAFT = 'DRAFT',
+  IN_TRANSIT = 'IN_TRANSIT',
+  RECEIVED = 'RECEIVED',
+  CANCELLED = 'CANCELLED',
+}
+
+export enum AdjustmentReason {
+  PHYSICAL_MISMATCH = 'PHYSICAL_MISMATCH',
+  DAMAGE = 'DAMAGE',
+  EXPIRY = 'EXPIRY',
+  LOSS = 'LOSS',
+  CORRECTION = 'CORRECTION',
+  OTHER = 'OTHER',
+}
