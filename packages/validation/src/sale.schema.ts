@@ -1,11 +1,24 @@
 import { z } from 'zod';
 import { PaymentMode, ReturnCondition, PaperWidth } from '@medical-inventory/shared-types';
 
+export const prescriptionSchema = z.object({
+  doctorName: z.string().min(1, 'Doctor name is required'),
+  doctorRegNo: z.string().min(1, 'Doctor registration number is required'),
+  patientName: z.string().min(1, 'Patient name is required'),
+  patientAge: z.number().int().positive('Patient age must be positive'),
+  patientAddress: z.string().optional().nullable(),
+  prescriptionNumber: z.string().optional().nullable(),
+  drugSchedule: z.string().default('SCHEDULE_H'),
+});
+
 export const cartItemSchema = z.object({
   medicineId: z.string().min(1, 'Medicine is required'),
   batchId: z.string().optional(),
   qty: z.number().int().positive('Quantity must be positive'),
   unitId: z.string().optional().nullable(),
+  unitLevel: z.string().optional().nullable(),
+  selectedQuantity: z.number().optional().nullable(),
+  conversionRatio: z.number().optional().nullable(),
   rate: z.number().min(0).optional(),
   discountPercent: z.number().min(0).max(100).default(0),
 });
@@ -21,11 +34,14 @@ export const posCheckoutSchema = z.object({
   customerId: z.string().optional().nullable(),
   customerName: z.string().max(100).optional().nullable(),
   customerMobile: z.string().min(10).max(15).optional().nullable(),
+  customerGstin: z.string().optional().nullable(),
+  isB2B: z.boolean().default(false),
   items: z.array(cartItemSchema).min(1, 'Cart cannot be empty'),
   payments: z.array(salePaymentSchema).min(1, 'At least one payment method is required'),
   invoiceDiscountPercent: z.number().min(0).max(100).default(0),
   notes: z.string().max(500).optional().nullable(),
   paperWidth: z.nativeEnum(PaperWidth).default(PaperWidth.WIDTH_58MM),
+  prescription: prescriptionSchema.optional().nullable(),
 });
 
 export const createSalesReturnSchema = z.object({

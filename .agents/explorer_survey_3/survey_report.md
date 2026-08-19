@@ -1,177 +1,226 @@
-# Architecture Survey Report: Web ERP & POS Terminal (R4) and Mobile POS (R5)
+# Comprehensive Survey Report 3: E2E Testing Framework, Build Pipeline, Database Sync, and Deployment Strategy
 
-**System:** Single-Business Multi-Branch Medical Inventory & Pharmacy ERP / POS
-**Working Directory:** `d:/antigravity programme/medical_inventory`
-**Date:** 2026-08-19
-**Explorer:** Explorer 3 (Frontend Web ERP/POS & Mobile Architecture)
+**Date**: 2026-08-19  
+**Agent**: Explorer Survey 3 (`.agents/explorer_survey_3`)  
+**Target Repository**: `https://github.com/ck724280-gif/medical_inventiroy` (`main` branch)  
+**Database**: Neon PostgreSQL (`ep-bitter-recipe-aywnmxlu.c-5.us-east-2.aws.neon.tech`)
 
 ---
 
-## 1. Executive Summary & Workspace Topology
+## Executive Summary
 
-This report delivers a deep architectural survey and technical blueprint of the frontend web applications and mobile apps for the Medical Inventory & Pharmacy ERP/POS System. The workspace is built as a high-performance monorepo using **Turborepo** and **npm workspaces**, linking shared core packages (`@medical-inventory/shared-types`, `@medical-inventory/constants`, `@medical-inventory/shared-utils`, `@medical-inventory/validation`) with the web application (`apps/web`) and mobile application (`apps/mobile`).
+This survey provides a complete investigation into the end-to-end testing harness, monorepo build pipeline, database connectivity, deployment readiness, and the architectural design for the **4-Tier E2E Testing Strategy** covering all requirements from Phase 1 (Bug Fixes R1–R2), Phase 2 (Vyapar-Inspired Medical Features R3–R9), and Phase 3 (Deployment & Verification R10).
 
-### Monorepo Topology & Linkage
+---
+
+## 1. Build Pipeline & Monorepo Investigation
+
+### 1.1 Workspace Architecture
+The repository is structured as an npm/Turborepo monorepo:
+- **`apps/web`**: Next.js 14.2.20 (App Router), React 18.3.1, TanStack Query v5, Tailwind CSS, Lucide icons, GSAP, Three.js / React Three Fiber.
+- **`apps/api`**: NestJS 10.4.15, Express, Prisma 5.22.0, Passport JWT/Local, Argon2, ExcelJS, PDFKit, Zod.
+- **`packages/shared-types`**: TypeScript interfaces, enums (`DrugSchedule`, `BatchStatus`, `InvoiceStatus`, `PaymentMode`, `UnitLevel`, etc.).
+- **`packages/constants`**: Application constants, error codes, tax rates, unit presets.
+- **`packages/shared-utils`**: Pure domain functions (`fefo.ts`, `currency.ts`, `barcode.ts`, `sequencers.ts`, `thermal-receipt.ts`, `whatsapp.ts`, `unit-conversion.ts`).
+- **`packages/validation`**: Zod validation schemas shared across web and API.
+
+### 1.2 Build Verification Results
+
+| Target | Build Tool / Command | Exit Code | Result Summary |
+|---|---|---|---|
+| `packages/shared-types` | `tsc -b` | `0` | Clean build, type definitions generated in `dist/` |
+| `packages/constants` | `tsc -b` | `0` | Clean build, constants exported in `dist/` |
+| `packages/shared-utils` | `tsc -b` | `0` | Clean build, pure domain utilities built in `dist/` |
+| `packages/validation` | `tsc -b` | `0` | Clean build, Zod schemas compiled in `dist/` |
+| `apps/api` | `nest build` + `postbuild` | `0` | NestJS dist artifacts compiled and copied to `dist/main.js` |
+| `apps/web` | `next build` | `0` | Compiled successfully; **17/17** static and dynamic App Router routes generated |
+
+### 1.3 Critical Monorepo Anomaly & Fix Requirement
+- **Observation**: The root `package.json` was temporarily replaced with a desktop accounting app configuration (`"name": "Vyaparapp", "version": "33.2.0"`), which omits the `workspaces: ["apps/*", "packages/*"]` key and Turborepo root scripts.
+- **Impact**: Invoking `turbo run build` or `npm run dev` at the repository root fails if workspaces are disabled.
+- **Resolution**: Root `package.json` must be restored to its canonical monorepo configuration (`medical-inventory-erp-pos`) as tracked in git history.
+
+---
+
+## 2. Database Synchronization & Connectivity
+
+### 2.1 Schema Location & Provider
+- **Location**: `prisma/schema.prisma` at workspace root.
+- **Provider**: `postgresql` via `env("DATABASE_URL")`.
+- **Active Models**: 42 relational models including `User`, `Role`, `Permission`, `Medicine`, `Unit`, `MedicineUnit`, `Batch`, `StockMovement`, `Customer`, `Supplier`, `PurchaseInvoice`, `PurchaseItem`, `SalesInvoice`, `SalesItem`, `SalesPayment`, `SalesReturn`, `PartyItemPrice`, `PrescriptionRecord`, `PurchaseOrder`, `PurchaseOrderItem`.
+
+### 2.2 Neon Database Live Connectivity Verification
+- **Connection URI**: `postgresql://neondb_owner:npg_zprDj3gNco1W@ep-bitter-recipe-aywnmxlu.c-5.us-east-2.aws.neon.tech/neondb?sslmode=require`
+- **Verification Script**: Executed `npx tsx .agents/explorer_survey_3/test_neon.ts` against the live endpoint.
+- **Live Counts Verified**:
+  - `User`: 1 (Admin)
+  - `Role`: 7
+  - `Branch`: 1 (Main Pharmacy Branch)
+  - `Medicine`: 9
+  - `Batch`: 12
+- **Network Latency & Interactive Transaction Timeout Finding**:
+  - The Neon cluster is hosted in AWS us-east-2.
+  - Multi-query interactive transactions (`prisma.$transaction(async (tx) => { ... })`) hit the default 5000ms timeout (`P2028`) when executing 10+ sequential roundtrips over high-latency WAN connections.
+  - **Remediation Rule**: All interactive transaction calls in API services and test harnesses must specify an extended timeout:
+    ```typescript
+    await prisma.$transaction(async (tx) => { ... }, {
+      maxWait: 10000,
+      timeout: 30000,
+    });
+    ```
+
+---
+
+## 3. Git Status & Deployment Configuration
+
+### 3.1 Git Remote & Branches
+- **Remote Origin**: `https://github.com/ck724280-gif/medical_inventiroy.git`
+- **Current Branch**: `main` (synchronized with `origin/main`).
+- **Deployment Pipelines**:
+  - **Frontend**: Vercel Git integration tracking `main` branch, triggering Next.js builds on push.
+  - **Backend**: Render Web Service tracking `main` branch, building NestJS and hosting `https://medical-inventiroy.onrender.com`.
+  - **Database Migration**: `npx prisma db push` applying schema updates directly to the Neon PostgreSQL instance.
+
+---
+
+## 4. Test Runner & Harness Architecture
+
+### 4.1 Test Engine
+- **Engine**: Node.js Native Test Runner (`node:test` + `node:assert/strict`).
+- **Invocation**: `tsx --test tests/runner.ts` (or `npm test`).
+- **Suites Organized By**:
+  - `tests/tier1-feature-coverage/`
+  - `tests/tier2-boundary-corner-cases/`
+  - `tests/tier3-cross-feature-combinations/`
+  - `tests/tier4-real-world-workloads/`
+  - `tests/adversarial-challenger1-stress.test.ts`
+  - `tests/challenger_2_empirical_stress.test.ts`
+
+---
+
+## 5. 4-Tier E2E Testing Strategy Design
+
+To ensure zero regressions and 100% compliance across all 10 requirements (R1–R10), the test strategy is structured into 4 comprehensive tiers with >=5 assertions per feature.
 
 ```
-d:/antigravity programme/medical_inventory/
-├── apps/
-│   ├── api/                     # NestJS 10 REST API Server (20+ domain modules)
-│   ├── web/                     # Next.js 14 App Router Web ERP & POS Billing Terminal
-│   └── mobile/                  # Expo / React Native Mobile POS & Barcode Scanner
-├── packages/
-│   ├── shared-types/            # Shared TypeScript domain models & DTOs
-│   ├── constants/               # RBAC matrix, default roles, tax slabs, payment modes
-│   ├── shared-utils/            # FEFO allocation, currency math, ESC/POS formatters
-│   └── validation/              # Zod validation schemas
-├── prisma/
-│   ├── schema.prisma            # 38+ relational models
-│   └── seed/                    # Admin user, business settings, sample pharmacy seed
-├── package.json                 # Monorepo workspaces definition
-├── turbo.json                   # Build & test task pipeline
-└── tsconfig.base.json           # Shared TypeScript compiler configuration
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                                 4-TIER E2E TEST STRATEGY                               │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ TIER 1: Feature Coverage (>=5 test cases per feature R1–R10)                           │
+│   • R1: API Paginated Response Unwrapping across all 11 Web Pages                      │
+│   • R2: Auth JWT Token Storage, Bearer Header Injection, & Auto-Redirect               │
+│   • R3: Multi-Level Unit Conversion (Box → Strip → Tablet) & Base Stock Math           │
+│   • R4: Party-Wise Special Pricing & Discount Matrix Auto-Fill Engine                  │
+│   • R5: GST Returns (GSTR-1 B2B/B2C, GSTR-3B Tax Comparison, HSN Summary)             │
+│   • R6: Barcode Label Generation & 40x20mm Thermal Print Formatter                     │
+│   • R7: Schedule H/H1/X Mandatory Prescription Registry & Legal Export                 │
+│   • R8: WhatsApp Dynamic Share Link & Payment Reminder Formatter                       │
+│   • R9: Purchase Order (PO) Lifecycle & 1-Click Inward Bill Auto-Conversion            │
+│   • R10: Live Production Health Check & Schema Migration Verification                  │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ TIER 2: Boundary & Corner Cases (>=5 test cases per feature)                           │
+│   • Zero, negative, fractional, and massive quantities                                │
+│   • Expired, quarantined, and same-day expiry batch boundaries                         │
+│   • Missing HSN, invalid GSTIN checksums, 100% discount, zero tax                      │
+│   • Null/empty party selection, missing optional phone numbers                         │
+│   • Partial PO receipt, over-received quantities, PO cancellation guardrails           │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ TIER 3: Cross-Feature Combinations & Transactional Workflows                           │
+│   • Workflow 1: PO Inward → Unit Conversion Batch → Special Price Sale → GSTR-1        │
+│   • Workflow 2: Schedule H Purchase → FEFO Split Sale → Prescription Log → Register    │
+│   • Workflow 3: Multi-Unit Sale → Resalable Return → Stock Restoration → GSTR-1 Credit │
+│   • Workflow 4: Atomic Rollback on Mid-Transaction Stock Shortage                      │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ TIER 4: Real-World Scenarios & Pharmacy Simulation Workloads                           │
+│   • Scenario 1: Busy Pharmacy Peak Hours (Concurrent Multi-Tender Checkouts)           │
+│   • Scenario 2: Batch Recall & Quarantine Simulation Across All Existing Stock         │
+│   • Scenario 3: Monthly GST Filing Reconciliation & Drug Inspector Compliance Audit    │
+│   • Scenario 4: End-to-End Procurement-to-Dispensation Lifecycle                       │
+└────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
----
+### 5.1 Tier 1: Feature Coverage Specifications (>=5 Tests Per Feature)
 
-## 2. Web ERP & POS Terminal Architecture (`apps/web`)
+#### R1: Runtime Crashes & API Unwrapping
+1. `unwrapApiResponse({ data: [item1, item2], meta: { total: 2 } })` returns clean array `[item1, item2]`.
+2. `unwrapApiResponse([item1, item2])` handles flat array correctly.
+3. `unwrapApiResponse({ data: null })` returns empty array `[]` without throwing.
+4. `unwrapApiResponse(undefined)` / `unwrapApiResponse(null)` returns `[]`.
+5. Safe `.map()` execution on all 11 routes (`/suppliers`, `/customers`, `/purchases`, `/sales`, `/medicines`, `/inventory`, `/expenses`, `/sales-returns`, `/reports`, `/pos`, `/import`) when backend returns `{ data: [] }` or empty payloads.
 
-The web application is implemented using **Next.js 14 App Router**, **React 18**, **Tailwind CSS**, **Lucide React**, **Zustand v5**, **TanStack React Query v5**, **Recharts**, **React To Print**, **Three.js / React Three Fiber**, and **GSAP / Framer Motion**.
+#### R2: Authentication & JWT Management
+1. Valid credentials (`admin@medcare.com` / `Admin@123456`) generate valid JWT payload with user ID, email, and role.
+2. Invalid password triggers `401 Unauthorized` without session creation.
+3. API Client intercepts requests and attaches `Authorization: Bearer <token>`.
+4. Expired token response (401) triggers token clearance and router redirect to `/login`.
+5. `NEXT_PUBLIC_API_URL` environment variable defaults cleanly to `https://medical-inventiroy.onrender.com` or local fallback.
 
-### 2.1 Route Hierarchy & Page Catalog
+#### R3: Multi-Level Unit Conversion Engine
+1. Box → Strip → Tablet conversion ratio calculation (e.g., 1 Box = 10 Strips, 1 Strip = 10 Tablets → 1 Box = 100 Tablets).
+2. Selling 3 loose tablets deducts exactly `3 / 100 = 0.03` boxes (or 3 base units).
+3. Purchase entry in Boxes automatically populates available Strips and Tablets stock counts.
+4. Mixed unit line items calculate total price accurately based on selected unit level.
+5. Base quantity integer storage avoids floating-point stock rounding errors.
 
-| Route | Page Module | Key Capabilities |
-|---|---|---|
-| `/login` | Authentication Portal | Secure credentials login, JWT store persistence, dynamic store branding preview. |
-| `/` | Operational Dashboard | Real-time sales/profit stats, Recharts trend lines, quick POS action, interactive 3D spatial pill canvas. |
-| `/pos` | POS Billing Counter | High-speed keyboard billing (F1-F12), USB/Bluetooth barcode scan listener, FEFO batch selector, split payments, 58mm/80mm ESC/POS thermal receipt modal. |
-| `/medicines` | Medicine Master Catalog | Master pharmaceutical catalog, generic name lookup, dosage forms, HSN codes, GST tax slabs, reorder thresholds, modal creator/editor. |
-| `/inventory` | Batch Inventory & Expiry | Multi-tab view: All Batches with stock status, Expiry Dashboard with 5 urgency brackets, Automated Reorder Suggestions, and Stock Movements Ledger. |
-| `/purchases` | Inward Purchases & GRN | Vendor invoice entry, item-wise batch/expiry/price recording, Draft vs. Confirmed GRN status, vendor payment logging. |
-| `/sales` | Sales & Invoices History | Complete audit of completed invoices, customer search, PDF invoice generation, thermal receipt reprinting. |
-| `/sales-returns` | Sales Returns & Refunds | Original invoice lookup, item-level return quantity, condition routing (Resalable -> active stock, Damaged/Expired -> quarantine), refund payment mode. |
-| `/suppliers` | Suppliers & Distributors | Vendor directory, contact details, GSTIN, drug license, outstanding balance tracking. |
-| `/customers` | Customers & Patients | Patient directory, contact numbers, address, purchase invoice history. |
-| `/expenses` | Business Expenses | Operational expense ledger (Rent, Electricity, Salary, Maintenance, Logistics), category breakdown. |
-| `/reports` | Financial & Analytics | P&L statements (Revenue, COGS from actual batch purchase costs, Gross Margin, Net Profit), Sales ledger, Inventory valuation, Excel exports. |
-| `/import` | Opening Stock Import Wizard | Interactive bulk spreadsheet grid for importing initial medicines, batches, quantities, purchase rates, MRPs, and expiry dates before go-live. |
-| `/settings` | System Settings Panel | Store profile & legal details, 100% white-label theme colors, thermal receipt template designer, multi-branch management, DB backup triggers. |
+#### R4: Party-Wise Special Pricing & Discount Matrix
+1. Special price lookup returns customized rate when party-item price rule exists and is active (`effectiveFrom <= now <= effectiveTo`).
+2. Special discount percent applies on top of MRP if configured.
+3. Fallback to default medicine MRP/selling price when no party-specific rule matches.
+4. Party price expiration: Outdated rule (`effectiveTo < now`) is ignored in favor of base price.
+5. POS customer selection auto-triggers price recalculation for all cart items.
 
----
+#### R5: GST Return Reports (GSTR-1, GSTR-3B, HSN Summary)
+1. GSTR-1 categorizes B2B invoices (with GSTIN) vs B2C invoices (without GSTIN).
+2. GSTR-3B aggregates Total Outward Taxable Value, Integrated Tax (IGST), Central Tax (CGST), and State Tax (SGST).
+3. Input Tax Credit (ITC) from Purchases is correctly matched against Output Tax to compute Net GST Payable.
+4. HSN Summary groups items by 4-8 digit HSN codes, summarizing total quantity, taxable turnover, and tax amounts per slab (0%, 5%, 12%, 18%, 28%).
+5. ExcelJS export generates downloadable `.xlsx` workbook with valid sheets and numeric cell formatting.
 
-### 2.2 High-Speed Desktop POS Counter (`/pos`) Deep Dive
+#### R6: Thermal Barcode Label Printing
+1. Barcode generator creates valid Code-128 / EAN-13 SVG/Canvas for given medicine and batch code.
+2. Label template renders within 40mm x 20mm dimensions with Medicine Name, Batch, Expiry, MRP, and Barcode.
+3. Print dialog trigger dispatches CSS `@media print` rules with 0 margin and exact millimeter sizing.
+4. Bulk label generation calculates correct quantity of labels corresponding to received purchase package count.
+5. Graceful truncation of ultra-long medicine names to prevent label overflow.
 
-The POS counter is engineered for rapid retail checkout in busy medical stores:
+#### R7: Schedule H / H1 Drug Register
+1. Adding Schedule H/H1 medicine flags requirement for Prescription metadata in sale payload.
+2. Prescription validator requires Doctor Name, Doctor Reg No, Patient Name, Patient Age, and Rx Number.
+3. Sale submission persists `PrescriptionRecord` linked to `SalesInvoice` and `SalesItem`.
+4. OTC medicine checkout proceeds without requiring prescription details.
+5. Schedule H Register report filters records within date range and exports legal compliance report in Excel.
 
-1. **Ergonomic Split Layout**:
-   - **Left Panel**: Dual-input scanner bar (instant barcode scanner input + typeahead medicine search) and real-time items table showing item name, SKU, FEFO batch tag, unit, unit rate, quantity modifier buttons, item discount %, and calculated line total.
-   - **Right Panel**: Customer quick-tagging (Patient Name, Mobile), invoice-level discount input, multi-mode payment selector (Cash, Card, UPI, Credit/Split), receipt paper width toggle (58mm vs. 80mm), and primary Complete Sale checkout trigger.
-2. **Keyboard Shortcut Engine**:
-   - `F1`: Focus Barcode Scanner input box immediately.
-   - `F2`: Focus Medicine Name / Generic Typeahead search input box.
-   - `F9`: Trigger Instant Checkout & Thermal Receipt Generation.
-   - `F11`: Toggle POS Fullscreen mode for distraction-free billing.
-   - `ESC`: Dismiss open dropdowns / modals / cancel operation.
-3. **FEFO Automatic Allocation & Expiry Safeguards**:
-   - Barcode scans hit `/pos/scan/:barcode`, which resolves the medicine and calls backend FEFO allocation to automatically select the earliest-expiring active batch with non-zero stock.
-   - Expired batches (`expiryDate <= NOW`) are strictly blocked from dispensation.
-   - Near-expiry warnings (<30 days) are visually highlighted with amber/orange badges on the cart row.
-4. **Split Payments & Khata Credit**:
-   - Supports single or multi-tender payments (e.g. Cash + UPI + Card).
-   - Real-time computation of `Grand Total`, `Total Paid`, and `Balance Due`.
-5. **Thermal Receipt Printing Engine**:
-   - Seamless integration with `react-to-print` rendering monospace 58mm (w-260px) and 80mm (w-320px) thermal receipts formatted strictly according to ESC/POS standards with dashed separators, itemized batch/expiry rows, subtotal, tax/GST breakdown, and store footer policies.
+#### R8: WhatsApp Invoice Sharing & Payment Reminder
+1. `sanitizeMobileForWhatsApp` converts `9876543210` to `919876543210` and strips invalid symbols.
+2. `buildWhatsAppUrl` generates `https://wa.me/919876543210?text=...` with valid URI encoding.
+3. Sale invoice message contains Business Name, Invoice No, Date, Total, Payment Status, and Line Items.
+4. Payment reminder message contains Customer Name, Outstanding Balance, UPI ID, and Bank Account details.
+5. WhatsApp buttons on POS, Sales, and Customer tables trigger browser window open with compiled URL.
 
----
+#### R9: Purchase Order Auto-Conversion
+1. Creating PO sets status to `DRAFT` or `SENT` with line items, quantities, and expected rates.
+2. PO conversion endpoint creates pre-filled Purchase Inward structure with matching supplier and item details.
+3. Modifying inward quantities during conversion updates `receivedQty` on PO items.
+4. Saving inward purchase marks PO status as `FULLY_RECEIVED` (or `PARTIALLY_RECEIVED`) and links `convertedPurchaseId`.
+5. Attempting to convert an already `FULLY_RECEIVED` or `CANCELLED` PO throws validation error.
 
-### 2.3 Interactive 3D Spatial Medical Widget (`SpatialMedicalCanvas`)
-
-Implemented using **React Three Fiber (`@react-three/fiber`)**, **Three.js (`three`)**, and **Drei (`@react-three/drei`)**:
-- **Geometry**: Composed 3D pharmaceutical capsule pill with a sky-blue upper dome cylinder, pure white lower dome cylinder, and a dark-blue separating ring.
-- **Lighting & Materials**: Ambient lighting (0.8), key point light (1.2), and cyan fill rim light (`#38bdf8`) with smooth metallic roughness (0.2).
-- **Motion & Interaction**: Uses `@react-three/drei` Float component for gentle weightless floating; interactive hover listeners accelerate rotation speed smoothly on user interaction.
-- **Performance Optimization**: Rendered with anti-aliasing and alpha transparency in a lightweight 112px spatial frame on the dashboard header.
-
----
-
-### 2.4 Dynamic White-Label Branding & Theme Propagation System
-
-The frontend contains a centralized branding state machine (`useBrandingStore` in `apps/web/src/stores/branding-store.ts`):
-1. On app boot, `useBrandingStore.fetchBranding()` queries `/settings/public`.
-2. Dynamically updates CSS root variables:
-```css
-:root {
-  --color-primary: #0284c7;
-  --color-secondary: #0f172a;
-}
-```
-3. Dynamically binds store name, logo URL, contact phone, store address, GSTIN, and Pharmacy Drug License number to the sidebar header, POS receipts, tax invoice headers, and authentication screens.
+#### R10: Live Deployment & Health Verification
+1. Render backend `GET /api/health` returns `200 OK` with uptime and database status.
+2. Vercel frontend root `/` loads HTTP 200 with HTML document structure.
+3. Live authentication endpoint authenticates `admin@medcare.com`.
+4. Prisma schema is fully synced with Neon DB without pending migrations.
+5. Git working tree is clean with all changes committed to `origin/main`.
 
 ---
 
-### 2.5 Expiry Tracking Dashboard (5 Distinct Urgency Brackets)
+## 6. Implementation & Execution Recommendations
 
-Located at `/inventory` (Expiry Dashboard Tab):
-1. **Bracket 1: Expired (`<= 0 days`)** — Highlighted in deep red; items are blocked from POS sale and flagged for immediate supplier return or quarantine disposal.
-2. **Bracket 2: Critical / 7-30 Days (`1 - 30 days`)** — Highlighted in amber/orange; estimated stock value displayed for rapid promotional clearance.
-3. **Bracket 3: Medium / 30-60 Days (`31 - 60 days`)** — Monitored for sales velocity pacing.
-4. **Bracket 4: Advance / 60-90 Days (`61 - 90 days`)** — Reorder pacing alert.
-5. **Bracket 5: Safe / >90 Days (`> 90 days`)** — Standard active pharmaceutical stock.
-
----
-
-### 2.6 Opening Stock Bulk Import Wizard (`/import`)
-
-Located at `/import`:
-- Provides an editable batch grid allowing store managers to enter or paste opening inventory lines (Medicine Name, SKU, Dosage Form, Batch Number, Mfg Date, Expiry Date, Quantity, Purchase Price, MRP, Selling Price, Tax %).
-- Single-click bulk ingestion hits `/import-export/opening-stock` inside atomic database transactions to initialize inventory without manual purchase invoice entry.
-
----
-
-## 3. Mobile POS & Barcode Scanner Architecture (`apps/mobile`)
-
-The mobile application is built with **Expo SDK 51**, **React Native 0.74**, **TypeScript**, **Lucide React Native**, and **Zustand**:
-
-1. **Hardware Barcode Scanning**:
-   - Utilizes `expo-camera` and `expo-barcode-scanner` to read 1D EAN-13, UPC-A, Code-128, and 2D DataMatrix/QR codes via smartphone camera.
-2. **Mobile Cart & FEFO Dispensation**:
-   - Lightweight cart state machine with item quantity increments, batch badges, and instant grand total calculation.
-3. **Bluetooth Thermal Receipt Printing Hooks**:
-   - Configured for portable 58mm Bluetooth ESC/POS receipt printers.
-   - Generates monospace receipt strings containing invoice number, itemized lines, GST summary, and store header for wireless thermal dispatch.
-4. **Mobile Navigation & Offline-Aware Design**:
-   - Clean bottom navigation tabs (POS Billing, Scanner, Inventory Check).
-
----
-
-## 4. State Management & API Integration Layer
-
-### 4.1 Zustand State Stores
-- **`useAuthStore`** (`apps/web/src/stores/auth-store.ts`):
-  - Manages JWT access token, refresh token, authenticated user profile, multi-branch list, `selectedBranchId`, and RBAC `hasPermission(permissionCode)` utility.
-- **`useBrandingStore`** (`apps/web/src/stores/branding-store.ts`):
-  - Synchronizes store name, logo, primary color, secondary color, currency symbol, address, GSTIN, and drug license.
-- **`useCartStore`** (`apps/web/src/stores/cart-store.ts`):
-  - POS active cart state machine: item lines, customer tag, multi-tender payments, paper width (58mm/80mm), line-level & invoice-level discounts, and subtotal/tax/grand total calculations using `@medical-inventory/shared-utils`.
-
-### 4.2 API Client & TanStack React Query
-- **`apiClient`** (`apps/web/src/lib/api-client.ts`):
-  - Axios instance configured with base URL, `Authorization: Bearer <token>` injection, and auto-refresh interceptors.
-- **TanStack Query v5**:
-  - Comprehensive query caching and automatic invalidation on mutations (e.g. invalidating `inventory-batches` on purchase confirmation or sales return).
-
----
-
-## 5. Build Diagnostics & Findings
-
-During compile diagnostics (`npm run build`):
-1. **Web App Dependency**: `apps/web/src/app/login/page.tsx` imports `@hookform/resolvers/zod`, but `@hookform/resolvers` is not listed in `apps/web/package.json` dependencies.
-   - *Resolution for implementer*: Add `@hookform/resolvers: ^3.9.1` to `apps/web/package.json` dependencies.
-2. **Backend Type Fix**: `apps/api/src/modules/branches/branches.service.ts` line 86 expects `businessHours` to be serialized as a string or matching schema.
-3. **Mobile App**: `apps/mobile` dependencies and TypeScript configurations are cleanly organized for Expo 51.
-
----
-
-## 6. Conclusion
-
-The Web ERP & POS Terminal (`apps/web`) and Mobile POS (`apps/mobile`) architectures are completely specified and comprehensively aligned with all 70 sections of the master architecture prompt and requirements R4 and R5. The UI/UX provides enterprise-grade ergonomics, FEFO safety, white-label branding, 3D spatial visual polish, 58mm/80mm ESC/POS receipt generation, and multi-branch support.
+1. **Restore Root `package.json`**: Restore the original monorepo `package.json` to enable `turbo run build`, `npm run dev`, and workspaces.
+2. **Transaction Timeout Configuration**: In all Prisma `$transaction` blocks across services (`sales.service.ts`, `sales-returns.service.ts`, `purchases.service.ts`, `purchase-orders.service.ts`), set `{ timeout: 30000, maxWait: 10000 }` to ensure reliable execution against cloud databases.
+3. **Register All Tests in `tests/runner.ts`**: Import and run the complete test suite across all 4 tiers during `npm test`.
+4. **Deploy in Phased Sequence**:
+   - Run `npx prisma db push` against Neon DB.
+   - Run package builds (`packages/*`).
+   - Run NestJS backend build and verify.
+   - Run Next.js frontend build and verify.
+   - Commit and push to `origin/main` for Vercel & Render automated continuous delivery.

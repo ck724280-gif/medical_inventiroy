@@ -15,11 +15,12 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
 
   const handlePrint = useReactToPrint({
     contentRef: receiptRef,
-    documentTitle: `Receipt-${data.invoiceNumber}`,
+    documentTitle: `Receipt-${data?.invoiceNumber || 'receipt'}`,
   });
 
-  const is80mm = data.paperWidth === PaperWidth.WIDTH_80MM;
+  const is80mm = data?.paperWidth === PaperWidth.WIDTH_80MM;
   const paperWidthClass = is80mm ? 'w-[320px]' : 'w-[260px]';
+  const items = Array.isArray(data?.items) ? data.items : [];
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
@@ -28,7 +29,7 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
         <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Printer className="w-4 h-4 text-sky-400" />
-            <h3 className="font-semibold text-sm">Thermal Receipt Preview ({data.paperWidth})</h3>
+            <h3 className="font-semibold text-sm">Thermal Receipt Preview ({data?.paperWidth || '58mm'})</h3>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -58,11 +59,11 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
           >
             {/* Store Header */}
             <div className="text-center pb-2">
-              <h2 className="font-bold text-sm uppercase tracking-wide">{data.storeName}</h2>
-              <p className="text-[10px] text-gray-700">{data.address}</p>
-              {data.phone && <p className="text-[10px] text-gray-700">Ph: {data.phone}</p>}
-              {data.gstNumber && <p className="text-[10px] text-gray-700">GSTIN: {data.gstNumber}</p>}
-              {data.pharmacyLicense && (
+              <h2 className="font-bold text-sm uppercase tracking-wide">{data?.storeName || 'MedCare Pharmacy'}</h2>
+              <p className="text-[10px] text-gray-700">{data?.address}</p>
+              {data?.phone && <p className="text-[10px] text-gray-700">Ph: {data.phone}</p>}
+              {data?.gstNumber && <p className="text-[10px] text-gray-700">GSTIN: {data.gstNumber}</p>}
+              {data?.pharmacyLicense && (
                 <p className="text-[10px] text-gray-700">D.L.: {data.pharmacyLicense}</p>
               )}
             </div>
@@ -72,14 +73,14 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
             {/* Invoice Meta */}
             <div className="space-y-0.5 text-[10px]">
               <div className="flex justify-between">
-                <span>Inv: {data.invoiceNumber}</span>
-                <span>{data.date}</span>
+                <span>Inv: {data?.invoiceNumber}</span>
+                <span>{data?.date}</span>
               </div>
               <div className="flex justify-between">
-                <span>Time: {data.time}</span>
-                <span>Staff: {data.cashierName.split(' ')[0]}</span>
+                <span>Time: {data?.time}</span>
+                <span>Staff: {data?.cashierName ? data.cashierName.split(' ')[0] : 'Staff'}</span>
               </div>
-              {data.customerName && data.customerName !== 'Walk-in Customer' && (
+              {data?.customerName && data.customerName !== 'Walk-in Customer' && (
                 <div className="flex justify-between">
                   <span>Cust: {data.customerName}</span>
                   {data.customerMobile && <span>{data.customerMobile}</span>}
@@ -101,7 +102,7 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
 
             {/* Item Rows */}
             <div className="space-y-1.5 text-[10px]">
-              {data.items.map((item, i) => (
+              {items.map((item, i) => (
                 <div key={i}>
                   <div className="font-bold truncate">{item.name}</div>
                   <div className="grid grid-cols-12 text-gray-800">
@@ -109,8 +110,8 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
                       B:{item.batch} Exp:{item.expiry}
                     </div>
                     <div className="col-span-2 text-right">{item.qty}</div>
-                    <div className="col-span-2 text-right">{item.rate.toFixed(2)}</div>
-                    <div className="col-span-2 text-right font-semibold">{item.amount.toFixed(2)}</div>
+                    <div className="col-span-2 text-right">{Number(item.rate || 0).toFixed(2)}</div>
+                    <div className="col-span-2 text-right font-semibold">{Number(item.amount || 0).toFixed(2)}</div>
                   </div>
                 </div>
               ))}
@@ -122,25 +123,25 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
             <div className="space-y-0.5 text-[11px]">
               <div className="flex justify-between">
                 <span>Subtotal:</span>
-                <span>₹{data.subtotal.toFixed(2)}</span>
+                <span>₹{Number(data?.subtotal || 0).toFixed(2)}</span>
               </div>
-              {data.discountTotal > 0 && (
+              {(data?.discountTotal || 0) > 0 && (
                 <div className="flex justify-between text-gray-700">
                   <span>Discount:</span>
-                  <span>-₹{data.discountTotal.toFixed(2)}</span>
+                  <span>-₹{Number(data.discountTotal).toFixed(2)}</span>
                 </div>
               )}
               <div className="flex justify-between text-gray-700">
                 <span>Tax/GST:</span>
-                <span>₹{data.taxTotal.toFixed(2)}</span>
+                <span>₹{Number(data?.taxTotal || 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-xs pt-1 border-t border-dashed border-black">
                 <span>TOTAL:</span>
-                <span>₹{data.grandTotal.toFixed(2)}</span>
+                <span>₹{Number(data?.grandTotal || 0).toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-[10px] text-gray-700 pt-0.5">
                 <span>Paid via:</span>
-                <span>{data.paymentMode}</span>
+                <span>{data?.paymentMode || 'CASH'}</span>
               </div>
             </div>
 
@@ -148,8 +149,8 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
 
             {/* Footer */}
             <div className="text-center text-[10px] space-y-1 pt-1">
-              <p className="font-bold">{data.thankYouMessage || 'Thank You! Get Well Soon'}</p>
-              {data.returnPolicy && (
+              <p className="font-bold">{data?.thankYouMessage || 'Thank You! Get Well Soon'}</p>
+              {data?.returnPolicy && (
                 <p className="text-[8px] text-gray-600 leading-tight">{data.returnPolicy}</p>
               )}
             </div>

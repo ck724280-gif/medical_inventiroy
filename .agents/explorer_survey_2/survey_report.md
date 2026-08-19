@@ -1,324 +1,424 @@
-# Comprehensive Backend NestJS REST API Architectural Survey (`apps/api`)
-
-**Project**: Medical Inventory & Pharmacy ERP / POS System (Single-Business, Multi-Branch White-Label)  
-**Agent**: Explorer 2 (Survey & Backend NestJS REST API Architecture)  
-**Date**: 2026-08-19  
-**Status**: Verified & Build Tested (0 errors, 100% compilation clean)  
-
----
-
-## Executive Summary
-
-The backend service (`apps/api`) is a production-grade, highly modular REST API built on **NestJS 10**, **Prisma ORM 5**, **Argon2**, and **Passport JWT**. It orchestrates a single-business, multi-branch medical enterprise platform with 28 specialized domain modules, strict Role-Based Access Control (RBAC), immutable audit logging, global transaction management, First-Expiry-First-Out (FEFO) batch dispensing, and ESC/POS thermal printing capabilities.
-
-### Key Architectural Highlights
-- **28 Modular Domain Controllers & Services**: Fully decoupled architecture encompassing authentication, master data, live batch inventory, purchases, POS sales counter, returns, ESC/POS printing, financials, reports, audit, and backups.
-- **Enterprise Security Stack**: Argon2id password hashing, rotating JWT refresh tokens with database tracking & instant revocation, 15-minute brute-force lockout after 5 failed attempts, global throttler rate limiting (100 req/min), and Helmet security headers.
-- **Granular RBAC**: 40+ atomic permission codes evaluated by a global `PermissionsGuard` and `@RequirePermissions()` decorators with bypass for `OWNER` role.
-- **Zero-Loss Transactions**: All inventory-altering workflows (Sales Checkout, Purchase Inward, Stock Adjustments, Inter-Branch Transfers, Sales/Purchase Returns, Opening Stock Import) run inside Prisma interactive `$transaction` blocks.
-- **FEFO Dispensation**: Automatic batch allocation sorted by `expiryDate: 'asc'`, strictly preventing expired or non-active batch dispensation.
-- **Thermal & PDF Receipt Engines**: Dedicated ESC/POS binary command builder for 58mm (32-char) and 80mm (48-char) thermal printers, plus A4 PDF Tax Invoice generation via PDFKit.
-- **Financial & Tax Engine**: Real-time Gross Profit (`SellingPrice - BatchPurchasePrice`), Cost of Goods Sold (COGS), Output GST vs. Input GST calculations, and Excel export via ExcelJS.
+﻿# Phase 2 Architecture Survey & Technical Specification Report
+**Project:** Medical Inventory & Pharmacy ERP (Vyapar-Inspired Enhancements)  
+**Author:** Explorer Subagent  
+**Date:** 2026-08-19  
+**Working Directory:** d:/antigravity programme/medical_inventory/.agents/explorer_survey_2  
 
 ---
 
-## 1. Security & Infrastructure Architecture
+## 1. Executive Summary
 
-```
-[ Incoming HTTP Request ]
-          │
-          ▼
-    [ Helmet Headers ]
-          │
-          ▼
-   [ CORS Whitelist ]
-          │
-          ▼
- [ ValidationPipe (transform: true, whitelist: true) ]
-          │
-          ▼
-  [ ThrottlerGuard (Rate Limiting: 100 req/min) ]
-          │
-          ▼
-    [ JwtAuthGuard (Global, bypasses @Public()) ]
-          │
-          ▼
- [ PermissionsGuard (Checks @RequirePermissions) ]
-          │
-          ▼
-  [ AuditInterceptor (Logs create/update/delete) ]
-          │
-          ▼
-     [ Controller / Service Logic ($transaction) ]
-          │
-          ▼
-[ GlobalHttpExceptionFilter / PrismaExceptionFilter ]
-          │
-          ▼
-[ Standardized JSON Response Format ]
-```
+This architecture survey provides a complete, production-ready blueprint for implementing the **7 Vyapar-Inspired Medical Features (R3 to R9)** in the Medical Inventory & Pharmacy ERP monorepo (pps/api, pps/web, packages/*).
 
-### 1.1 Password Security & Brute-Force Lockout
-- **Hashing**: Argon2id via `argon2` npm package with default high-memory and iteration parameters.
-- **Account Lockout Policy**:
-  * Tracked via `failedLoginCount` and `lockedUntil` on `User` model.
-  * 5 consecutive failed attempts trigger a 15-minute lockout (`lockedUntil = now + 15m`).
-  * Successful authentication resets `failedLoginCount = 0` and `lockedUntil = null`.
-
-### 1.2 JWT Token Lifecycle & Rotation
-- **Access Token**: Short-lived (15 minutes), payload `{ sub: userId, email: user.email }`.
-- **Refresh Token**: Long-lived (7 days), signed with dedicated `REFRESH_TOKEN_SECRET`.
-- **Rotation & Revocation**:
-  * Stored in `refresh_tokens` database table with device user-agent tracking.
-  * Every refresh request revokes the old refresh token (`revokedAt = now()`) and issues a new token pair.
-  * Logout supports single-session revocation or global session revocation (all active tokens for user).
-  * Password change immediately invalidates all active refresh tokens.
-
-### 1.3 RBAC Permission Model
-- **40+ Granular Permissions**: Spans `medicine.*`, `inventory.*`, `purchase.*`, `sale.*`, `customer.*`, `supplier.*`, `expense.*`, `report.*`, `user.*`, `role.*`, `settings.*`, `branch.*`, `printer.*`, `audit.*`, `backup.*`, `notification.*`.
-- **7 System Roles**: `OWNER` (full access), `ADMIN`, `MANAGER`, `PHARMACIST`, `CASHIER`, `INVENTORY_STAFF`, `ACCOUNTANT`.
-- **Guard Mechanism**:
-  * `JwtAuthGuard`: Enforces token validity globally across all endpoints unless decorated with `@Public()`.
-  * `PermissionsGuard`: Reads permission metadata from `@RequirePermissions('permission.code')`, extracts permissions from the JWT user context, and denies unauthorized requests with `ForbiddenException (403)`.
-  * Super Admin Bypass: Users with role `OWNER` automatically pass all permission checks.
-
-### 1.4 Global Audit Interceptor
-- Decorator: `@Auditable(action, entity)`
-- Intercepts all mutating operations (POST, PATCH, DELETE).
-- Automatically extracts:
-  * `userId`: From JWT authentication context.
-  * `action`: e.g. `pos_checkout`, `create_purchase`, `update_settings`.
-  * `entity`: e.g. `SalesInvoice`, `PurchaseInvoice`, `Medicine`.
-  * `entityId`: Extracted from response object ID or request URL params.
-  * `newValue`: Request body payload with sensitive fields (`password`, `token`, `secret`, `creditCard`) recursively sanitized/redacted.
-  * `ipAddress` & `deviceInfo`: Extracted from request headers.
-- Fault-Tolerant: Asynchronous audit creation failure never interrupts the primary business transaction.
-
-### 1.5 Global Exception Handling
-- `GlobalHttpExceptionFilter`: Formats all NestJS HTTP exceptions and unhandled errors into standardized structure:
-  ```json
-  {
-    "statusCode": 400,
-    "timestamp": "2026-08-19T01:48:53.000Z",
-    "path": "/api/pos/checkout",
-    "message": "Insufficient stock in batch B101 for Paracetamol 500mg",
-    "errors": null
-  }
-  ```
-- `PrismaExceptionFilter`: Catches Prisma database errors and translates codes:
-  * `P2002` -> `409 Conflict` (Duplicate unique constraint violation)
-  * `P2025` -> `404 Not Found` (Record not found)
-  * `P2003` -> `400 Bad Request` (Foreign key violation / referenced record in use)
-  * `P2014` -> `400 Bad Request` (Relation constraint violation)
-
-### 1.6 Swagger / OpenAPI Documentation
-- Mounted at: `/docs`
-- Configured with `DocumentBuilder().setTitle(...).setVersion('1.0.0').addBearerAuth().build()`.
+The system currently runs on:
+- **Backend:** NestJS 10 with Prisma ORM 5.22, PostgreSQL (Neon DB).
+- **Frontend:** Next.js 14 App Router, TailwindCSS, React Query v5, Zustand, React-Barcode, React-to-Print.
+- **Shared Packages:** @medical-inventory/shared-types, @medical-inventory/constants, @medical-inventory/validation, @medical-inventory/shared-utils.
 
 ---
 
-## 2. Comprehensive 28 Domain Modules Catalog
+## 2. Comprehensive Feature Breakdown (R3 to R9)
 
-| # | Module | Base Route | Primary Responsibilities |
-|---|---|---|---|
-| 1 | `AuthModule` | `/api/auth` | User login, JWT refresh token rotation, logout, password change, account lockout |
-| 2 | `UsersModule` | `/api/users` | User CRUD, profile (`/me`), password reset, branch assignments, role mappings |
-| 3 | `RolesModule` | `/api/roles` | Role definitions, permissions listing (`/permissions`), role assignment |
-| 4 | `SettingsModule` | `/api/settings` | White-label business profile, public branding (`/public`), currency, timezone, receipt templates |
-| 5 | `BranchesModule` | `/api/branches` | Multi-branch CRUD, branch settings, invoice prefixes, sequential numbering |
-| 6 | `CategoriesModule` | `/api/categories` | Hierarchical medicine categories (parent/subcategories) |
-| 7 | `ManufacturersModule` | `/api/manufacturers` | Pharmaceutical manufacturers master data |
-| 8 | `UnitsModule` | `/api/units` | Units of measurement (Tablets, Strips, Boxes, Bottles) and conversion factors |
-| 9 | `MedicinesModule` | `/api/medicines` | Medicine Master: generic/brand, composition, dosage forms, HSN, tax %, barcode lookup |
-| 10 | `SuppliersModule` | `/api/suppliers` | Supplier master, payment terms, credit limits, outstanding balances |
-| 11 | `CustomersModule` | `/api/customers` | Customer master, mobile lookup, purchase history, quick creation |
-| 12 | `BatchesModule` | `/api/batches` | Batch lifecycle (ACTIVE, EXPIRED, BLOCKED), 5-bracket Expiry Dashboard |
-| 13 | `InventoryModule` | `/api/inventory` | Live stock overview, low/critical stock alerts, adjustments, inter-branch transfers |
-| 14 | `PurchasesModule` | `/api/purchases` | Purchase orders, GRN inward invoices, batch auto-creation, supplier ledger updates |
-| 15 | `SalesModule` | `/api/sales` | Invoices listing, detail lookup, thermal receipt data formatting |
-| 16 | `PosModule` | `/api/pos` | Quick barcode scanning, cart hold/resume, atomic FEFO checkout |
-| 17 | `SalesReturnsModule` | `/api/sales-returns` | Customer returns, resalable batch stock restore, damaged/expired stock routing |
-| 18 | `PurchaseReturnsModule` | `/api/purchase-returns` | Supplier returns, debit notes, batch stock deduction, supplier balance decrement |
-| 19 | `PrintingModule` | `/api/printing` | Thermal receipt generation (58mm/80mm ESC/POS byte stream), printer management |
-| 20 | `InvoicesModule` | `/api/invoices` | Vector A4 PDF Tax Invoice generation via PDFKit |
-| 21 | `ExpensesModule` | `/api/expenses` | Daily business expenses, category classification, attachments |
-| 22 | `FinancialsModule` | `/api/financials` | P&L calculation, COGS by batch cost, gross profit margins, GST liability, cash summary |
-| 23 | `ReportsModule` | `/api/reports` | Sales reports, purchase reports, inventory valuation, Excel (.xlsx) export |
-| 24 | `DashboardModule` | `/api/dashboard` | Real-time executive KPIs: today sales, today profit, 7-day trend, top 5 medicines |
-| 25 | `AuditModule` | `/api/audit` | Queryable audit trail with filtering by user, entity, action, and date range |
-| 26 | `NotificationsModule` | `/api/notifications` | In-app alerts: low stock, expiry warning, system broadcasts, unread counter |
-| 27 | `BackupModule` | `/api/backup` | Full JSON database snapshot export and timestamped backup listing |
-| 28 | `ImportExportModule` | `/api/import-export` | Opening stock bulk CSV/JSON wizard with batch generation & stock movements |
+### R3: Strip ➔ Tablet ➔ Loose Unit Conversion Engine
 
----
+#### Current Limitations
+- Medicine model has basic fields (oxQty, stripQty, 	abletQty, aseUnitId), but sales stock deduction (SalesService.checkout) and purchase inwarding (PurchasesService.create) directly operate on a single numeric integer quantity without automatic hierarchical unit conversion.
+- POS terminal and Cart store assume standard base unit quantities and cannot sell e.g., 3 loose tablets out of a 10-tablet strip or calculate proportional rates automatically.
 
-## 3. Detailed REST API Endpoint & DTO Matrix
-
-### 3.1 Authentication & Profile (`/api/auth`, `/api/users`)
-| Method | Route | Permission / Auth | Description | Request DTO / Body | Response Schema |
-|---|---|---|---|---|---|
-| `POST` | `/api/auth/login` | `@Public()` | Authenticate user via email/mobile & password | `LoginDto { email?, mobile?, password }` | `AuthTokens { accessToken, refreshToken, expiresIn, user }` |
-| `POST` | `/api/auth/refresh` | `@Public()` | Rotate refresh token | `{ refreshToken: string }` | `AuthTokens` |
-| `POST` | `/api/auth/logout` | Authenticated | Revoke session(s) | `{ refreshToken?: string }` | `{ success: boolean, message: string }` |
-| `POST` | `/api/auth/change-password` | Authenticated | Change current password | `ChangePasswordDto { currentPassword, newPassword, confirmPassword }` | `{ success: boolean, message: string }` |
-| `GET` | `/api/users/me` | Authenticated | Get current authenticated user profile | None | `User` with roles, permissions, branches |
-| `PATCH` | `/api/users/me` | Authenticated | Update personal profile details | `UpdateUserDto { firstName?, lastName?, mobile? }` | `User` |
-| `GET` | `/api/users` | `user.manage` | List users with pagination | Query: `{ page, limit, search, roleId, branchId }` | `PaginatedResult<User>` |
-| `POST` | `/api/users` | `user.manage` | Create new staff user | `CreateUserDto { email, password, firstName, lastName, roleIds, branchIds }` | `User` |
-| `PATCH` | `/api/users/:id` | `user.manage` | Update user account | `UpdateUserDto` | `User` |
-| `DELETE` | `/api/users/:id` | `user.manage` | Deactivate user account | None | `User (isActive: false)` |
-
-### 3.2 Master Data & Settings (`/api/settings`, `/api/branches`, `/api/roles`, `/api/categories`, `/api/manufacturers`, `/api/units`, `/api/medicines`)
-| Method | Route | Permission / Auth | Description | Request DTO / Body | Response Schema |
-|---|---|---|---|---|---|
-| `GET` | `/api/settings/public` | `@Public()` | Get public branding & store profile | None | `{ name, logo, phone, address, currencySymbol, primaryColor, ... }` |
-| `GET` | `/api/settings/business` | Authenticated | Get full business settings | None | `BusinessSettings` |
-| `PATCH` | `/api/settings/business` | `settings.manage` | Update business settings | `UpdateBusinessSettingsDto` | `BusinessSettings` |
-| `GET` | `/api/settings/branding` | Authenticated | Get branding colors & logos | None | `BusinessBranding` |
-| `PATCH` | `/api/settings/branding` | `settings.manage` | Update branding config | `UpdateBusinessBrandingDto` | `BusinessBranding` |
-| `GET` | `/api/settings/receipt-template` | Authenticated | Get thermal receipt template | None | `ReceiptTemplate` |
-| `PATCH` | `/api/settings/receipt-template` | `settings.manage` | Update receipt template | `UpdateReceiptTemplateDto` | `ReceiptTemplate` |
-| `GET` | `/api/branches` | Authenticated | List all physical branches | None | `Branch[]` with settings |
-| `POST` | `/api/branches` | `branch.manage` | Create branch & initialize settings | `CreateBranchDto` | `Branch` |
-| `PATCH` | `/api/branches/:id` | `branch.manage` | Update branch info | `UpdateBranchDto` | `Branch` |
-| `PATCH` | `/api/branches/:id/settings` | `branch.manage` | Update invoice prefix/sequence | `UpdateBranchSettingsDto` | `BranchSettings` |
-| `GET` | `/api/roles` | `role.manage` | List all roles | None | `Role[]` with permissions |
-| `GET` | `/api/roles/permissions` | `role.manage` | List all 40+ system permissions | None | `Permission[]` |
-| `POST` | `/api/roles` | `role.manage` | Create custom role | `CreateRoleDto` | `Role` |
-| `PATCH` | `/api/roles/:id` | `role.manage` | Update role permissions | `UpdateRoleDto` | `Role` |
-| `GET` | `/api/medicines` | `medicine.view` | Paginated search of medicines | Query: `{ search, categoryId, manufacturerId, branchId, page, limit }` | `PaginatedResult<MedicineWithStock>` |
-| `GET` | `/api/medicines/barcode/:code` | `medicine.view` | Quick lookup by Barcode/SKU/GTIN | Query: `{ branchId? }` | `Medicine` with active FEFO batches |
-| `GET` | `/api/medicines/:id` | `medicine.view` | Medicine detail with batches | Query: `{ branchId? }` | `Medicine` with batches & stock counts |
-| `POST` | `/api/medicines` | `medicine.create` | Create new medicine | `CreateMedicineDto` | `Medicine` |
-| `PATCH` | `/api/medicines/:id` | `medicine.edit` | Update medicine | `UpdateMedicineDto` | `Medicine` |
-| `DELETE` | `/api/medicines/:id` | `medicine.delete` | Soft delete medicine | None | `Medicine (isActive: false)` |
-
-### 3.3 Batches & Live Inventory (`/api/batches`, `/api/inventory`)
-| Method | Route | Permission / Auth | Description | Request DTO / Body | Response Schema |
-|---|---|---|---|---|---|
-| `GET` | `/api/batches` | `inventory.view` | List batches with filters | Query: `{ branchId, medicineId, status, page, limit }` | `PaginatedResult<Batch>` |
-| `GET` | `/api/batches/expiry-dashboard` | `inventory.view` | 5-bracket Expiry Analytics | Query: `{ branchId? }` | `{ summary, expired, expiring7, expiring30, expiring60, expiring90 }` |
-| `GET` | `/api/batches/:id` | `inventory.view` | Batch detail with movements | None | `Batch` with recent 20 movements |
-| `PATCH` | `/api/batches/:id/status` | `inventory.adjust` | Update batch status | `{ status: BatchStatus }` | `Batch` |
-| `GET` | `/api/inventory/overview` | `inventory.view` | Live stock levels across branches | Query: `{ branchId, search, page, limit }` | `PaginatedResult<StockOverviewItem>` |
-| `GET` | `/api/inventory/low-stock` | `inventory.view` | Low, critical & out-of-stock items | Query: `{ branchId? }` | `{ summary, lowStock, criticalStock, outOfStock }` |
-| `GET` | `/api/inventory/movements` | `inventory.view` | Immutable stock movement ledger | Query: `{ branchId, medicineId, batchId, type, page, limit }` | `PaginatedResult<StockMovement>` |
-| `POST` | `/api/inventory/adjustments` | `inventory.adjust` | Perform stock adjustment | `CreateStockAdjustmentDto` | `StockAdjustment` |
-| `POST` | `/api/inventory/transfers` | `inventory.transfer` | Initiate inter-branch stock transfer | `CreateStockTransferDto` | `StockTransfer (IN_TRANSIT)` |
-| `POST` | `/api/inventory/transfers/:id/receive` | `inventory.transfer` | Receive and accept stock transfer | None | `StockTransfer (RECEIVED)` |
-
-### 3.4 Inward Purchases & Suppliers (`/api/purchases`, `/api/suppliers`, `/api/purchase-returns`)
-| Method | Route | Permission / Auth | Description | Request DTO / Body | Response Schema |
-|---|---|---|---|---|---|
-| `GET` | `/api/purchases` | `purchase.view` | List purchase invoices | Query: `{ branchId, supplierId, status, page, limit }` | `PaginatedResult<PurchaseInvoice>` |
-| `GET` | `/api/purchases/:id` | `purchase.view` | Purchase invoice detail & payments | None | `PurchaseInvoice` with items & balanceDue |
-| `POST` | `/api/purchases` | `purchase.create` | Create purchase (DRAFT or CONFIRMED) | `CreatePurchaseDto` | `PurchaseInvoice` |
-| `POST` | `/api/purchases/:id/confirm` | `purchase.approve` | Confirm DRAFT invoice into live stock | None | `PurchaseInvoice (CONFIRMED)` |
-| `POST` | `/api/purchases/:id/payments` | `purchase.create` | Record supplier payment | `RecordPurchasePaymentDto` | `PurchasePayment` |
-| `GET` | `/api/suppliers` | `supplier.view` | List suppliers & balances | Query: `{ search, page, limit }` | `PaginatedResult<Supplier>` |
-| `POST` | `/api/suppliers` | `supplier.create` | Add new supplier | `CreateSupplierDto` | `Supplier` |
-| `GET` | `/api/purchase-returns` | `purchase.return` | List purchase returns | Query: `{ branchId, search, page, limit }` | `PaginatedResult<PurchaseReturn>` |
-| `POST` | `/api/purchase-returns` | `purchase.return` | Create debit note return to supplier | `CreatePurchaseReturnDto` | `PurchaseReturn` |
-
-### 3.5 POS Counter, Sales & Invoices (`/api/pos`, `/api/sales`, `/api/sales-returns`, `/api/printing`, `/api/invoices`)
-| Method | Route | Permission / Auth | Description | Request DTO / Body | Response Schema |
-|---|---|---|---|---|---|
-| `GET` | `/api/pos/scan/:barcode` | `sale.create` | Quick scan barcode for POS cart | Query: `{ branchId }` | `Medicine` with active FEFO batches |
-| `GET` | `/api/pos/held` | `sale.create` | List suspended/held carts | None | `HeldCart[]` |
-| `POST` | `/api/pos/hold` | `sale.create` | Hold/suspend current POS cart | `{ name?, cart: CartDto }` | `HeldCart` |
-| `POST` | `/api/pos/resume/:id` | `sale.create` | Resume held cart & delete slot | None | `CartDto` |
-| `DELETE` | `/api/pos/held/:id` | `sale.create` | Delete held cart | None | `{ success: true }` |
-| `POST` | `/api/pos/checkout` | `sale.create` | Execute atomic POS Checkout | `CheckoutSaleDto` | `SalesInvoice` |
-| `GET` | `/api/sales` | `sale.view` | List sales invoices | Query: `{ branchId, customerId, search, page, limit }` | `PaginatedResult<SalesInvoice>` |
-| `GET` | `/api/sales/:id` | `sale.view` | Sales invoice details & payments | None | `SalesInvoice` with items & returns |
-| `GET` | `/api/sales/:id/receipt-data` | `sale.view` | Get thermal receipt formatted data | Query: `{ paperWidth? }` | `ThermalReceiptDataDto` |
-| `GET` | `/api/printing/receipt/:id` | `sale.view` | Generate ESC/POS byte buffer | Query: `{ paperWidth? }` | `{ receiptData, escPosBase64 }` |
-| `GET` | `/api/invoices/:id/pdf` | `sale.view` | Download A4 PDF Tax Invoice | None | `application/pdf` Binary Stream |
-| `GET` | `/api/sales-returns` | `sale.return` | List sales returns | Query: `{ branchId, search, page, limit }` | `PaginatedResult<SalesReturn>` |
-| `POST` | `/api/sales-returns` | `sale.return` | Process customer sales return | `CreateSalesReturnDto` | `SalesReturn` |
-
-### 3.6 Financials, Analytics, Reports & Operations (`/api/financials`, `/api/reports`, `/api/dashboard`, `/api/expenses`, `/api/audit`, `/api/notifications`, `/api/backup`, `/api/import-export`)
-| Method | Route | Permission / Auth | Description | Request DTO / Body | Response Schema |
-|---|---|---|---|---|---|
-| `GET` | `/api/financials/summary` | `report.view` | P&L, COGS, gross profit, GST breakdown | Query: `{ branchId, startDate, endDate }` | `FinancialSummaryDto` |
-| `GET` | `/api/reports/sales` | `report.view` | Comprehensive sales report | Query: `{ branchId, startDate, endDate, groupBy }` | `SalesReportDto` |
-| `GET` | `/api/reports/purchases` | `report.view` | Comprehensive purchase report | Query: `{ branchId, supplierId, startDate, endDate }` | `PurchaseReportDto` |
-| `GET` | `/api/reports/inventory-valuation` | `report.view` | Stock valuation at Purchase & MRP | Query: `{ branchId? }` | `InventoryValuationDto` |
-| `GET` | `/api/reports/inventory/export-excel` | `report.export` | Download Inventory Excel spreadsheet | Query: `{ branchId? }` | `application/vnd.openxmlformats-officedocument...` |
-| `GET` | `/api/dashboard/summary` | Authenticated | Executive KPI dashboard summary | Query: `{ branchId? }` | `DashboardSummaryDto` |
-| `GET` | `/api/expenses` | `expense.view` | List recorded expenses | Query: `{ branchId, category, page, limit }` | `PaginatedResult<Expense>` |
-| `POST` | `/api/expenses` | `expense.create` | Record new expense | `CreateExpenseDto` | `Expense` |
-| `GET` | `/api/audit` | `audit.view` | Search system audit trail | Query: `{ userId, entity, action, startDate, endDate, page, limit }` | `PaginatedResult<AuditLog>` |
-| `GET` | `/api/notifications` | Authenticated | List user notifications | None | `Notification[]` |
-| `GET` | `/api/notifications/unread-count` | Authenticated | Get unread alerts counter | None | `{ unreadCount: number }` |
-| `PATCH` | `/api/notifications/:id/read` | Authenticated | Mark notification as read | None | `{ count: number }` |
-| `GET` | `/api/backup` | `backup.manage` | List available database backups | None | `BackupRecord[]` |
-| `POST` | `/api/backup/create` | `backup.manage` | Create on-demand JSON database backup | None | `BackupRecord` |
-| `POST` | `/api/import-export/opening-stock` | `inventory.adjust` | Import Opening Stock Wizard | `{ branchId: string, rows: OpeningStockRow[] }` | `{ success: boolean, importedCount: number }` |
+#### Target Architecture & Schema Blueprint
+1. **Packaging Hierarchy**:
+   - **Primary Unit:** Outer packaging (e.g., Box, Carton, Pack).
+   - **Secondary Unit:** Intermediate packaging (e.g., Strip, Blister, Bottle).
+   - **Tertiary Unit / Base Unit:** Smallest indivisible dispensing unit (e.g., Tablet, Capsule, ml, Sachet, Piece).
+   - **Conversion Ratios**:
+     -  \text{ Primary Unit (Box)} = N \text{ Secondary Units (Strips)}$
+     -  \text{ Secondary Unit (Strip)} = M \text{ Tertiary Units (Tablets)}$
+     -  \text{ Primary Unit} = (N \times M) \text{ Tertiary Units}$
+2. **Stock Tracking Invariant**:
+   - All physical inventory quantities in Batch.currentQty, StockMovement.qty, and StockAdjustment.qty are stored and decremented/incremented strictly in **Tertiary Units (Base Units)**.
+   - For example: If 1 Strip = 10 Tablets, a stock of 50 tablets is displayed as 5 Strips or 50 Tablets. If a user sells 3 Tablets, the remaining stock becomes 47 Tablets (4 Strips + 7 Tablets).
+3. **Database Schema Enhancements (prisma/schema.prisma)**:
+   - Enhance Medicine model:
+     `prisma
+     // In model Medicine:
+     stripToTabletRatio  Int       @default(1) @map(strip_to_tablet_ratio) // e.g. 10 tablets per strip
+     boxToStripRatio     Int       @default(1) @map(box_to_strip_ratio)    // e.g. 10 strips per box
+     primaryUnitName     String?   @default(BOX) @map(primary_unit_name)
+     secondaryUnitName   String?   @default(STRIP) @map(secondary_unit_name)
+     tertiaryUnitName    String?   @default(TABLET) @map(tertiary_unit_name)
+     `
+   - Enhance SalesItem & PurchaseItem:
+     `prisma
+     // In model SalesItem and PurchaseItem:
+     selectedUnit        String?   @default(TABLET) @map(selected_unit) // BOX, STRIP, TABLET
+     unitConversionFactor Float    @default(1) @map(unit_conversion_factor) // multiplier to get base tablets
+     enteredQty          Float     @default(1) @map(entered_qty) // e.g. 2 strips or 3 tabs
+     baseQty             Int       @default(1) @map(base_qty)    // enteredQty * unitConversionFactor
+     `
+4. **Backend Calculation & Deduction Logic**:
+   - In shared-utils/src/unit-conversion.ts:
+     - calculateBaseQuantity(enteredQty: number, unit: 'BOX' | 'STRIP' | 'TABLET', boxToStrip: number, stripToTablet: number): number
+     - calculateUnitRate(baseRate: number, unit: 'BOX' | 'STRIP' | 'TABLET', boxToStrip: number, stripToTablet: number): number
+     - ormatPackagingDisplay(totalBaseUnits: number, boxToStrip: number, stripToTablet: number): string (e.g. 2 Boxes, 4 Strips, 3 Tabs)
+   - In SalesService.checkout:
+     - Calculate aseQty = calculateBaseQuantity(cartItem.qty, cartItem.selectedUnit, ...).
+     - Check stock against atch.currentQty >= baseQty.
+     - Decrement atch.currentQty by aseQty.
+     - Compute line total: $\text{enteredQty} \times \text{unitRate}$.
+5. **Frontend UI/UX**:
+   - MedicineFormModal (pps/web/src/app/medicines/page.tsx): Section for packaging ratios (Strips per Box, Tablets per Strip, Unit Labels).
+   - PosPage & Cart: Unit dropdown selector (Tab, Strip, Box) beside quantity input. Dynamic unit price and live stock badge showing available stock in all units.
 
 ---
 
-## 4. Transaction Boundaries & Guardrails
+### R4: Party-Wise Special Pricing & Discount Matrix
 
-### 4.1 FEFO Dispensation Algorithm (`packages/shared-utils/src/fefo.ts`)
-```typescript
-export function allocateBatchesFefo(batches: Batch[], requestedQty: number): FefoResult {
-  // 1. Filter ACTIVE, non-expired batches with currentQty - reservedQty > 0
-  const validBatches = batches.filter(b => b.status === 'ACTIVE' && new Date(b.expiryDate) > new Date() && b.currentQty > 0);
-  
-  // 2. Sort strictly ascending by expiry date (earliest expiring first)
-  validBatches.sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+#### Current Limitations
+- Currently, prices in sales and POS are populated strictly from the medicine's master price or batch selling price.
+- No ability to configure pre-negotiated wholesale rates, institutional customer discounts, or supplier purchase contracts.
 
-  // 3. Incrementally satisfy requestedQty across batches
-  // Returns allocations array with exact quantity deducted from each batch
-}
-```
+#### Target Architecture & Schema Blueprint
+1. **Prisma Model PartyItemPrice**:
+   `prisma
+   model PartyItemPrice {
+     id              String    @id @default(uuid())
+     partyType       String    @default(CUSTOMER) @map(party_type) // CUSTOMER / SUPPLIER
+     customerId      String?   @map(customer_id)
+     supplierId      String?   @map(supplier_id)
+     medicineId      String    @map(medicine_id)
+     customPrice     Float?    @map(custom_price)
+     discountPercent Float?    @map(discount_percent)
+     effectiveFrom   DateTime? @map(effective_from)
+     effectiveTo     DateTime? @map(effective_to)
+     notes           String?
+     createdAt       DateTime  @default(now()) @map(created_at)
+     updatedAt       DateTime  @updatedAt @map(updated_at)
 
-### 4.2 Atomic POS Checkout Transaction Flow (`SalesService.checkout`)
-1. **Customer Resolution**: Finds existing customer by mobile or creates new customer record.
-2. **Sequential Invoice Generation**: Reads current `BranchSettings.invoiceNextNumber`, constructs formatted invoice number (e.g. `BLR-000142`), and atomically increments sequence number in the same transaction.
-3. **FEFO Allocation & Validation**: Validates available non-expired batch quantities; fails immediately with `400 Bad Request` if insufficient stock.
-4. **Sales Invoice Creation**: Inserts `sales_invoices`, `sales_items`, and split `sales_payments` (Cash, UPI, Card, Cheque, Credit).
-5. **Stock Deduction**: Decrements `batches.currentQty` for each allocated batch.
-6. **Stock Movement Creation**: Inserts immutable audit records in `stock_movements` with `type = SALE`, `direction = OUT`.
+     customer        Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+     supplier        Supplier? @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+     medicine        Medicine  @relation(fields: [medicineId], references: [id], onDelete: Cascade)
 
-### 4.3 Inward Purchase Transaction Flow (`PurchasesService.create` & `confirmPurchase`)
-1. **Invoice Number Uniqueness Check**: Prevents duplicate vendor bills.
-2. **Item Pricing & GST Calculation**: Uses `calculateLineTotal()` for line discounts and tax calculations.
-3. **Batch Upsert**:
-   * Checks if `(medicineId, branchId, batchNumber)` already exists.
-   * If existing: increments `currentQty` and updates MRP/prices.
-   * If new: creates new `Batch` record with `initialQty`, `currentQty`, `mfgDate`, `expiryDate`, and `status = ACTIVE`.
-4. **Stock Movement Creation**: Inserts `stock_movements` with `type = PURCHASE`, `direction = IN`.
-5. **Supplier Ledger Increment**: Atomically increments `Supplier.currentBalance` by invoice grand total.
-
-### 4.4 Sales Return Transaction Flow (`SalesReturnsService.create`)
-1. **Return Quantity Limit Check**: Checks previous returns against original `sales_items.qty` to guarantee that return quantity cannot exceed purchased quantity.
-2. **Refund Calculation**: Calculates exact proportional refund amounts based on billed line total.
-3. **Batch Routing**:
-   * `RESALABLE`: Increments `Batch.currentQty` and records `stock_movements` (`type = SALES_RETURN`, `direction = IN`).
-   * `DAMAGED`: Increments `Batch.damagedQty` (does not restore live stock).
-   * `EXPIRED`: Increments `Batch.expiredQty` (does not restore live stock).
-4. **Invoice Status Update**: Updates `SalesInvoice.status` to `RETURNED` or `PARTIALLY_RETURNED`.
-
----
-
-## 5. Verification & Build Integrity
-
-- **TypeScript Compilation**: `npm run build:api` runs `nest build` with 0 errors across all 28 modules, decorators, guards, and services.
-- **Database Alignment**: Prisma schema models and relation bindings are 100% matched with all entity queries.
-- **Type Safety**: Monorepo shared packages (`@medical-inventory/shared-types`, `@medical-inventory/constants`, `@medical-inventory/shared-utils`, `@medical-inventory/validation`) are cleanly linked and referenced.
+     @@unique([customerId, medicineId])
+     @@unique([supplierId, medicineId])
+     @@index([customerId])
+     @@index([supplierId])
+     @@index([medicineId])
+     @@map(party_item_prices)
+   }
+   `
+2. **Backend API Endpoints (pps/api/src/modules/party-pricing/)**:
+   - GET /party-pricing: Query by customerId, supplierId, or medicineId.
+   - POST /party-pricing: Create/upsert party special price.
+   - DELETE /party-pricing/:id: Remove special price rule.
+   - GET /party-pricing/resolve: Helper endpoint ?partyId=...&partyType=CUSTOMER&medicineId=... returning effective price and discount %.
+3. **POS & Sales Auto-Fill Pipeline**:
+   - When a customer is selected in POS or Sales invoice, query active party pricing rules for that customer.
+   - On adding a medicine to cart, if a special price or discount is defined, override default rate/discount and show a Special Rate tag.
+4. **Frontend UI/UX**:
+   - In CustomersPage & SuppliersPage: Special Pricing Matrix tab or modal to manage custom medicine rates.
+   - In MedicinesPage: Customer Special Rates sub-table.
+   - In PosPage: Special price badge showing original MRP vs party special price.
 
 ---
 
-## 6. Recommendations for Frontend & Integration Phase
+### R5: GST Return Reports (GSTR-1, GSTR-3B & HSN Summary)
 
-1. **POS Counter Shortcuts**: Map web/desktop keybindings to API:
-   * `F1`: Focus search / barcode quick-scan (`/api/pos/scan/:code`)
-   * `F2`: Customer lookup / quick add (`/api/customers`)
-   * `F4`: Hold cart (`/api/pos/hold`)
-   * `F8`: Resume held cart (`/api/pos/resume/:id`)
-   * `F9` / `Ctrl+Enter`: Checkout (`/api/pos/checkout`)
-   * `F12`: Print receipt (`/api/printing/receipt/:id`)
-2. **Offline-First Resilience**: Cache active medicine & batch catalogs locally in IndexedDB / SQLite on web & mobile clients, synchronizing transactions to `/api/pos/checkout` upon network reconnection.
-3. **EscPos Direct Print**: Deliver raw base64 string from `/api/printing/receipt/:id` directly to ESC/POS network printers on port 9100 or Bluetooth thermal printers on mobile.
+#### Current Limitations
+- Only basic sales, purchases, and inventory valuation reports exist. No GST compliance endpoints or GSTR breakdown exists.
+
+#### Target Architecture & Report Data Structures
+1. **GSTR-1 (Outward Supplies Breakdown)**:
+   - **B2B Invoices (Table 4)**: Sales to customers with a valid GSTIN (customer.gstNumber != null).
+     - Columns: GSTIN, Customer Name, Invoice No, Invoice Date, Invoice Total, Place of Supply, Reverse Charge (N), Tax Rate (%), Taxable Value, CGST Amount, SGST Amount, IGST Amount.
+   - **B2C Large (Table 5)**: Inter-state sales > ₹2,50,000 to unregistered persons.
+   - **B2C Small (Table 7)**: Intra-state and small inter-state retail sales to unregistered customers grouped by tax slab (0%, 5%, 12%, 18%, 28%).
+   - **Document Issued (Table 13)**: Invoice sequence start, end, total count, cancelled count.
+2. **GSTR-3B (Monthly Summary Return)**:
+   - **Table 3.1: Details of Outward Supplies & Inward Supplies Liable to Reverse Charge**:
+     - (a) Outward taxable supplies (other than zero-rated, nil-rated and exempted): Total Taxable Value, IGST, CGST, SGST.
+     - (b) Outward taxable supplies (zero-rated).
+     - (c) Other outward supplies (Nil-rated, exempted).
+   - **Table 4: Eligible Input Tax Credit (ITC)**:
+     - Inward supplies from registered suppliers: Total Purchase Taxable Value, IGST, CGST, SGST.
+   - **Table 5.1: Net GST Payable**:
+     - $\text{Net CGST} = \text{Output CGST} - \text{Input CGST}$
+     - $\text{Net SGST} = \text{Output SGST} - \text{Input SGST}$
+3. **HSN-wise Summary of Outward Supplies (Table 12)**:
+   - Aggregated by medicine.hsnCode, description, and tax rate.
+   - Columns: HSN/SAC Code, Description, UQC (e.g. NOS/STRIP/TAB), Total Quantity, Total Value, Taxable Value, Integrated Tax, Central Tax, State/UT Tax, Cess.
+4. **Backend Implementation (pps/api/src/modules/reports/)**:
+   - GET /reports/gstr1 & GET /reports/gstr1/export/excel (ExcelJS multi-tab workbook: B2B, B2CS, DocSummary).
+   - GET /reports/gstr3b & GET /reports/gstr3b/export/excel (ExcelJS GSTR-3B structured summary).
+   - GET /reports/hsn-summary & GET /reports/hsn-summary/export/excel.
+5. **Frontend UI/UX (pps/web/src/app/reports/page.tsx)**:
+   - Tabs: Overview, GSTR-1, GSTR-3B, HSN Summary, Inventory Valuation.
+   - Date range pickers (Month selector or custom range) + Branch filter.
+   - Live summary KPI cards and tables with Export to Excel (.xlsx) action.
+
+---
+
+### R6: Barcode Label Printing (40mm x 20mm Thermal Labels)
+
+#### Current Limitations
+- eact-barcode and eact-to-print are present in dependencies, but there is no dedicated barcode label printing dialog for newly inwarded purchase batches or stock labels.
+
+#### Target Architecture & Technical Specification
+1. **Thermal Label Specifications**:
+   - Dimensions: **40mm width $\times$ 20mm height** (standard retail pharmacy label).
+   - Format: Continuous roll / single column thermal printer (TSC, Zebra, TVS, Xprinter).
+   - Content:
+     - Line 1: Pharmacy Name (MedCare Pharmacy) - 8px bold
+     - Line 2: Medicine Name & Strength (Paracetamol 650mg) - 9px bold, truncated
+     - Line 3: Batch No & Exp Date (B: BT204 | E: 12/27) - 8px
+     - Line 4: Barcode (Code-128 SVG generated via eact-barcode) - height: 24px, width multiplier: 1.0, no text display
+     - Line 5: MRP (MRP: ₹35.00 (Incl. Taxes)) - 8px bold
+2. **Print Stylesheet & Component Architecture**:
+   - Dedicated component: pps/web/src/components/barcode-label-printer.tsx.
+   - CSS Print Media Query:
+     `css
+     @media print {
+       @page {
+         size: 40mm 20mm;
+         margin: 0mm;
+       }
+       body {
+         margin: 0;
+         padding: 0;
+       }
+       .barcode-label {
+         width: 40mm;
+         height: 20mm;
+         page-break-after: always;
+         display: flex;
+         flex-direction: column;
+         justify-content: center;
+         align-items: center;
+         overflow: hidden;
+         box-sizing: border-box;
+         padding: 1mm;
+       }
+     }
+     `
+3. **Trigger Points**:
+   - In PurchasesPage (pps/web/src/app/purchases/page.tsx):
+     - Immediately after creating/saving a purchase invoice, prompt modal: Purchase saved! Print Barcode Labels? with preset quantities matching inward items.
+     - Row action button Print Barcode Labels on all past purchases.
+   - In InventoryPage (pps/web/src/app/inventory/page.tsx):
+     - Print Label button next to any batch.
+
+---
+
+### R7: Schedule H / H1 / X Drug Register (Legal Compliance)
+
+#### Current Limitations
+- Medicine has only a boolean prescriptionRequired.
+- There is no Drug Schedule classification (Schedule H, Schedule H1, Schedule X, Schedule G, OTC).
+- Sales do not record prescribing doctor details or patient prescription info, and there is no legal Drug Register report for regulatory inspections.
+
+#### Target Architecture & Schema Blueprint
+1. **Prisma Schema Enhancements**:
+   - Add drugSchedule to Medicine:
+     `prisma
+     // In model Medicine:
+     drugSchedule String @default(OTC) @map(drug_schedule) // OTC, SCHEDULE_H, SCHEDULE_H1, SCHEDULE_X, NARCOTIC
+     `
+   - Add PrescriptionRecord model:
+     `prisma
+     model PrescriptionRecord {
+       id                   String       @id @default(uuid())
+       salesInvoiceId       String       @unique @map(sales_invoice_id)
+       doctorName           String       @map(doctor_name)
+       doctorRegNumber      String?      @map(doctor_reg_number)
+       doctorAddress        String?      @map(doctor_address)
+       patientName          String       @map(patient_name)
+       patientAge           Int?         @map(patient_age)
+       patientGender        String?      @map(patient_gender)
+       patientAddress       String?      @map(patient_address)
+       prescriptionNumber   String?      @map(prescription_number)
+       prescriptionDate     DateTime?    @map(prescription_date)
+       notes                String?
+       createdAt            DateTime     @default(now()) @map(created_at)
+
+       salesInvoice         SalesInvoice @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
+
+       @@map(prescription_records)
+     }
+     `
+2. **Sales / POS Mandatory Prescription Form Trigger**:
+   - In useCartStore: Compute hasScheduleDrugs = items.some(item => item.drugSchedule && item.drugSchedule !== 'OTC').
+   - In PosPage & Sales invoice form: If hasScheduleDrugs is true, checkout button displays a warning badge and triggers the **Doctor & Prescription Details Modal**.
+   - Required fields:
+     - Doctor Name (Mandatory)
+     - Doctor Medical Registration No (Mandatory for Schedule H1 & X)
+     - Patient Name & Age (Mandatory)
+     - Prescription Ref / Date (Mandatory)
+   - Backend SalesService.checkout validates presence of prescription details when schedule drugs are included, creating PrescriptionRecord within the checkout transaction.
+3. **Schedule H / H1 Register Report**:
+   - Backend endpoint: GET /reports/schedule-register and GET /reports/schedule-register/export/excel.
+   - Regulatory columns (Drugs and Cosmetics Act, 1945):
+     1. Date of Dispensing
+     2. Patient Name, Age & Address
+     3. Prescriber (Doctor) Name & Reg. No.
+     4. Drug Name, Strength & Schedule (H / H1 / X)
+     5. Manufacturer & Batch Number
+     6. Quantity Dispensed
+     7. Sales Invoice Number
+     8. Pharmacist / Dispenser Signature column
+
+---
+
+### R8: WhatsApp Invoice Sharing & Payment Reminder
+
+#### Current Limitations
+- Invoices cannot be directly sent to customer mobile numbers via WhatsApp.
+- No automated payment reminder messaging for outstanding customer ledger accounts.
+
+#### Target Architecture & Implementation Plan
+1. **Utility Functions (packages/shared-utils/src/whatsapp.ts)**:
+   - sanitizeMobileForWhatsApp(mobile: string): string (formats Indian 10-digit number to 91XXXXXXXXXX).
+   - uildWhatsAppUrl(mobile: string, text: string): string (constructs https://wa.me/?text=).
+   - generateSaleInvoiceMessage(invoice: SaleInvoiceDetails): string.
+   - generatePaymentReminderMessage(customer: CustomerBalanceDetails): string.
+2. **Message Formats**:
+   - **Sale Tax Invoice Message**:
+     `	ext
+     🏥 *TAX INVOICE - MEDCARE PHARMACY*
+     ━━━━━━━━━━━━━━━━━━━━
+     📄 *Invoice No:* INV-00042
+     📅 *Date:* 19-Aug-2026
+     👤 *Patient/Customer:* John Doe
+     💰 *Total Amount:* ₹350.00
+     💳 *Payment Status:* PAID (UPI)
+     ━━━━━━━━━━━━━━━━━━━━
+     *Items Purchased:*
+     • Augmentin 625 Duo (B: AG99) x 1 Strip - ₹180.00
+     • Pan 40mg (B: PN12) x 1 Strip - ₹110.00
+     • Paracetamol 650 (B: PC01) x 10 Tabs - ₹60.00
+     ━━━━━━━━━━━━━━━━━━━━
+     🙏 *Thank you for your purchase! Get well soon.*
+     📞 For queries: +91 9876543210
+     `
+   - **Customer Ledger Payment Reminder Message**:
+     `	ext
+     🏥 *PAYMENT REMINDER - MEDCARE PHARMACY*
+     ━━━━━━━━━━━━━━━━━━━━
+     Dear John Doe,
+     
+     This is a gentle reminder regarding your outstanding pharmacy balance of *₹1,250.00*.
+     
+     💳 *UPI Payment ID:* medcare@upi
+     🏦 *Bank Transfer:* HDFC Bank | A/C: 1234567890 | IFSC: HDFC0001234
+     
+     Please settle the balance at your earliest convenience. Thank you!
+     `
+3. **Frontend Action Triggers**:
+   - POS Checkout Complete Modal: Prominent 💬 Share Bill on WhatsApp button.
+   - SalesPage table rows: WhatsApp action icon on every invoice.
+   - CustomersPage table rows: 📲 WhatsApp Reminder button on customers with currentBalance > 0.
+
+---
+
+### R9: Purchase Order (PO) ➔ Inward Bill Auto-Conversion
+
+#### Current Limitations
+- Purchases must be manually created from scratch without a preceding Purchase Order procurement cycle.
+
+#### Target Architecture & Schema Blueprint
+1. **Prisma Models PurchaseOrder & PurchaseOrderItem**:
+   `prisma
+   model PurchaseOrder {
+     id                   String              @id @default(uuid())
+     poNumber             String              @unique @map(po_number)
+     supplierId           String              @map(supplier_id)
+     branchId             String              @map(branch_id)
+     status               String              @default(DRAFT) // DRAFT, SENT, PARTIALLY_RECEIVED, FULLY_RECEIVED, CANCELLED
+     expectedDeliveryDate DateTime?           @map(expected_delivery_date)
+     subtotal             Float               @default(0)
+     taxAmount            Float               @default(0) @map(tax_amount)
+     totalAmount          Float               @default(0) @map(total_amount)
+     notes                String?
+     convertedPurchaseId  String?             @map(converted_purchase_id)
+     createdByUserId      String              @map(created_by_user_id)
+     createdAt            DateTime            @default(now()) @map(created_at)
+     updatedAt            DateTime            @updatedAt @map(updated_at)
+
+     supplier             Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+     branch               Branch              @relation(fields: [branchId], references: [id], onDelete: Restrict)
+     createdByUser        User                @relation(POCreator, fields: [createdByUserId], references: [id], onDelete: Restrict)
+     items                PurchaseOrderItem[]
+
+     @@index([poNumber])
+     @@index([status])
+     @@map(purchase_orders)
+   }
+
+   model PurchaseOrderItem {
+     id                   String              @id @default(uuid())
+     purchaseOrderId      String              @map(purchase_order_id)
+     medicineId           String              @map(medicine_id)
+     orderedQty           Int                 @map(ordered_qty)
+     receivedQty          Int                 @default(0) @map(received_qty)
+     unitId               String?             @map(unit_id)
+     expectedRate         Float               @map(expected_rate)
+     taxPercent           Float               @default(0) @map(tax_percent)
+     lineTotal            Float               @map(line_total)
+
+     purchaseOrder        PurchaseOrder       @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+     medicine             Medicine            @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+
+     @@map(purchase_order_items)
+   }
+   `
+2. **Backend Module (pps/api/src/modules/purchase-orders/)**:
+   - POST /purchase-orders: Create PO.
+   - GET /purchase-orders: List POs with status/supplier filters.
+   - GET /purchase-orders/:id: Detailed PO with ordered items.
+   - PATCH /purchase-orders/:id/status: Transition PO status (DRAFT ➔ SENT ➔ CANCELLED).
+   - POST /purchase-orders/:id/convert: Returns pre-filled purchase inward payload or converts directly.
+3. **1-Click Auto-Conversion Workflow**:
+   - User views PO #PO-2026-001 with status SENT.
+   - Clicks **⚡ Convert to Purchase Bill**.
+   - System navigates to /purchases and opens the Inward Entry modal pre-populated with:
+     - Supplier ID and Name
+     - PO Reference in Notes
+     - All line items (Medicine ID, Ordered Quantities, Expected Rates, Tax %)
+   - User enters actual Batch Number, Mfg Date, Expiry Date, and adjusts actual received quantities.
+   - Upon saving the Purchase Invoice, the API marks PO as FULLY_RECEIVED (or PARTIALLY_RECEIVED) and links convertedPurchaseId.
+4. **Frontend UI/UX (pps/web/src/app/purchase-orders/page.tsx)**:
+   - Dedicated PO management view in sidebar navigation.
+   - Create PO modal with supplier selection, medicine search, quantity and rate inputs.
+   - Status filters, PO printable view, and 1-click Convert action button.
+
+---
+
+## 3. Database Migration & Deployment Plan
+
+1. **Prisma Schema Update**:
+   - Modify prisma/schema.prisma with all 4 new models (PartyItemPrice, PrescriptionRecord, PurchaseOrder, PurchaseOrderItem) and modified columns on Medicine, SalesItem, PurchaseItem.
+2. **Database Push**:
+   - Execute: 
+px prisma db push with production Neon DB connection.
+   - Execute: 
+px prisma generate to refresh @prisma/client.
+3. **Turborepo Packages Build**:
+   - Build @medical-inventory/shared-types, @medical-inventory/constants, @medical-inventory/validation, @medical-inventory/shared-utils.
+4. **Backend & Frontend Build Verification**:
+   - NestJS API: 
+pm run build --workspace=@medical-inventory/api.
+   - Next.js Web: 
+pm run build --workspace=@medical-inventory/web.
+
+---
+
+## 4. Implementation Readiness Matrix
+
+| Feature | Schema Ready | Backend Plan | Frontend Plan | Shared Utils / Packages |
+|---|---|---|---|---|
+| **R3: Unit Conversion** | ✅ Extended Medicine & Items | ✅ Atomic Unit Conversion | ✅ POS & Med Unit Selectors | ✅ Conversion math utils |
+| **R4: Party Pricing** | ✅ PartyItemPrice Model | ✅ PartyPricingModule | ✅ Special Price Modals | ✅ Price resolver utils |
+| **R5: GST Reports** | ✅ Models support GST fields | ✅ ReportsService ExcelJS | ✅ Multi-tab GST Reports page | ✅ GST constants & calculators |
+| **R6: Barcode Printing**| ✅ Schema has barcodes & batches | ✅ Label metadata builder | ✅ 40x20mm thermal print dialog | ✅ eact-barcode / eact-to-print |
+| **R7: Schedule H Register** | ✅ PrescriptionRecord Model | ✅ Checkout trigger + Report | ✅ Doctor Modal + Reg Report | ✅ Drug schedule enums |
+| **R8: WhatsApp Sharing**| ✅ Existing customer & sale models | ✅ Formatters & builders | ✅ Action buttons & modals | ✅ uildWhatsAppUrl & templates |
+| **R9: PO Auto-Conversion** | ✅ PurchaseOrder Models | ✅ PurchaseOrdersModule | ✅ /purchase-orders Page | ✅ PO status & conversion DTOs |
+

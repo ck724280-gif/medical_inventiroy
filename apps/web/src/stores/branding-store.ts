@@ -31,7 +31,7 @@ export const useBrandingStore = create<BusinessBrandingState>((set) => ({
   fetchBranding: async () => {
     try {
       const res = await apiClient.get('/settings/public');
-      const data = res.data;
+      const data = res.data?.data || res.data || {};
 
       set({
         name: data.name || 'MedCare Pharmacy',

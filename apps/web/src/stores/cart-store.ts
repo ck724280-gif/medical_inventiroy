@@ -6,17 +6,19 @@ export interface CartItem {
   medicineId: string;
   name: string;
   sku: string;
-  dosageForm: string;
+  dosageForm?: string;
   batchId?: string;
   batchNumber?: string;
   expiryDate?: string;
   unit: string;
+  unitLevel?: string;
   qty: number;
   rate: number;
   mrp: number;
   taxPercent: number;
   discountPercent: number;
-  availableStock: number;
+  availableStock?: number;
+  prescriptionRequired?: boolean;
   lineTotal: number;
 }
 
@@ -40,9 +42,11 @@ interface CartState {
 
   // Actions
   addItem: (item: Omit<CartItem, 'lineTotal'>) => void;
+  setItems: (items: CartItem[]) => void;
   updateItemQty: (medicineId: string, qty: number, batchId?: string) => void;
   updateItemDiscount: (medicineId: string, discountPercent: number, batchId?: string) => void;
   updateItemRate: (medicineId: string, rate: number, batchId?: string) => void;
+  updateItemUnitLevel: (medicineId: string, unitLevel: string, batchId?: string) => void;
   removeItem: (medicineId: string, batchId?: string) => void;
   clearCart: () => void;
   setCustomer: (customer: { id?: string; name?: string; mobile?: string } | null) => void;
@@ -69,6 +73,12 @@ export const useCartStore = create<CartState>((set, get) => ({
   invoiceDiscountPercent: 0,
   paperWidth: PaperWidth.WIDTH_58MM,
   notes: '',
+
+  setItems: (items) => {
+    set({ items });
+    const total = get().getGrandTotal();
+    set({ payments: [{ paymentMode: PaymentMode.CASH, amount: total }] });
+  },
 
   addItem: (item) => {
     const { items, getGrandTotal } = get();
@@ -156,6 +166,17 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({ items });
     const total = get().getGrandTotal();
     set({ payments: [{ paymentMode: PaymentMode.CASH, amount: total }] });
+  },
+
+  updateItemUnitLevel: (medicineId, unitLevel, batchId) => {
+    const items = get().items.map((item) => {
+      if (item.medicineId === medicineId && (!batchId || item.batchId === batchId)) {
+        return { ...item, unitLevel };
+      }
+      return item;
+    });
+
+    set({ items });
   },
 
   removeItem: (medicineId, batchId) => {

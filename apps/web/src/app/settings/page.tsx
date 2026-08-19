@@ -32,7 +32,7 @@ export default function SettingsPage() {
     queryKey: ['settings-business'],
     queryFn: async () => {
       const res = await apiClient.get('/settings/business');
-      return res.data;
+      return res.data?.data || res.data || {};
     },
   });
 
@@ -41,7 +41,7 @@ export default function SettingsPage() {
     queryKey: ['settings-branding'],
     queryFn: async () => {
       const res = await apiClient.get('/settings/branding');
-      return res.data;
+      return res.data?.data || res.data || {};
     },
   });
 
@@ -50,27 +50,30 @@ export default function SettingsPage() {
     queryKey: ['settings-receipt-template'],
     queryFn: async () => {
       const res = await apiClient.get('/settings/receipt-template');
-      return res.data;
+      return res.data?.data || res.data || {};
     },
   });
 
   // 4. Fetch Branches
-  const { data: branches } = useQuery({
+  const { data: branchesData } = useQuery({
     queryKey: ['branches-list'],
     queryFn: async () => {
       const res = await apiClient.get('/branches');
-      return res.data || [];
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
   });
 
   // 5. Fetch Backups
-  const { data: backups } = useQuery({
+  const { data: backupsData } = useQuery({
     queryKey: ['backup-history'],
     queryFn: async () => {
       const res = await apiClient.get('/backup/history');
-      return res.data || [];
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
   });
+
+  const branches = Array.isArray(branchesData) ? branchesData : [];
+  const backups = Array.isArray(backupsData) ? backupsData : [];
 
   // Business Save Mutation
   const saveBusinessMutation = useMutation({
@@ -110,10 +113,10 @@ export default function SettingsPage() {
     },
   });
 
-  // Create Backup Mutation
+  // Backup Trigger Mutation
   const backupMutation = useMutation({
     mutationFn: async () => {
-      return apiClient.post('/backup/create');
+      return apiClient.post('/backup/trigger');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['backup-history'] });
@@ -130,24 +133,24 @@ export default function SettingsPage() {
         <main className="p-6 max-w-7xl mx-auto w-full space-y-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">System & Business Settings</h2>
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">System & Store Settings</h2>
               <p className="text-xs text-slate-500">
-                Configure your business profile, 100% white-label identity, thermal receipt formats, and branches.
+                Configure legal pharmacy licenses, white-label branding, thermal printer formats, and backups.
               </p>
             </div>
 
             {savedBanner && (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold">
+              <div className="px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 animate-fade-in">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Settings saved successfully!</span>
+                Settings saved successfully!
               </div>
             )}
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm text-xs font-semibold max-w-2xl">
+          {/* Settings Tabs */}
+          <div className="flex border-b border-slate-200 gap-2">
             {[
-              { id: 'business', label: 'Business Profile', icon: Building2 },
+              { id: 'business', label: 'Business Profile & Tax', icon: Building2 },
               { id: 'branding', label: 'White-Label Branding', icon: Palette },
               { id: 'receipt', label: 'Thermal Receipt Setup', icon: Printer },
               { id: 'branches', label: 'Store Branches', icon: Building2 },
@@ -159,21 +162,23 @@ export default function SettingsPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg transition ${
-                    isActive ? 'bg-sky-600 text-white shadow' : 'text-slate-600 hover:text-slate-900'
+                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 ${
+                    isActive
+                      ? 'bg-white text-sky-600 border-sky-600 shadow-sm'
+                      : 'text-slate-500 border-transparent hover:text-slate-800'
                   }`}
                 >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
           </div>
 
-          {/* TAB 1: Business Profile */}
+          {/* TAB 1: Business Profile Form */}
           {activeTab === 'business' && businessData && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-3xl">
-              <h3 className="font-bold text-sm text-slate-800 mb-4">Store Identity & Legal Details</h3>
+              <h3 className="font-bold text-sm text-slate-800 mb-4">Pharmacy Registration & Legal Info</h3>
               <form
                 onSubmit={(e: any) => {
                   e.preventDefault();
@@ -182,75 +187,56 @@ export default function SettingsPage() {
                     name: form.name.value,
                     phone: form.phone.value,
                     email: form.email.value,
-                    gstNumber: form.gstNumber.value,
-                    pharmacyLicense: form.pharmacyLicense.value,
                     address: form.address.value,
                     city: form.city.value,
                     state: form.state.value,
-                    pinZip: form.pinZip.value,
+                    pincode: form.pincode.value,
+                    gstNumber: form.gstNumber.value,
+                    pharmacyLicense: form.pharmacyLicense.value,
+                    fssaiNumber: form.fssaiNumber.value,
+                    panNumber: form.panNumber.value,
                   });
                 }}
                 className="space-y-4 text-xs"
               >
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Pharmacy / Business Name *</label>
-                  <input
-                    name="name"
-                    required
-                    defaultValue={businessData.name}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500 font-semibold"
-                  />
-                </div>
-
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Official Phone *</label>
+                  <div className="col-span-2">
+                    <label className="block font-semibold text-slate-700 mb-1">Pharmacy / Store Name *</label>
                     <input
-                      name="phone"
                       required
-                      defaultValue={businessData.phone}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500 font-mono"
+                      name="name"
+                      defaultValue={businessData.name || ''}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500 font-bold"
                     />
                   </div>
+
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Official Email</label>
+                    <label className="block font-semibold text-slate-700 mb-1">Contact Phone</label>
+                    <input
+                      name="phone"
+                      defaultValue={businessData.phone || ''}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Business Email</label>
                     <input
                       name="email"
                       defaultValue={businessData.email || ''}
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">GSTIN Number</label>
+                  <div className="col-span-2">
+                    <label className="block font-semibold text-slate-700 mb-1">Full Store Address</label>
                     <input
-                      name="gstNumber"
-                      defaultValue={businessData.gstNumber || ''}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500 font-mono"
+                      name="address"
+                      defaultValue={businessData.address || ''}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500"
                     />
                   </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Drug License #</label>
-                    <input
-                      name="pharmacyLicense"
-                      defaultValue={businessData.pharmacyLicense || ''}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500 font-mono"
-                    />
-                  </div>
-                </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Street Address</label>
-                  <input
-                    name="address"
-                    defaultValue={businessData.address || ''}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">City</label>
                     <input
@@ -259,20 +245,64 @@ export default function SettingsPage() {
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500"
                     />
                   </div>
+
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">State</label>
+                    <label className="block font-semibold text-slate-700 mb-1">State / Province</label>
                     <input
                       name="state"
                       defaultValue={businessData.state || ''}
                       className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500"
                     />
                   </div>
+
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">PIN / ZIP</label>
+                    <label className="block font-semibold text-slate-700 mb-1">PIN / ZIP Code</label>
                     <input
-                      name="pinZip"
-                      defaultValue={businessData.pinZip || ''}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500 font-mono"
+                      name="pincode"
+                      defaultValue={businessData.pincode || ''}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">GSTIN Number (GST)</label>
+                    <input
+                      name="gstNumber"
+                      defaultValue={businessData.gstNumber || ''}
+                      placeholder="27AABCU9603R1ZM"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">
+                      Pharmacy Drug License # (Form 20B / 21B)
+                    </label>
+                    <input
+                      name="pharmacyLicense"
+                      defaultValue={businessData.pharmacyLicense || ''}
+                      placeholder="DL-20B-1082"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">FSSAI License #</label>
+                    <input
+                      name="fssaiNumber"
+                      defaultValue={businessData.fssaiNumber || ''}
+                      placeholder="10019022009842"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Business PAN #</label>
+                    <input
+                      name="panNumber"
+                      defaultValue={businessData.panNumber || ''}
+                      placeholder="AABCU9603R"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono uppercase focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 </div>
@@ -284,23 +314,22 @@ export default function SettingsPage() {
                     className="px-5 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl shadow flex items-center gap-2"
                   >
                     <Save className="w-4 h-4" />
-                    {saveBusinessMutation.isPending ? 'Saving...' : 'Save Changes'}
+                    {saveBusinessMutation.isPending ? 'Saving...' : 'Save Profile'}
                   </button>
                 </div>
               </form>
             </div>
           )}
 
-          {/* TAB 2: White-Label Branding */}
+          {/* TAB 2: White-Label Branding Form */}
           {activeTab === 'branding' && brandingData && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-3xl">
-              <h3 className="font-bold text-sm text-slate-800 mb-4">100% White-Label Appearance</h3>
+              <h3 className="font-bold text-sm text-slate-800 mb-4">Color Palette & Brand Identity</h3>
               <form
                 onSubmit={(e: any) => {
                   e.preventDefault();
                   const form = e.target;
                   saveBrandingMutation.mutate({
-                    appName: form.appName.value,
                     primaryColor: form.primaryColor.value,
                     secondaryColor: form.secondaryColor.value,
                     accentColor: form.accentColor.value,
@@ -308,15 +337,6 @@ export default function SettingsPage() {
                 }}
                 className="space-y-4 text-xs"
               >
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Application Brand Title</label>
-                  <input
-                    name="appName"
-                    defaultValue={brandingData.appName || 'MedCare Medical ERP'}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500 font-medium"
-                  />
-                </div>
-
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">Primary Color</label>
@@ -439,7 +459,7 @@ export default function SettingsPage() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
               <h3 className="font-bold text-sm text-slate-800">Multi-Branch Locations</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {branches?.map((b: any) => (
+                {branches.map((b: any) => (
                   <div key={b.id} className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
                     <div className="flex justify-between items-center">
                       <span className="font-bold text-slate-900 text-sm">{b.name}</span>
@@ -465,7 +485,7 @@ export default function SettingsPage() {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5 max-w-3xl">
               <div className="flex justify-between items-center">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800">Database Snapshots & Disaster Recovery (§44)</h3>
+                  <h3 className="font-bold text-sm text-slate-800">Database Snapshots & Disaster Recovery</h3>
                   <p className="text-xs text-slate-500 mt-0.5">
                     Generate point-in-time full database backup snapshots.
                   </p>
@@ -482,10 +502,10 @@ export default function SettingsPage() {
 
               <div className="space-y-2">
                 <label className="font-bold text-xs text-slate-700 block">Backup Snapshot History:</label>
-                {backups?.length === 0 ? (
+                {backups.length === 0 ? (
                   <p className="text-xs text-slate-400 py-4">No backups created yet.</p>
                 ) : (
-                  backups?.map((b: any) => (
+                  backups.map((b: any) => (
                     <div
                       key={b.id}
                       className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs"

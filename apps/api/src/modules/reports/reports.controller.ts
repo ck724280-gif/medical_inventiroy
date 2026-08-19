@@ -39,6 +39,82 @@ export class ReportsController {
     return this.reportsService.getInventoryValuationReport(branchId);
   }
 
+  @Get('gstr1')
+  @RequirePermissions('report.view')
+  async getGstr1(
+    @Query('branchId') branchId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.reportsService.getGstr1Report({ branchId, startDate, endDate });
+  }
+
+  @Get('gstr1/export/excel')
+  @RequirePermissions('report.export')
+  async exportGstr1Excel(
+    @Query('branchId') branchId: string | undefined,
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Res() res: Response
+  ) {
+    const buffer = await this.reportsService.exportGstr1Excel({ branchId, startDate, endDate });
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="gstr1-report.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Get('gstr3b')
+  @RequirePermissions('report.view')
+  async getGstr3b(
+    @Query('branchId') branchId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.reportsService.getGstr3bReport({ branchId, startDate, endDate });
+  }
+
+  @Get('hsn-summary')
+  @RequirePermissions('report.view')
+  async getHsnSummary(
+    @Query('branchId') branchId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.reportsService.getHsnSummaryReport({ branchId, startDate, endDate });
+  }
+
+  @Get('schedule-h')
+  @RequirePermissions('report.view')
+  async getScheduleH(
+    @Query('branchId') branchId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('schedule') schedule?: string
+  ) {
+    return this.reportsService.getScheduleHReport({ branchId, startDate, endDate, schedule });
+  }
+
+  @Get('schedule-h/export/excel')
+  @RequirePermissions('report.export')
+  async exportScheduleHExcel(
+    @Query('branchId') branchId: string | undefined,
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Query('schedule') schedule: string | undefined,
+    @Res() res: Response
+  ) {
+    const buffer = await this.reportsService.exportScheduleHExcel({ branchId, startDate, endDate, schedule });
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="schedule-h-register.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
   @Get('inventory/export/excel')
   @RequirePermissions('report.export')
   async exportInventoryExcel(

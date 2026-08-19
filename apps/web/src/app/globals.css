@@ -2,42 +2,283 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   DARK OBSIDIAN + CYAN — Design Token System
+   MedCare Pharmacy ERP & POS
+   ============================================================ */
 :root {
-  --color-primary: #0284c7;
-  --color-secondary: #0f172a;
+  /* Core color tokens */
+  --color-primary: #06b6d4;
+  --color-secondary: #050a0f;
+
+  /* Background layers */
+  --bg-base: #050a0f;
+  --bg-surface: #0a1628;
+  --bg-elevated: #0f2040;
+  --bg-overlay: #071525;
+
+  /* Accent - Cyan */
+  --accent-cyan: #06b6d4;
+  --accent-cyan-glow: #22d3ee;
+  --accent-cyan-dim: #0891b2;
+  --accent-cyan-pale: #cffafe;
+
+  /* Borders */
+  --border-subtle: #1a3a5c;
+  --border-glass: rgba(6, 182, 212, 0.15);
+  --border-glow: rgba(6, 182, 212, 0.35);
+
+  /* Text */
+  --text-primary: #e2f4ff;
+  --text-muted: #5a8ca8;
+  --text-dim: #2c5f7a;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(6, 182, 212, 0.04);
+  --glass-bg-hover: rgba(6, 182, 212, 0.08);
+  --glass-border: rgba(6, 182, 212, 0.12);
+
+  /* Glow shadows */
+  --glow-cyan-sm: 0 0 12px rgba(6, 182, 212, 0.25);
+  --glow-cyan-md: 0 0 24px rgba(6, 182, 212, 0.35);
+  --glow-cyan-lg: 0 0 48px rgba(6, 182, 212, 0.25);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.7), var(--glow-cyan-sm);
 }
 
+/* ============================================================
+   BASE STYLES
+   ============================================================ */
 body {
   margin: 0;
   padding: 0;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom Scrollbars */
+/* ============================================================
+   CUSTOM SCROLLBARS — Cyan accent
+   ============================================================ */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: var(--bg-surface);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--accent-cyan-dim);
   border-radius: 4px;
+  opacity: 0.5;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--accent-cyan);
+  box-shadow: var(--glow-cyan-sm);
 }
 
-/* POS Quick Scan animations */
+/* ============================================================
+   GLASSMORPHISM UTILITIES
+   ============================================================ */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s ease-out;
+}
+
+.glass-card:hover {
+  background: var(--glass-bg-hover);
+  border-color: rgba(6, 182, 212, 0.25);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
+}
+
+.glass-surface {
+  background: rgba(10, 22, 40, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glass);
+}
+
+.glass-input {
+  background: rgba(5, 10, 15, 0.6);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.glass-input:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+  outline: none;
+}
+
+/* ============================================================
+   GLOW EFFECTS
+   ============================================================ */
+.glow-cyan {
+  box-shadow: var(--glow-cyan-md);
+}
+
+.glow-cyan-sm {
+  box-shadow: var(--glow-cyan-sm);
+}
+
+.glow-text-cyan {
+  text-shadow: 0 0 20px rgba(6, 182, 212, 0.6);
+}
+
+.btn-cyan {
+  background: linear-gradient(135deg, #0891b2, #06b6d4);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
+  transition: all 0.25s ease-out;
+}
+
+.btn-cyan:hover {
+  background: linear-gradient(135deg, #06b6d4, #22d3ee);
+  box-shadow: 0 4px 24px rgba(6, 182, 212, 0.55);
+  transform: translateY(-1px);
+}
+
+/* ============================================================
+   KEYFRAME ANIMATIONS
+   ============================================================ */
+
+/* Fade + Slide Up — main page entry */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade In — gentle appearance */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Slide In from Left — sidebar nav items */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Aurora Blob — login page background */
+@keyframes auroraFloat {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.25;
+  }
+  33% {
+    transform: translate(30px, -20px) scale(1.08);
+    opacity: 0.35;
+  }
+  66% {
+    transform: translate(-20px, 30px) scale(0.95);
+    opacity: 0.28;
+  }
+}
+
+/* Pulse ring — logo, notification */
+@keyframes pulseRing {
+  0% {
+    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(6, 182, 212, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
+  }
+}
+
+/* Cyan dot pulse — notifications */
+@keyframes cyanPulse {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.6);
+  }
+  50% {
+    opacity: 0.8;
+    box-shadow: 0 0 0 6px rgba(6, 182, 212, 0);
+  }
+}
+
+/* POS Quick Scan animations — existing, preserved */
 @keyframes flash-green {
-  0% { background-color: rgba(34, 197, 94, 0.2); }
+  0%   { background-color: rgba(34, 197, 94, 0.2); }
   100% { background-color: transparent; }
 }
 
+/* ============================================================
+   ANIMATION UTILITY CLASSES
+   ============================================================ */
+.animate-fade-slide-up {
+  animation: fadeSlideUp 0.4s ease-out both;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.35s ease-out both;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 0.3s ease-out both;
+}
+
+.animate-aurora {
+  animation: auroraFloat 8s ease-in-out infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulseRing 2s ease-out infinite;
+}
+
+.animate-cyan-pulse {
+  animation: cyanPulse 1.5s ease-in-out infinite;
+}
+
+/* Stagger delays for card grids */
+.stagger-1 { animation-delay: 0.08s; }
+.stagger-2 { animation-delay: 0.16s; }
+.stagger-3 { animation-delay: 0.24s; }
+.stagger-4 { animation-delay: 0.32s; }
+
 .flash-item-added {
   animation: flash-green 0.6s ease-out;
+}
+
+/* ============================================================
+   REDUCED MOTION — Accessibility
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-slide-up,
+  .animate-fade-in,
+  .animate-slide-in-left,
+  .animate-aurora,
+  .animate-pulse-ring,
+  .animate-cyan-pulse,
+  .glass-card {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
 }

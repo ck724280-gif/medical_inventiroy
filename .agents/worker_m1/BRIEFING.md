@@ -1,51 +1,38 @@
-# BRIEFING — 2026-08-19T02:28:00Z
+# BRIEFING — 2026-08-19T15:04:00Z
 
 ## Mission
-Ensure monorepo build integrity, apply targeted package and TypeScript fixes, verify Prisma schema synchronization and database seeding, and achieve 0-error full monorepo build across all shared packages and apps.
+Execute all 3 phases (Bug fixes & unwrapping & Auth, 7 Vyapar-inspired ERP features, Neon DB sync, Builds, Test Suite, Git Push, Live verification) for Medical Inventory & Pharmacy ERP upgrade project.
 
 ## 🔒 My Identity
-- Archetype: implementer
+- Archetype: worker
 - Roles: implementer, qa, specialist
 - Working directory: d:/antigravity programme/medical_inventory/.agents/worker_m1
-- Original parent: 492dc3fe-d9ff-44d3-8fc0-c32901696dba
-- Milestone: Worker 1 - Core & Monorepo Build Integrity
+- Original parent: 79fa8afa-b902-48db-9cb8-3309e5a6f02b
+- Milestone: Full-Stack Implementation (Phase 1, 2, 3)
 
 ## 🔒 Key Constraints
-- Apply designated build fixes in `apps/web/package.json` and `apps/api/src/modules/branches/branches.service.ts`.
-- Run `npm install` from root.
-- Ensure `npx prisma db push --schema=./prisma/schema.prisma` and `npm run db:seed` run cleanly.
-- Ensure `npm run build` succeeds with 0 TypeScript/compilation errors across all workspaces.
-- Mandatory Integrity Mandate: Real behavior, no hardcoding or dummy implementations.
+- Genuine implementation only, no dummy/facade implementations or hardcoding.
+- Maintain real state and logic.
+- Follow minimal change principle and rigorous verification.
+- Output complete handoff report in .agents/worker_m1/handoff.md.
 
 ## Current Parent
-- Conversation ID: 492dc3fe-d9ff-44d3-8fc0-c32901696dba
-- Updated: 2026-08-19T02:28:00Z
+- Conversation ID: 79fa8afa-b902-48db-9cb8-3309e5a6f02b
+- Updated: 2026-08-19T15:04:00Z
 
 ## Task Summary
-- **What to build**: Build fixes, workspace dependency installation, database push & seed verification, and full monorepo compilation.
-- **Success criteria**: 0 build errors across `packages/shared-types`, `packages/constants`, `packages/shared-utils`, `packages/validation`, `apps/api`, `apps/web`, `apps/mobile`; clean db push and seed.
-- **Interface contracts**: `ORIGINAL_REQUEST.md`
-
-## Key Decisions Made
-- Added `@hookform/resolvers: ^3.9.1` to `apps/web/package.json`.
-- Handled `businessHours` stringification safely in `apps/api/src/modules/branches/branches.service.ts`.
-- Added React overrides to resolve duplicate React instances during Next.js static build.
-- Fixed `isDraft: boolean = false` parameter typing in `apps/web/src/app/purchases/page.tsx`.
+- **What to build**: Full fixes for array unwrap bugs + auth redirects across web; 7 Vyapar medical features (Unit conversion, Party-wise pricing, GST reports, Barcode printing, Schedule H register, WhatsApp share, PO auto-conversion); DB push to Neon, full builds, runner.ts passing, Git commit & push.
+- **Success criteria**: All pages unwrap properly, all 7 features functional end-to-end, all runner.ts tests pass, web and api build cleanly, git pushed to main.
 
 ## Change Tracker
-- **Files modified**:
-  - `apps/web/package.json`: added `@hookform/resolvers` dependency
-  - `apps/api/src/modules/branches/branches.service.ts`: safe `businessHours` stringify logic
-  - `apps/web/src/app/purchases/page.tsx`: explicit boolean typing on `isDraft`
-  - `package.json`: aligned React types & added overrides
-  - `apps/mobile/package.json`: aligned `@types/react` and `react` version
-- **Build status**: PASS (Turborepo build clean across all 7 packages)
+- **Files modified**: None yet
+- **Build status**: Pending
 - **Pending issues**: None
 
 ## Quality Status
-- **Build/test result**: PASS (51/51 tests pass)
-- **Lint status**: Clean
-- **Tests added/modified**: Verified all 4 tiers
+- **Build/test result**: Pending
+- **Lint status**: 0
+- **Tests added/modified**: Pending
 
 ## Loaded Skills
 - None

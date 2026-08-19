@@ -23,13 +23,13 @@ export function Header() {
     queryKey: ['notifications-unread-count'],
     queryFn: async () => {
       const res = await apiClient.get('/notifications/unread-count');
-      return res.data;
+      return res.data?.data || res.data || {};
     },
     enabled: !!user,
     refetchInterval: 60000,
   });
 
-  const branches = user?.branches || [];
+  const branches = Array.isArray(user?.branches) ? user.branches : [];
   const activeBranch = branches.find((b) => b.id === selectedBranchId) || branches[0];
 
   const handleLogout = async () => {
@@ -64,7 +64,7 @@ export function Header() {
               onChange={(e) => setSelectedBranchId(e.target.value)}
               className="bg-transparent font-semibold text-slate-800 focus:outline-none cursor-pointer"
             >
-              {branches.map((b) => (
+              {(Array.isArray(branches) ? branches : []).map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name} ({b.code})
                 </option>

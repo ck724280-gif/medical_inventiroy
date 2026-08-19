@@ -1,17 +1,17 @@
-﻿## 2026-08-19T01:42:41Z
-You are Explorer 1 (Survey & Core/Database Architecture).
-Your working directory is d:/antigravity programme/medical_inventory/.agents/explorer_survey_1.
-You must inspect the project workspace at d:/antigravity programme/medical_inventory and read d:/antigravity programme/medical_inventory/ORIGINAL_REQUEST.md.
+## 2026-08-19T13:52:56Z
+You are an Explorer / Spec Miner investigating Phase 1 requirements for the Medical Inventory & Pharmacy ERP.
+Working directory: d:/antigravity programme/medical_inventory/.agents/explorer_survey_1
+Authoritative Request: d:/antigravity programme/medical_inventory/.agents/ORIGINAL_REQUEST.md
 
-Your mission:
-1. Survey the current state of the workspace d:/antigravity programme/medical_inventory to see what files and packages currently exist.
-2. Investigate the full scope for:
-   - R1: Complete Monorepo configuration (Turbo / npm workspaces, tsconfig base, root package.json, scripts) and Shared Core Layer:
-     * packages/shared-types: 38+ TypeScript domain models, DTOs, Enums.
-     * packages/constants: 40+ RBAC permissions matrix, 7 roles (Super Admin, Branch Admin, Pharmacist, Cashier, Inventory Manager, Accountant, Auditor), GST tax slabs (0%, 5%, 12%, 18%, 28%), status enums.
-     * packages/shared-utils: FEFO batch allocation algorithm (expiryDate: 'asc', active status check, expired check), currency precision math (cents/paise integer math to prevent floating point errors), invoice/bill sequencers, GS1 DataMatrix / Code128 barcode parser, 58mm/80mm ESC/POS monospace receipt formatter.
-     * packages/validation: Complete Zod schemas matching all domain entities and API endpoints.
-   - R2: Relational Database Schema (prisma/schema.prisma with 38+ models) and Seed Engine (prisma/seed/index.ts with comprehensive seeding including default roles, permissions, business profile, branches, categories, units, manufacturers, suppliers, customers, medicines, batches with varying expiry dates, and super admin user).
-3. Identify all technical dependencies, exact data structures, relationships, and acceptance criteria.
-4. Write your comprehensive report to d:/antigravity programme/medical_inventory/.agents/explorer_survey_1/survey_report.md and your handoff.md.
-5. Send your completion message back to the orchestrator.
+Tasks:
+1. Read d:/antigravity programme/medical_inventory/.agents/ORIGINAL_REQUEST.md first.
+2. Thoroughly investigate apps/web (Next.js 14 App Router):
+   - Check all pages in apps/web/src/app/ (/suppliers, /customers, /purchases, /sales, /medicines, /inventory, /expenses, /sales-returns, /reports, /pos, /import, /settings, etc.) and all components for paginated API response handling { data: [], meta: {} } vs raw array res.data.
+   - Identify all places where res.data is accessed and where .map() is called on data that might be { data: [...] } or undefined/null.
+   - Investigate authentication flow: /login, token storage (cookies/localStorage), apps/web/src/lib/api-client.ts, NEXT_PUBLIC_API_URL, auto-redirect on 401/expiry, and how Authorization header is attached.
+3. Produce a detailed specification and survey report in d:/antigravity programme/medical_inventory/.agents/explorer_survey_1/survey_report.md and handoff.md with:
+   - Comprehensive list of all files and lines requiring fixes.
+   - Exact fix patterns for API response unwrapping and JSX .map() calls.
+   - Authentication fix strategy for live Render backend compatibility.
+   - Interface contracts and risk areas.
+When complete, notify parent via send_message with handoff.md path.

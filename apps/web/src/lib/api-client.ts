@@ -1,9 +1,15 @@
 import axios from 'axios';
 
+const getBaseApiUrl = () => {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    const trimmed = process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '');
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  }
+  return 'https://medical-inventiroy.onrender.com/api';
+};
+
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL 
-    ? `${process.env.NEXT_PUBLIC_API_URL}/api` 
-    : 'https://medical-inventiroy.onrender.com/api',
+  baseURL: getBaseApiUrl(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -35,14 +41,13 @@ apiClient.interceptors.response.use(
 
       if (refreshToken) {
         try {
-          const res = await axios.post(
-            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/auth/refresh`,
-            { refreshToken }
-          );
+          const res = await axios.post(`${getBaseApiUrl()}/auth/refresh`, { refreshToken });
 
           const { accessToken, refreshToken: newRefreshToken } = res.data;
           localStorage.setItem('medcare_access_token', accessToken);
-          localStorage.setItem('medcare_refresh_token', newRefreshToken);
+          if (newRefreshToken) {
+            localStorage.setItem('medcare_refresh_token', newRefreshToken);
+          }
 
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return apiClient(originalRequest);
@@ -54,6 +59,13 @@ apiClient.interceptors.response.use(
           if (window.location.pathname !== '/login') {
             window.location.href = '/login';
           }
+        }
+      } else {
+        localStorage.removeItem('medcare_access_token');
+        localStorage.removeItem('medcare_refresh_token');
+        localStorage.removeItem('medcare_user');
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login';
         }
       }
     }

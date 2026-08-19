@@ -1,84 +1,106 @@
-# Handoff Report — Explorer 2 (Backend NestJS REST API Architecture)
+﻿# Phase 2 Architecture Survey Handoff Report
 
-**Working Directory**: `d:/antigravity programme/medical_inventory/.agents/explorer_survey_2`  
-**Handoff Type**: Hard (Task Complete)  
-**Target Milestone**: R3 — Backend REST API Architecture & Service Contract Mapping  
+**Task:** Phase 2 Investigation (7 Vyapar-inspired Medical Features: R3 to R9)  
+**Author:** Explorer Subagent  
+**Date:** 2026-08-19  
+**Handoff Type:** Hard (Complete Investigation)  
 
 ---
 
 ## 1. Observation
 
-1. **Workspace & Monorepo Structure**:
-   - Monorepo configured with Turborepo and npm workspaces (`apps/api`, `apps/web`, `apps/mobile`, `packages/shared-types`, `packages/constants`, `packages/shared-utils`, `packages/validation`).
-   - `apps/api/package.json` contains NestJS 10.4.15, Prisma Client 5.22.0, Argon2 0.41.1, Passport JWT 4.0.1, Throttler 6.3.0, Swagger 8.1.0, PDFKit 0.16.0, ExcelJS 4.4.0, Helmet 8.0.0.
+### 1.1 Database Schema (prisma/schema.prisma)
+- Medicine model has aseUnitId, packSize, oxQty, stripQty, 	abletQty, and prescriptionRequired: Boolean, but lacks explicit conversion multipliers (stripToTabletRatio, oxToStripRatio) and Drug Schedule classification (drugSchedule: OTC | SCHEDULE_H | SCHEDULE_H1 | SCHEDULE_X).
+- Batch model stores currentQty: Int which represents base units.
+- SalesItem and PurchaseItem store a flat qty: Int without recording the chosen unit level (selectedUnit) or conversion multiplier (unitConversionFactor).
+- SalesInvoice lacks structured prescription records for Schedule H compliance.
+- No PartyItemPrice, PrescriptionRecord, PurchaseOrder, or PurchaseOrderItem models exist yet.
 
-2. **Database Schema & Prisma Configuration**:
-   - `prisma/schema.prisma` defines 38+ relational models with SQLite provider (`dev.db`).
-   - Key relations include `User` -> `UserRole` -> `Role` -> `RolePermission` -> `Permission`, `Branch` -> `BranchSettings`, `Medicine` -> `Batch` -> `StockMovement`, `SalesInvoice` -> `SalesItem` & `SalesPayment`, `PurchaseInvoice` -> `PurchaseItem` & `PurchasePayment`.
+### 1.2 Backend API (pps/api/src/modules/)
+- SalesService.checkout (sales.service.ts:100-340) handles transaction creation and FEFO batch deduction, directly decrementing atch.currentQty by item.qty.
+- PurchasesService.create (purchases.service.ts:110-180) upserts batches and increments atch.currentQty by item.qty.
+- ReportsService (eports.service.ts) has ExcelJS integrated with inventory export, but lacks GSTR-1, GSTR-3B, HSN summary, and Schedule H register endpoints.
+- PrintingService (printing.service.ts) generates ESC/POS thermal receipts, but there is no endpoint or template for 40mm x 20mm medicine shelf barcode labels.
+- CustomersService and SuppliersService have standard CRUD without party-item pricing matrix endpoints.
 
-3. **Backend API Domain Implementation**:
-   - `apps/api/src/modules/` contains 28 complete domain modules: `auth`, `users`, `roles`, `settings`, `branches`, `categories`, `manufacturers`, `units`, `medicines`, `suppliers`, `customers`, `batches`, `inventory`, `purchases`, `sales`, `pos`, `sales-returns`, `purchase-returns`, `printing`, `invoices`, `expenses`, `financials`, `reports`, `dashboard`, `audit`, `notifications`, `backup`, `import-export`.
-   - Global guards & interceptors registered in `apps/api/src/app.module.ts`:
-     * Line 88: `JwtAuthGuard` (protects all routes by default, bypassed by `@Public()`)
-     * Line 93: `PermissionsGuard` (enforces `@RequirePermissions()` matrix, OWNER bypass)
-     * Line 98: `ThrottlerGuard` (rate limiting 100 req/60s)
-     * Line 103: `AuditInterceptor` (logs create/update/delete with redacted payloads)
-     * Line 108: `GlobalHttpExceptionFilter`
-     * Line 112: `PrismaExceptionFilter` (maps P2002, P2025, P2003, P2014)
+### 1.3 Shared Packages (packages/*)
+- @medical-inventory/shared-types: Contains core enums (DosageForm, BatchStatus, PaymentMode, PaperWidth, BarcodeType), but lacks DrugSchedule, PurchaseOrderStatus, PartyType.
+- @medical-inventory/shared-utils: Contains financial math (calculateLineTotal), date formatting, invoice numbering, and FEFO allocation (llocateBatchesFefo), but lacks unit conversion helpers and WhatsApp URL builders.
+- exceljs is installed in pps/api/package.json (^4.4.0).
+- eact-barcode (^1.5.3) and eact-to-print (^3.0.2) are already installed in pps/web/package.json.
 
-4. **Compilation & Build Verification**:
-   - `apps/api/src/modules/branches/branches.service.ts` had a minor type mismatch with SQLite `businessHours` (Record vs String), which was corrected.
-   - Executed `npm run build:api` -> `nest build` completed with Exit Code 0 and 0 compiler errors.
+### 1.4 Frontend App (pps/web/src/app/)
+- pos/page.tsx & cart-store.ts: Supports barcode scan and FEFO sales, but lacks unit selection dropdown, special price auto-fill, Schedule H prescription trigger modal, and WhatsApp share buttons.
+- medicines/page.tsx: Supports medicine CRUD, but lacks packaging unit ratios and customer special price matrix.
+- purchases/page.tsx: Supports purchase inwarding, but lacks unit selection, barcode label print trigger, and PO auto-conversion integration.
+- eports/page.tsx: Has Financial and Inventory tabs, but lacks GSTR-1, GSTR-3B, HSN Summary, and Schedule H tabs.
+- customers/page.tsx: Supports customer CRUD, but lacks WhatsApp payment reminder button and special price rules.
+- /purchase-orders: Page does not exist yet.
 
 ---
 
 ## 2. Logic Chain
 
-1. **RBAC & Security Chain**:
-   - *Observation 1 & 3*: `@RequirePermissions()` decorates controller methods, read by `Reflector` in `PermissionsGuard`. `JwtStrategy` unpacks permissions into `req.user.permissions`.
-   - *Inference*: Unauthorized attempts to access sensitive endpoints (e.g. `backup.manage`, `inventory.adjust`, `sale.create`) receive immediate 403 Forbidden responses, maintaining enterprise access boundaries.
-
-2. **Inventory Integrity & FEFO Chain**:
-   - *Observation 2 & 3*: `allocateBatchesFefo` sorts batches by `expiryDate: 'asc'`, filtering out inactive or expired batches. `SalesService.checkout` runs inside `prisma.$transaction`.
-   - *Inference*: When a cashier scans a medicine barcode, the system automatically disburses stock from the earliest-expiring batch, prevents negative inventory, atomically writes sales items, payments, and immutable stock movements in a single rollback-safe unit.
-
-3. **Multi-Branch Isolation & Sequencer Chain**:
-   - *Observation 2 & 3*: Each branch has an associated `BranchSettings` record with `invoicePrefix` and `invoiceNextNumber`.
-   - *Inference*: Concurrent sales across different branches never collide on invoice numbering; each transaction atomically fetches and increments its local branch counter.
-
-4. **Financial Accuracy Chain**:
-   - *Observation 3*: `FinancialsService` calculates COGS from the specific purchase price of the allocated batches (`item.batch.purchasePrice * item.qty`).
-   - *Inference*: Gross profit accurately reflects true batch acquisition cost rather than an estimated average, complying with pharmaceutical accounting standards.
+1. **R3: Unit Conversion Engine**:
+   - Because physical inventory is discrete and must be tracked atomically to prevent partial fractional sync bugs, the base unit (Tertiary Unit, e.g., Tablet) must remain the single source of truth in Batch.currentQty.
+   - By adding stripToTabletRatio and oxToStripRatio to Medicine, and selectedUnit, unitConversionFactor, enteredQty, and aseQty to SalesItem and PurchaseItem, any transaction can be accepted in Box/Strip/Tablet, auto-calculating rates and decrementing/incrementing exact base units atomically.
+2. **R4: Party-Wise Special Pricing**:
+   - By creating PartyItemPrice with unique constraints (customerId, medicineId) and (supplierId, medicineId), party-specific custom rates and discounts can be indexed efficiently.
+   - Integrating price resolution into SalesService and the POS frontend ensures that selecting a party immediately auto-fills negotiated pricing.
+3. **R5: GST Return Reports**:
+   - Because SalesInvoice, SalesItem, PurchaseInvoice, and PurchaseItem already record taxable values, tax percentages, and customer GSTINs, GSTR-1 (B2B vs B2C), GSTR-3B (Output vs ITC), and HSN summary can be aggregated using Prisma queries and exported to multi-sheet Excel files via ExcelJS.
+4. **R6: Barcode Label Printing**:
+   - Because eact-barcode and eact-to-print are already present in pps/web, a 40mm x 20mm thermal print component with @page { size: 40mm 20mm; margin: 0; } can render Code-128 SVG barcodes, batch number, expiry date, MRP, and medicine name for continuous-roll thermal printers upon purchase inwarding.
+5. **R7: Schedule H/H1 Drug Register**:
+   - Marking Medicine.drugSchedule as SCHEDULE_H, SCHEDULE_H1, or SCHEDULE_X enables POS/Sales validation to require doctor name, registration number, patient details, and prescription reference before checkout, persisting into PrescriptionRecord and populating the legal Schedule H Register report.
+6. **R8: WhatsApp Sharing & Reminders**:
+   - Standardizing uildWhatsAppUrl with encoded message templates allows 1-click sharing of tax invoices on wa.me/<mobile> upon sale completion, and payment reminder generation from the Customers ledger.
+7. **R9: Purchase Order Auto-Conversion**:
+   - Adding PurchaseOrder and PurchaseOrderItem models enables creating procurement orders in DRAFT or SENT status.
+   - The 1-click conversion workflow pre-populates a Purchase Inward entry with PO items, allowing the pharmacist to fill batch/expiry details and adjust received quantities before saving, automatically marking the PO as FULLY_RECEIVED.
 
 ---
 
 ## 3. Caveats
 
-- **SQLite Database Provider**: The current `prisma/schema.prisma` uses the SQLite provider for local zero-dependency operation. All JSON configuration fields (such as `businessHours`, `printerConfig`, and `loginBranding`) are modeled as `String?` (serialized JSON strings). If migrating to PostgreSQL in future production deployments, these fields can be converted to native `Json` type with minimal DTO changes.
-- **Hardware ESC/POS Printing**: The API generates ESC/POS binary buffers and base64 payloads; testing on physical USB/Bluetooth hardware depends on client-side printer drivers or raw socket connections.
+1. **Database Schema Application**:
+   - When modifying prisma/schema.prisma, 
+px prisma db push should be used against the Neon PostgreSQL database to apply new models and fields without data loss.
+2. **Backward Compatibility**:
+   - Existing medicines without configured unit conversion ratios will default stripToTabletRatio = 1 and oxToStripRatio = 1, behaving as standard single-unit items.
+3. **Printer Hardware Variance**:
+   - Thermal label printers differ in DPI (203 DPI vs 300 DPI). The CSS stylesheet for 40mm x 20mm uses exact physical metric units (mm) and vector SVG barcodes to ensure crisp printing on all standard thermal label printers.
 
 ---
 
 ## 4. Conclusion
 
-The NestJS 10 REST API backend (`apps/api`) is fully architected, verified, and 100% buildable. It provides a complete, robust, and secure foundation for all 20+ domain requirements, ready for seamless integration with the Next.js 14 Web ERP/POS counter (`apps/web`) and Expo Mobile application (`apps/mobile`).
+The architectural investigation for Phase 2 is complete. All 7 requirements have clear, non-conflicting database schema definitions, backend NestJS controller/service designs, frontend Next.js App Router integrations, and shared package utilities. The complete specification is documented in survey_report.md.
 
 ---
 
 ## 5. Verification Method
 
-To independently reproduce and verify this investigation:
-
-1. **Build API**:
-   ```bash
-   npm run build:api
-   ```
-   *Expected result*: Exit code 0, clean compilation output in `apps/api/dist/`.
-
-2. **Inspect Swagger Documentation**:
-   * Start API: `npm run dev:api`
-   * Open browser: `http://localhost:4000/docs`
-   * Confirm all 28 module tag groups and endpoint DTO schemas are present.
-
-3. **Validate Architecture Survey Report**:
-   * Inspect report file: `d:/antigravity programme/medical_inventory/.agents/explorer_survey_2/survey_report.md`.
+To verify the implementation once executed:
+1. **Prisma DB Push & Client Generation**:
+   `ash
+   npx prisma db push
+   npx prisma generate
+   `
+2. **Build Verification Across Monorepo**:
+   `ash
+   npm run build --workspace=@medical-inventory/shared-types
+   npm run build --workspace=@medical-inventory/constants
+   npm run build --workspace=@medical-inventory/shared-utils
+   npm run build --workspace=@medical-inventory/validation
+   npm run build --workspace=@medical-inventory/api
+   npm run build --workspace=@medical-inventory/web
+   `
+3. **E2E Feature Verification Matrix**:
+   - **R3 (Unit Conversion):** Create medicine with 1 Box = 10 Strips, 1 Strip = 10 Tablets. Purchase 2 Boxes (adds 200 Tablets). Sell 3 Tablets in POS -> Stock remaining = 197 Tablets.
+   - **R4 (Party Pricing):** Configure Customer A special price ₹80 for Medicine X (MRP ₹100). Select Customer A in POS -> Rate auto-populates ₹80.
+   - **R5 (GST Reports):** Open /reports, switch to GSTR-1, GSTR-3B, and HSN tabs, verify calculations, and download .xlsx files.
+   - **R6 (Barcode Printing):** Inward a purchase, click Print Barcode Labels, verify 40mm x 20mm label dialog and Code-128 SVG render.
+   - **R7 (Schedule H Register):** Add Schedule H1 medicine in POS -> Verify prescription modal is enforced -> Verify sale appears in Schedule H Register report.
+   - **R8 (WhatsApp Share):** Click Share on WhatsApp on saved sale -> Verify wa.me URL contains formatted message with invoice details.
+   - **R9 (PO Conversion):** Create PO -> Click Convert to Purchase Bill -> Verify purchase inward entry opens pre-populated -> Save purchase and verify PO status updates to FULLY_RECEIVED.

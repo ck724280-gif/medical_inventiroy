@@ -1,24 +1,24 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useRef, useEffect } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import {
-  Scan,
-  Search,
   ShoppingCart,
+  Search,
+  Barcode,
   Trash2,
-  PauseCircle,
-  PlayCircle,
-  Plus,
-  Minus,
   CheckCircle2,
   Printer,
+  Plus,
+  Minus,
   CreditCard,
   Banknote,
   Smartphone,
   Users,
-  AlertCircle,
+  ShieldAlert,
+  MessageCircle,
   X,
+  Layers,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
@@ -28,7 +28,7 @@ import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { useCartStore } from '../../stores/cart-store';
 import { PaymentMode, PaperWidth, ThermalReceiptDataDto } from '@medical-inventory/shared-types';
-import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
+import { formatCurrency, generateWhatsAppInvoiceUrl } from '@medical-inventory/shared-utils';
 
 export default function PosPage() {
   const { selectedBranchId } = useAuthStore();
@@ -36,181 +36,175 @@ export default function PosPage() {
 
   const [barcodeInput, setBarcodeInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [activePaymentMode, setActivePaymentMode] = useState<PaymentMode>(PaymentMode.CASH);
-  const [paymentAmount, setPaymentAmount] = useState<string>('');
   const [customerMobile, setCustomerMobile] = useState('');
   const [customerName, setCustomerName] = useState('');
+  const [activePaymentMode, setActivePaymentMode] = useState<PaymentMode>(PaymentMode.CASH);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [errorBanner, setErrorBanner] = useState<string | null>(null);
   const [completedReceiptData, setCompletedReceiptData] = useState<ThermalReceiptDataDto | null>(null);
+  const [savedInvoiceData, setSavedInvoiceData] = useState<any | null>(null);
+
+  // Schedule H Prescription Modal State (R7)
+  const [showRxModal, setShowRxModal] = useState(false);
+  const [prescriptionForm, setPrescriptionForm] = useState({
+    doctorName: '',
+    doctorRegNo: '',
+    patientName: '',
+    patientAge: 30,
+    patientAddress: '',
+    prescriptionNumber: '',
+    drugSchedule: 'SCHEDULE_H',
+  });
 
   const barcodeRef = useRef<HTMLInputElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
 
-  // Auto-focus barcode on mount & listen to keyboard shortcuts
   useEffect(() => {
     barcodeRef.current?.focus();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'F1') {
-        e.preventDefault();
-        barcodeRef.current?.focus();
-      } else if (e.key === 'F2') {
-        e.preventDefault();
-        searchRef.current?.focus();
-      } else if (e.key === 'F9') {
-        e.preventDefault();
-        handleCheckout();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Search Medicine query
-  const { data: searchResults } = useQuery({
-    queryKey: ['pos-medicine-search', searchQuery, selectedBranchId],
-    queryFn: async () => {
-      if (!searchQuery || searchQuery.length < 2) return [];
-      const res = await apiClient.get('/medicines', {
-        params: { search: searchQuery, branchId: selectedBranchId || undefined, limit: 8 },
+  // Quick Barcode Scanning Query
+  const handleBarcodeScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!barcodeInput.trim()) return;
+
+    try {
+      const res = await apiClient.post('/pos/scan', {
+        barcode: barcodeInput.trim(),
+        branchId: selectedBranchId,
       });
-      return res.data?.data || [];
+
+      const scanData = res.data?.data || res.data;
+      if (scanData?.medicine) {
+        cart.addItem({
+          medicineId: scanData.medicine.id,
+          name: scanData.medicine.name,
+          sku: scanData.medicine.sku,
+          qty: 1,
+          rate: scanData.fefoBatch?.sellingPrice ?? scanData.medicine.defaultSellingPrice,
+          mrp: scanData.fefoBatch?.mrp ?? scanData.medicine.mrp,
+          batchId: scanData.fefoBatch?.batchId,
+          batchNumber: scanData.fefoBatch?.batchNumber,
+          expiryDate: scanData.fefoBatch?.expiryDate,
+          taxPercent: scanData.medicine.taxPercent,
+          discountPercent: 0,
+          unit: scanData.medicine.baseUnit,
+          prescriptionRequired: scanData.medicine.prescriptionRequired,
+        });
+        setBarcodeInput('');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Barcode scan failed');
+    }
+  };
+
+  // Medicine Search Dropdown Query
+  const { data: searchResultsData } = useQuery({
+    queryKey: ['pos-search-medicines', searchQuery, selectedBranchId],
+    queryFn: async () => {
+      if (!searchQuery.trim() || searchQuery.length < 2) return [];
+      const res = await apiClient.get('/medicines', {
+        params: { search: searchQuery, limit: 10 },
+      });
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
     enabled: searchQuery.length >= 2,
   });
 
-  // Handle Quick Barcode Scan
-  const handleBarcodeSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!barcodeInput.trim()) return;
+  const searchResults = Array.isArray(searchResultsData) ? searchResultsData : [];
 
-    setErrorBanner(null);
-    try {
-      const res = await apiClient.get(`/pos/scan/${encodeURIComponent(barcodeInput.trim())}`, {
-        params: { branchId: selectedBranchId || undefined },
-      });
-
-      const { medicine, fefoBatch, availableStock } = res.data;
-
-      if (!fefoBatch || availableStock <= 0) {
-        setErrorBanner(`No available active stock for '${medicine.name}'`);
-        return;
-      }
-
-      cart.addItem({
-        medicineId: medicine.id,
-        name: medicine.name,
-        sku: medicine.sku,
-        dosageForm: medicine.dosageForm,
-        batchId: fefoBatch.batchId,
-        batchNumber: fefoBatch.batchNumber,
-        expiryDate: fefoBatch.expiryDate ? formatDate(fefoBatch.expiryDate, 'MM-YYYY') : undefined,
-        unit: medicine.baseUnit || 'PCS',
-        qty: 1,
-        rate: fefoBatch.sellingPrice,
-        mrp: fefoBatch.sellingPrice,
-        taxPercent: fefoBatch.taxPercent || 0,
-        discountPercent: 0,
-        availableStock,
-      });
-
-      setBarcodeInput('');
-    } catch (err: any) {
-      setErrorBanner(err.response?.data?.message || `Barcode '${barcodeInput}' not recognized`);
-    } finally {
-      barcodeRef.current?.focus();
+  // Customer Party-Pricing Lookup
+  useEffect(() => {
+    if (customerMobile.length === 10) {
+      apiClient
+        .get('/customers', { params: { search: customerMobile } })
+        .then((res) => {
+          const list = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+          if (list.length > 0) {
+            setCustomerName(list[0].name);
+            setPrescriptionForm((prev) => ({ ...prev, patientName: list[0].name }));
+          }
+        })
+        .catch(() => {});
     }
-  };
+  }, [customerMobile]);
 
-  // Add Medicine from manual search result
-  const handleSelectSearchResult = (medicine: any) => {
-    const activeBatch = medicine.batches?.[0];
-    if (!activeBatch || medicine.totalStock <= 0) {
-      setErrorBanner(`No active stock for ${medicine.name}`);
-      return;
-    }
+  const hasScheduleHDrug = cart.items.some(
+    (i: any) => i.prescriptionRequired || (i.medicine && (i.medicine as any).drugSchedule !== 'OTC')
+  );
 
-    cart.addItem({
-      medicineId: medicine.id,
-      name: medicine.name,
-      sku: medicine.sku,
-      dosageForm: medicine.dosageForm,
-      batchId: activeBatch.id,
-      batchNumber: activeBatch.batchNumber,
-      expiryDate: formatDate(activeBatch.expiryDate, 'MM-YYYY'),
-      unit: medicine.baseUnit?.abbreviation || 'TAB',
-      qty: 1,
-      rate: activeBatch.sellingPrice,
-      mrp: activeBatch.mrp,
-      taxPercent: medicine.taxPercent,
-      discountPercent: 0,
-      availableStock: medicine.totalStock,
-    });
-
-    setSearchQuery('');
-    setSearchFocused(false);
-    barcodeRef.current?.focus();
-  };
-
-  // Checkout & Generate Thermal Receipt
-  const handleCheckout = async () => {
-    if (cart.items.length === 0) {
-      setErrorBanner('Cart is empty. Scan or search items first.');
-      return;
-    }
-
+  const executeCheckout = async (rxData?: any) => {
+    if (cart.items.length === 0) return;
     if (!selectedBranchId) {
-      setErrorBanner('Please select a store branch in the header.');
+      alert('Please select an active branch');
       return;
     }
 
-    setErrorBanner(null);
     setIsCheckingOut(true);
-
     try {
-      const grandTotal = cart.getGrandTotal();
-
       const payload = {
         branchId: selectedBranchId,
-        customerName: customerName || undefined,
-        customerMobile: customerMobile || undefined,
-        items: cart.items.map((i) => ({
-          medicineId: i.medicineId,
-          batchId: i.batchId,
-          qty: i.qty,
-          rate: i.rate,
-          discountPercent: i.discountPercent,
+        customerMobile: customerMobile || null,
+        customerName: customerName || null,
+        items: cart.items.map((item: any) => ({
+          medicineId: item.medicineId,
+          batchId: item.batchId || undefined,
+          qty: item.qty,
+          unitLevel: item.unitLevel || 'TABLET',
+          rate: item.rate,
+          discountPercent: item.discountPercent,
         })),
         payments: [
           {
+            amount: cart.getGrandTotal(),
             paymentMode: activePaymentMode,
-            amount: grandTotal,
           },
         ],
         invoiceDiscountPercent: cart.invoiceDiscountPercent,
         paperWidth: cart.paperWidth,
+        prescription: rxData || null,
       };
 
       const res = await apiClient.post('/pos/checkout', payload);
-      const invoice = res.data;
+      const invoice = res.data?.data || res.data;
+      setSavedInvoiceData(invoice);
 
-      // Fetch formatted receipt data for modal preview and print
-      const receiptRes = await apiClient.get(`/sales/${invoice.id}/receipt`, {
-        params: { paperWidth: cart.paperWidth },
-      });
+      // Load receipt data for immediate preview
+      if (invoice?.id) {
+        const receiptRes = await apiClient.get(`/sales/${invoice.id}/receipt`, {
+          params: { paperWidth: cart.paperWidth },
+        });
+        setCompletedReceiptData(receiptRes.data?.data || receiptRes.data);
+      }
 
-      setCompletedReceiptData(receiptRes.data);
       cart.clearCart();
-      setCustomerName('');
       setCustomerMobile('');
+      setCustomerName('');
+      setShowRxModal(false);
     } catch (err: any) {
-      setErrorBanner(err.response?.data?.message || 'Checkout failed. Please review stock availability.');
+      alert(err.response?.data?.message || 'Checkout failed');
     } finally {
       setIsCheckingOut(false);
     }
+  };
+
+  const handleCheckoutClick = () => {
+    if (hasScheduleHDrug) {
+      setShowRxModal(true);
+    } else {
+      executeCheckout();
+    }
+  };
+
+  const handleRxSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    executeCheckout(prescriptionForm);
+  };
+
+  const handleWhatsAppShare = () => {
+    if (!savedInvoiceData) return;
+    const phone = customerMobile || prompt('Enter customer WhatsApp mobile:');
+    if (!phone) return;
+    const url = generateWhatsAppInvoiceUrl(phone, savedInvoiceData.invoiceNumber, savedInvoiceData.totalAmount);
+    window.open(url, '_blank');
   };
 
   return (
@@ -220,140 +214,139 @@ export default function PosPage() {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header />
 
-        {/* Error notification banner */}
-        {errorBanner && (
-          <div className="bg-red-600 text-white px-6 py-2.5 text-xs flex items-center justify-between shadow-md">
-            <div className="flex items-center gap-2 font-medium">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>{errorBanner}</span>
-            </div>
-            <button onClick={() => setErrorBanner(null)} className="p-0.5 hover:bg-red-700 rounded">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
         <div className="flex-1 flex overflow-hidden p-4 gap-4">
-          {/* LEFT: Cart & Items Table */}
+          {/* LEFT: Fast Item Entry & Bill Cart Area */}
           <div className="flex-1 bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-            {/* Top Bar: Barcode & Manual Search */}
-            <div className="p-4 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center gap-3">
-              {/* Barcode Scanner Input */}
-              <form onSubmit={handleBarcodeSubmit} className="flex-1 min-w-[240px] relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-sky-600">
-                  <Scan className="w-4 h-4 animate-pulse" />
+            {/* Top Scanning & Medicine Search Bar */}
+            <div className="p-4 border-b border-slate-200 bg-slate-50 flex gap-3">
+              {/* Barcode Quick Scan */}
+              <form onSubmit={handleBarcodeScan} className="flex-1 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                  <Barcode className="w-4 h-4" />
                 </div>
                 <input
                   ref={barcodeRef}
                   type="text"
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
-                  placeholder="Scan Barcode / SKU (F1)..."
-                  className="w-full pl-9 pr-4 py-2 bg-white border-2 border-sky-300 rounded-xl text-sm font-mono focus:outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 transition shadow-inner"
+                  placeholder="Scan EAN-13 Barcode or SKU (Press Enter)..."
+                  className="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition"
                 />
               </form>
 
-              {/* Medicine Manual Search */}
-              <div className="flex-1 min-w-[240px] relative">
+              {/* Medicine Autocomplete Search */}
+              <div className="flex-1 relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   <Search className="w-4 h-4" />
                 </div>
                 <input
-                  ref={searchRef}
                   type="text"
                   value={searchQuery}
-                  onFocus={() => setSearchFocused(true)}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search Medicine Name / Generic (F2)..."
-                  className="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:border-sky-500 transition"
+                  placeholder="Search Medicine name or Generic molecule..."
+                  className="w-full pl-9 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20 transition"
                 />
 
-                {/* Search Typeahead Dropdown */}
-                {searchFocused && searchResults && searchResults.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden max-h-72 overflow-y-auto">
+                {/* Dropdown Results */}
+                {searchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-11 z-50 bg-white rounded-xl shadow-2xl border border-slate-200 max-h-64 overflow-y-auto divide-y divide-slate-100">
                     {searchResults.map((med: any) => (
                       <div
                         key={med.id}
-                        onClick={() => handleSelectSearchResult(med)}
-                        className="p-3 hover:bg-sky-50 cursor-pointer border-b border-slate-100 flex items-center justify-between text-xs transition"
+                        onClick={() => {
+                          cart.addItem({
+                            medicineId: med.id,
+                            name: med.name,
+                            sku: med.sku,
+                            qty: 1,
+                            unitLevel: 'TABLET',
+                            rate: med.defaultSellingPrice,
+                            mrp: med.mrp,
+                            taxPercent: med.taxPercent,
+                            discountPercent: 0,
+                            unit: med.baseUnit?.abbreviation || 'PCS',
+                            prescriptionRequired: med.prescriptionRequired || med.isScheduleH || med.isScheduleH1,
+                          });
+                          setSearchQuery('');
+                        }}
+                        className="p-3 hover:bg-sky-50 cursor-pointer flex justify-between items-center transition"
                       >
                         <div>
-                          <p className="font-bold text-slate-800">{med.name}</p>
+                          <p className="font-bold text-xs text-slate-900">{med.name}</p>
                           <p className="text-[10px] text-slate-500">
-                            {med.genericName} • {med.dosageForm} • SKU: {med.sku}
+                            {med.genericName} • MRP: ₹{med.mrp}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-sky-700">₹{med.defaultSellingPrice?.toFixed(2)}</p>
-                          <p className="text-[10px] text-emerald-600 font-semibold">
-                            Stock: {med.totalStock} {med.baseUnit?.abbreviation}
-                          </p>
-                        </div>
+                        <span className="text-xs font-mono font-bold text-sky-700">
+                          ₹{med.defaultSellingPrice}
+                        </span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-
-              {/* Clear Cart Button */}
-              {cart.items.length > 0 && (
-                <button
-                  onClick={cart.clearCart}
-                  className="px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-xl border border-red-200 transition flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Clear Cart
-                </button>
-              )}
             </div>
 
             {/* Cart Items Table */}
             <div className="flex-1 overflow-y-auto">
               {cart.items.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 text-center">
-                  <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-300 mb-3">
-                    <ShoppingCart className="w-8 h-8" />
-                  </div>
-                  <h4 className="font-bold text-slate-600 text-sm">POS Billing Counter Ready</h4>
-                  <p className="text-xs text-slate-400 max-w-sm mt-1">
-                    Scan any medicine barcode using a USB/Bluetooth scanner, or search by name. Earliest-expiry batches will be automatically selected.
-                  </p>
+                <div className="h-full flex flex-col items-center justify-center text-slate-400 p-8 space-y-2">
+                  <ShoppingCart className="w-12 h-12 stroke-1 text-slate-300" />
+                  <p className="text-sm font-semibold">Cart is currently empty</p>
+                  <p className="text-xs text-slate-400">Scan barcode or search medicine to add to bill</p>
                 </div>
               ) : (
                 <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 sticky top-0 z-10">
+                  <thead className="bg-slate-50 text-slate-600 font-semibold sticky top-0 border-b border-slate-200 z-10">
                     <tr>
-                      <th className="py-2.5 px-3">#</th>
-                      <th className="py-2.5 px-3">Item / Product</th>
-                      <th className="py-2.5 px-3">FEFO Batch</th>
-                      <th className="py-2.5 px-3 text-right">Rate (₹)</th>
+                      <th className="py-2.5 px-3">Medicine & Batch</th>
+                      <th className="py-2.5 px-3 text-right">Unit Rate</th>
+                      <th className="py-2.5 px-3 text-center">Unit Level</th>
                       <th className="py-2.5 px-3 text-center">Quantity</th>
                       <th className="py-2.5 px-3 text-right">Disc %</th>
-                      <th className="py-2.5 px-3 text-right">Amount (₹)</th>
-                      <th className="py-2.5 px-3 text-center">Action</th>
+                      <th className="py-2.5 px-3 text-right">Total</th>
+                      <th className="py-2.5 px-3 text-center"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {cart.items.map((item, idx) => (
-                      <tr key={`${item.medicineId}-${item.batchId}`} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3 px-3 font-mono text-slate-400">{idx + 1}</td>
+                    {(Array.isArray(cart.items) ? cart.items : []).map((item: any, idx: number) => (
+                      <tr key={`${item.medicineId}-${idx}`} className="hover:bg-slate-50">
                         <td className="py-3 px-3">
-                          <p className="font-bold text-slate-900">{item.name}</p>
-                          <p className="text-[10px] text-slate-500 font-mono">{item.sku}</p>
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            {item.name}
+                            {item.prescriptionRequired && (
+                              <span className="px-1.5 py-0.2 bg-red-100 text-red-700 font-mono text-[9px] rounded font-bold">
+                                Rx
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-slate-500 font-mono">
+                            B: {item.batchNumber || 'FEFO Auto'} {item.expiryDate && `• Exp: ${item.expiryDate}`}
+                          </div>
                         </td>
-                        <td className="py-3 px-3">
-                          <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 font-mono text-[10px] font-semibold border border-sky-200">
-                            {item.batchNumber} (Exp: {item.expiryDate})
-                          </span>
+                        <td className="py-3 px-3 text-right font-mono font-medium text-slate-700">
+                          ₹{Number(item.rate || 0).toFixed(2)}
                         </td>
-                        <td className="py-3 px-3 text-right font-mono font-medium">
-                          {item.rate.toFixed(2)}
+                        <td className="py-3 px-3 text-center">
+                          <select
+                            value={item.unitLevel || 'TABLET'}
+                            onChange={(e) => {
+                              const updated = [...cart.items];
+                              updated[idx].unitLevel = e.target.value;
+                              cart.setItems(updated);
+                            }}
+                            className="px-1.5 py-0.5 bg-sky-50 text-sky-800 border border-sky-200 rounded font-semibold text-[10px]"
+                          >
+                            <option value="BOX">Box</option>
+                            <option value="STRIP">Strip</option>
+                            <option value="TABLET">Tablet / Loose</option>
+                          </select>
                         </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="py-3 px-3 text-center">
+                          <div className="flex items-center justify-center gap-1">
                             <button
-                              onClick={() => cart.updateItemQty(item.medicineId, item.qty - 1, item.batchId)}
-                              className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition"
+                              onClick={() => cart.updateItemQty(item.medicineId, Math.max(1, item.qty - 1), item.batchId)}
+                              className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
@@ -361,18 +354,12 @@ export default function PosPage() {
                               type="number"
                               min="1"
                               value={item.qty}
-                              onChange={(e) =>
-                                cart.updateItemQty(
-                                  item.medicineId,
-                                  parseInt(e.target.value) || 1,
-                                  item.batchId
-                                )
-                              }
-                              className="w-12 text-center font-bold text-slate-900 border border-slate-300 rounded-md py-0.5 text-xs focus:outline-none focus:border-sky-500"
+                              onChange={(e) => cart.updateItemQty(item.medicineId, parseInt(e.target.value) || 1, item.batchId)}
+                              className="w-10 text-center font-mono font-bold text-slate-900 border border-slate-300 rounded py-0.5"
                             />
                             <button
                               onClick={() => cart.updateItemQty(item.medicineId, item.qty + 1, item.batchId)}
-                              className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition"
+                              className="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
@@ -384,23 +371,17 @@ export default function PosPage() {
                             min="0"
                             max="100"
                             value={item.discountPercent}
-                            onChange={(e) =>
-                              cart.updateItemDiscount(
-                                item.medicineId,
-                                parseFloat(e.target.value) || 0,
-                                item.batchId
-                              )
-                            }
-                            className="w-12 text-right border border-slate-300 rounded-md py-0.5 px-1 text-xs focus:outline-none focus:border-sky-500 font-mono"
+                            onChange={(e) => cart.updateItemDiscount(item.medicineId, parseFloat(e.target.value) || 0, item.batchId)}
+                            className="w-12 text-right border border-slate-300 rounded py-0.5 px-1 font-mono text-xs"
                           />
                         </td>
                         <td className="py-3 px-3 text-right font-bold text-slate-900 font-mono text-sm">
-                          {item.lineTotal.toFixed(2)}
+                          ₹{Number(item.lineTotal || 0).toFixed(2)}
                         </td>
                         <td className="py-3 px-3 text-center">
                           <button
                             onClick={() => cart.removeItem(item.medicineId, item.batchId)}
-                            className="text-red-400 hover:text-red-600 p-1 transition"
+                            className="text-red-400 hover:text-red-600 p-1"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -420,19 +401,19 @@ export default function PosPage() {
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
                   <Users className="w-4 h-4 text-sky-600" />
-                  <span>Customer (Optional)</span>
+                  <span>Customer (Special Pricing Auto-Applied)</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
-                    placeholder="Mobile Number"
+                    placeholder="Mobile (10 digits)"
                     value={customerMobile}
                     onChange={(e) => setCustomerMobile(e.target.value)}
                     className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono focus:outline-none focus:border-sky-500"
                   />
                   <input
                     type="text"
-                    placeholder="Customer Name"
+                    placeholder="Customer / Patient"
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
                     className="px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:outline-none focus:border-sky-500"
@@ -442,9 +423,7 @@ export default function PosPage() {
 
               {/* Payment Mode Selector */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-2">
-                  Payment Mode
-                </label>
+                <label className="block text-xs font-bold text-slate-700 mb-2">Payment Mode</label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
                     { mode: PaymentMode.CASH, label: 'Cash', icon: Banknote },
@@ -471,27 +450,6 @@ export default function PosPage() {
                   })}
                 </div>
               </div>
-
-              {/* Paper Width Config */}
-              <div className="flex items-center justify-between pt-1">
-                <span className="text-xs font-semibold text-slate-600">Thermal Width:</span>
-                <div className="flex gap-2">
-                  {[PaperWidth.WIDTH_58MM, PaperWidth.WIDTH_80MM].map((w) => (
-                    <button
-                      key={w}
-                      type="button"
-                      onClick={() => cart.setPaperWidth(w)}
-                      className={`px-2.5 py-1 text-xs font-mono font-semibold rounded-lg border transition ${
-                        cart.paperWidth === w
-                          ? 'bg-slate-900 text-white border-slate-900'
-                          : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      {w}
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
 
             {/* Bill Summary & Checkout Button */}
@@ -502,9 +460,7 @@ export default function PosPage() {
               </div>
               <div className="flex justify-between text-xs text-slate-600">
                 <span>Discount Total:</span>
-                <span className="font-mono text-emerald-600">
-                  -₹{cart.getDiscountTotal().toFixed(2)}
-                </span>
+                <span className="font-mono text-emerald-600">-₹{cart.getDiscountTotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xs text-slate-600">
                 <span>Tax / GST:</span>
@@ -521,7 +477,7 @@ export default function PosPage() {
               {/* Checkout Action Button */}
               <button
                 disabled={cart.items.length === 0 || isCheckingOut}
-                onClick={handleCheckout}
+                onClick={handleCheckoutClick}
                 className="w-full mt-3 py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/30 transition cursor-pointer"
               >
                 <CheckCircle2 className="w-5 h-5" />
@@ -531,15 +487,141 @@ export default function PosPage() {
           </div>
         </div>
 
+        {/* Schedule H / Doctor Prescription Modal (R7) */}
+        {showRxModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2 text-red-600">
+                  <ShieldAlert className="w-5 h-5" />
+                  <h3 className="font-bold text-sm text-slate-900">Schedule H / H1 Prescription Details Required</h3>
+                </div>
+                <button onClick={() => setShowRxModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-[11px] text-slate-600">
+                Legal compliance requires recording doctor registration and patient details for Schedule H/H1 drugs.
+              </p>
+
+              <form onSubmit={handleRxSubmit} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Doctor's Name *</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="Dr. R. Sharma"
+                      value={prescriptionForm.doctorName}
+                      onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorName: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Doctor Reg No *</label>
+                    <input
+                      required
+                      type="text"
+                      placeholder="MCI-19842"
+                      value={prescriptionForm.doctorRegNo}
+                      onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorRegNo: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Patient Name *</label>
+                    <input
+                      required
+                      type="text"
+                      value={prescriptionForm.patientName || customerName}
+                      onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientName: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Patient Age *</label>
+                    <input
+                      required
+                      type="number"
+                      min="1"
+                      value={prescriptionForm.patientAge}
+                      onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientAge: parseInt(e.target.value) || 30 })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Prescription Ref #</label>
+                    <input
+                      type="text"
+                      placeholder="Rx-2026-09"
+                      value={prescriptionForm.prescriptionNumber}
+                      onChange={(e) => setPrescriptionForm({ ...prescriptionForm, prescriptionNumber: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Drug Schedule</label>
+                    <select
+                      value={prescriptionForm.drugSchedule}
+                      onChange={(e) => setPrescriptionForm({ ...prescriptionForm, drugSchedule: e.target.value })}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none"
+                    >
+                      <option value="SCHEDULE_H">Schedule H</option>
+                      <option value="SCHEDULE_H1">Schedule H1</option>
+                      <option value="SCHEDULE_X">Schedule X</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setShowRxModal(false)}
+                    className="px-4 py-2 border border-slate-300 rounded-xl font-semibold text-slate-600"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isCheckingOut}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow"
+                  >
+                    {isCheckingOut ? 'Saving...' : 'Confirm & Complete Sale'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Completed Sale Thermal Receipt Modal */}
         {completedReceiptData && (
-          <ThermalReceiptPreview
-            data={completedReceiptData}
-            onClose={() => {
-              setCompletedReceiptData(null);
-              barcodeRef.current?.focus();
-            }}
-          />
+          <div className="relative">
+            <ThermalReceiptPreview
+              data={completedReceiptData}
+              onClose={() => {
+                setCompletedReceiptData(null);
+                barcodeRef.current?.focus();
+              }}
+            />
+            {/* Floating WhatsApp Share Button on Receipt Preview */}
+            <div className="fixed bottom-6 right-6 z-50">
+              <button
+                onClick={handleWhatsAppShare}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl shadow-2xl flex items-center gap-2 cursor-pointer transition transform hover:scale-105"
+              >
+                <MessageCircle className="w-5 h-5" />
+                Share Bill on WhatsApp
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -24,6 +24,7 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { BatchesModule } from './modules/batches/batches.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { PurchasesModule } from './modules/purchases/purchases.module';
+import { PurchaseOrdersModule } from './modules/purchase-orders/purchase-orders.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { PosModule } from './modules/pos/pos.module';
 import { SalesReturnsModule } from './modules/sales-returns/sales-returns.module';
@@ -38,6 +39,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { ImportExportModule } from './modules/import-export/import-export.module';
+import { PartyPricingModule } from './modules/party-pricing/party-pricing.module';
 
 @Module({
   imports: [
@@ -66,6 +68,8 @@ import { ImportExportModule } from './modules/import-export/import-export.module
     BatchesModule,
     InventoryModule,
     PurchasesModule,
+    PurchaseOrdersModule,
+    PartyPricingModule,
     SalesModule,
     PosModule,
     SalesReturnsModule,

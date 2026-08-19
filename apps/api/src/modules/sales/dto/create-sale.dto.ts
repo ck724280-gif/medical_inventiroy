@@ -1,5 +1,6 @@
 import {
   IsArray,
+  IsBoolean,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -10,6 +11,36 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PaymentMode, PaperWidth } from '@medical-inventory/shared-types';
+
+export class PrescriptionDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Doctor name is required' })
+  doctorName: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Doctor registration number is required' })
+  doctorRegNo: string;
+
+  @IsString()
+  @IsNotEmpty({ message: 'Patient name is required' })
+  patientName: string;
+
+  @IsNumber()
+  @Min(1, { message: 'Patient age must be positive' })
+  patientAge: number;
+
+  @IsOptional()
+  @IsString()
+  patientAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  prescriptionNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  drugSchedule?: string;
+}
 
 export class CartItemDto {
   @IsString()
@@ -27,6 +58,18 @@ export class CartItemDto {
   @IsOptional()
   @IsString()
   unitId?: string;
+
+  @IsOptional()
+  @IsString()
+  unitLevel?: string; // 'BOX' | 'STRIP' | 'TABLET'
+
+  @IsOptional()
+  @IsNumber()
+  selectedQuantity?: number;
+
+  @IsOptional()
+  @IsNumber()
+  conversionRatio?: number;
 
   @IsOptional()
   @IsNumber()
@@ -69,6 +112,14 @@ export class CheckoutSaleDto {
   @IsString()
   customerMobile?: string;
 
+  @IsOptional()
+  @IsString()
+  customerGstin?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isB2B?: boolean;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => CartItemDto)
@@ -91,4 +142,9 @@ export class CheckoutSaleDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PrescriptionDto)
+  prescription?: PrescriptionDto;
 }

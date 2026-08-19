@@ -6,8 +6,9 @@ import {
   RotateCcw,
   Search,
   Plus,
-  AlertCircle,
+  ArrowDownLeft,
   X,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
@@ -24,73 +25,72 @@ export default function SalesReturnsPage() {
   const [invoiceLookup, setInvoiceLookup] = useState('');
   const [loadedInvoice, setLoadedInvoice] = useState<any | null>(null);
   const [returnItems, setReturnItems] = useState<any[]>([]);
-  const [refundMode, setRefundMode] = useState<PaymentMode>(PaymentMode.CASH);
 
   const { data: returnsData, isLoading } = useQuery({
-    queryKey: ['sales-returns', selectedBranchId],
+    queryKey: ['sales-returns-list', selectedBranchId],
     queryFn: async () => {
       const res = await apiClient.get('/sales-returns', {
         params: { branchId: selectedBranchId || undefined },
       });
-      return res.data;
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
   });
+
+  const returns = Array.isArray(returnsData) ? returnsData : [];
 
   const handleLookupInvoice = async () => {
     if (!invoiceLookup.trim()) return;
     try {
-      const res = await apiClient.get('/sales', {
-        params: { search: invoiceLookup.trim(), branchId: selectedBranchId || undefined },
-      });
-      const inv = res.data?.data?.[0];
-      if (!inv) {
-        alert('Invoice not found');
-        return;
+      const res = await apiClient.get(`/sales/by-invoice/${invoiceLookup.trim()}`);
+      const inv = res.data?.data || res.data;
+      setLoadedInvoice(inv);
+      if (Array.isArray(inv.items)) {
+        setReturnItems(
+          inv.items.map((item: any) => ({
+            salesItemId: item.id,
+            medicineId: item.medicineId,
+            batchId: item.batchId,
+            name: item.medicine?.name || item.name,
+            batchNumber: item.batch?.batchNumber || 'N/A',
+            soldQty: item.qty,
+            returnQty: 0,
+            rate: item.rate,
+            condition: ReturnCondition.RESALABLE,
+            reason: 'Customer returned',
+          }))
+        );
       }
-      const fullRes = await apiClient.get(`/sales/${inv.id}`);
-      setLoadedInvoice(fullRes.data);
-      setReturnItems(
-        fullRes.data.items.map((i: any) => ({
-          salesItemId: i.id,
-          medicineId: i.medicineId,
-          batchId: i.batchId,
-          name: i.medicine?.name,
-          batchNumber: i.batch?.batchNumber,
-          soldQty: i.qty,
-          returnQty: 0,
-          condition: ReturnCondition.RESALABLE,
-          reason: 'Customer Return',
-        }))
-      );
-    } catch (e) {
-      alert('Failed to lookup invoice');
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Invoice not found');
     }
   };
 
   const createReturnMutation = useMutation({
     mutationFn: async () => {
-      const itemsToReturn = returnItems.filter((i) => i.returnQty > 0);
-      if (itemsToReturn.length === 0) throw new Error('Specify at least 1 item quantity to return');
+      const activeReturns = returnItems.filter((i) => i.returnQty > 0);
+      if (activeReturns.length === 0) throw new Error('No items selected for return');
 
       return apiClient.post('/sales-returns', {
         salesInvoiceId: loadedInvoice.id,
         branchId: selectedBranchId,
-        refundMode,
-        items: itemsToReturn.map((i) => ({
+        refundMode: PaymentMode.CASH,
+        items: activeReturns.map((i) => ({
           salesItemId: i.salesItemId,
-          medicineId: i.medicineId,
-          batchId: i.batchId,
-          returnQty: Number(i.returnQty),
+          qty: i.returnQty,
           condition: i.condition,
           reason: i.reason,
         })),
       });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sales-returns'] });
-      queryClient.invalidateQueries({ queryKey: ['inventory-batches'] });
+      queryClient.invalidateQueries({ queryKey: ['sales-returns-list'] });
       setShowModal(false);
       setLoadedInvoice(null);
+      setReturnItems([]);
+      setInvoiceLookup('');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || err.message || 'Failed to process return');
     },
   });
 
@@ -102,12 +102,11 @@ export default function SalesReturnsPage() {
         <Header />
 
         <main className="p-6 max-w-7xl mx-auto w-full space-y-6">
-          {/* Header */}
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold text-slate-900 tracking-tight">Sales Returns & Refunds</h2>
               <p className="text-xs text-slate-500">
-                Process customer returns against original invoices with resalable, damaged, or expired batch routing.
+                Process customer returns against original tax invoices and restore resalable inventory.
               </p>
             </div>
 
@@ -141,25 +140,21 @@ export default function SalesReturnsPage() {
                         Loading returns...
                       </td>
                     </tr>
-                  ) : returnsData?.data?.length === 0 ? (
+                  ) : returns.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400">
                         No returns processed yet.
                       </td>
                     </tr>
                   ) : (
-                    returnsData?.data?.map((r: any) => (
+                    returns.map((r: any) => (
                       <tr key={r.id} className="hover:bg-slate-50">
                         <td className="py-3 px-4 font-mono font-bold text-sky-800">{r.returnNumber}</td>
                         <td className="py-3 px-4 text-slate-500 font-mono">{formatDate(r.createdAt)}</td>
-                        <td className="py-3 px-4 font-mono text-slate-700">
-                          {r.salesInvoice?.invoiceNumber}
-                        </td>
-                        <td className="py-3 px-4 text-slate-800 font-medium">
-                          {r.customer?.name || 'Walk-in Customer'}
-                        </td>
+                        <td className="py-3 px-4 font-mono text-slate-700">{r.salesInvoice?.invoiceNumber}</td>
+                        <td className="py-3 px-4 text-slate-800 font-medium">{r.customer?.name || 'Walk-in Customer'}</td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                          {formatCurrency(r.refundAmount)}
+                          {formatCurrency(r.refundAmount || 0)}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
@@ -208,7 +203,7 @@ export default function SalesReturnsPage() {
                 <div className="space-y-3 pt-2">
                   <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
                     <p className="font-semibold text-slate-800">
-                      Invoice: {loadedInvoice.invoiceNumber} | Total: ₹{loadedInvoice.totalAmount.toFixed(2)}
+                      Invoice: {loadedInvoice.invoiceNumber} | Total: ₹{Number(loadedInvoice.totalAmount || 0).toFixed(2)}
                     </p>
                     <p className="text-[10px] text-slate-500">
                       Customer: {loadedInvoice.customer?.name || 'Walk-in'} | Date: {formatDate(loadedInvoice.createdAt)}

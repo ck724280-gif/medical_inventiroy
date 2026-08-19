@@ -5,10 +5,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Wallet,
   Plus,
-  Search,
   Filter,
   DollarSign,
-  Trash2,
+  TrendingDown,
   X,
 } from 'lucide-react';
 
@@ -22,13 +21,12 @@ import { formatDate, formatCurrency } from '@medical-inventory/shared-utils';
 export default function ExpensesPage() {
   const queryClient = useQueryClient();
   const { selectedBranchId } = useAuthStore();
-  const [showModal, setShowModal] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+  const [showModal, setShowModal] = useState(false);
 
   const [formData, setFormData] = useState({
     category: ExpenseCategory.RENT,
     amount: 0,
-    date: new Date().toISOString().split('T')[0],
     paymentMethod: PaymentMode.CASH,
     notes: '',
   });
@@ -43,16 +41,18 @@ export default function ExpensesPage() {
           limit: 50,
         },
       });
-      return res.data;
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
   });
+
+  const expenses = Array.isArray(expensesData) ? expensesData : [];
 
   const expenseMutation = useMutation({
     mutationFn: async () => {
       return apiClient.post('/expenses', {
         ...formData,
         branchId: selectedBranchId,
-        amount: Number(formData.amount),
+        date: new Date().toISOString(),
       });
     },
     onSuccess: () => {
@@ -61,7 +61,6 @@ export default function ExpensesPage() {
       setFormData({
         category: ExpenseCategory.RENT,
         amount: 0,
-        date: new Date().toISOString().split('T')[0],
         paymentMethod: PaymentMode.CASH,
         notes: '',
       });
@@ -130,24 +129,32 @@ export default function ExpensesPage() {
                         Loading expenses...
                       </td>
                     </tr>
-                  ) : expensesData?.data?.map((exp: any) => (
-                    <tr key={exp.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-4 font-mono text-slate-500">{formatDate(exp.date)}</td>
-                      <td className="py-3 px-4">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-semibold text-slate-800">
-                          {exp.category}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-slate-600 font-medium">{exp.paymentMethod}</td>
-                      <td className="py-3 px-4 text-slate-600">
-                        {exp.createdByUser?.firstName} {exp.createdByUser?.lastName}
-                      </td>
-                      <td className="py-3 px-4 text-slate-500">{exp.notes || '—'}</td>
-                      <td className="py-3 px-4 text-right font-mono font-bold text-red-600">
-                        {formatCurrency(exp.amount)}
+                  ) : expenses.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                        No expenses logged for this branch.
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    expenses.map((exp: any) => (
+                      <tr key={exp.id} className="hover:bg-slate-50">
+                        <td className="py-3 px-4 font-mono text-slate-500">{formatDate(exp.date)}</td>
+                        <td className="py-3 px-4">
+                          <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-semibold text-slate-800">
+                            {exp.category}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-slate-600 font-medium">{exp.paymentMethod}</td>
+                        <td className="py-3 px-4 text-slate-600">
+                          {exp.createdByUser?.firstName} {exp.createdByUser?.lastName}
+                        </td>
+                        <td className="py-3 px-4 text-slate-500">{exp.notes || '—'}</td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-red-600">
+                          {formatCurrency(exp.amount || 0)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
