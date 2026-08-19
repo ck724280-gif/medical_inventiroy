@@ -25,6 +25,9 @@
     "db:seed": "tsx ./prisma/seed/index.ts",
     "clean": "turbo run clean && rimraf node_modules"
   },
+  "dependencies": {
+    "@nestjs/cli": "^10.4.9"
+  },
   "devDependencies": {
     "@types/node": "^20.17.0",
     "@types/react": "^18.3.18",

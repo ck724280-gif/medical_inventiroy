@@ -21,6 +21,7 @@
     "@medical-inventory/shared-types": "*",
     "@medical-inventory/shared-utils": "*",
     "@medical-inventory/validation": "*",
+    "@nestjs/cli": "^10.4.9",
     "@nestjs/common": "^10.4.15",
     "@nestjs/config": "^3.3.0",
     "@nestjs/core": "^10.4.15",
