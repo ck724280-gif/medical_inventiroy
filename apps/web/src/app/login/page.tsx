@@ -85,7 +85,7 @@ export default function LoginPage() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="mb-5 p-3 rounded-xl text-red-300 text-xs flex items-center gap-2"
+                className="mb-5 p-3 rounded-xl text-red-600 dark:text-red-300 text-xs flex items-center gap-2"
                 style={{
                   background: 'rgba(239, 68, 68, 0.12)',
                   border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -98,7 +98,7 @@ export default function LoginPage() {
 
             <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
               <div>
-                <label className="block text-[11px] font-semibold text-cyan-200/80 uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-semibold text-cyan-700 dark:text-cyan-200/80 uppercase tracking-wider mb-1.5">
                   Email or Mobile
                 </label>
                 <div className="relative">
@@ -109,20 +109,7 @@ export default function LoginPage() {
                     {...register('email')}
                     type="text"
                     placeholder="admin@medcare.com"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl text-slate-100 placeholder-slate-500 text-sm transition-all duration-200 focus:outline-none"
-                    style={{
-                      background: 'rgba(5, 10, 15, 0.75)',
-                      border: '1px solid rgba(6, 182, 212, 0.20)',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = '#06b6d4';
-                      e.target.style.boxShadow = '0 0 12px rgba(6, 182, 212, 0.3)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = 'rgba(6, 182, 212, 0.20)';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-100 dark:bg-[#050a0f] border border-cyan-600/20 dark:border-cyan-400/20 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm transition-all duration-200 focus:outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/20" />
                 </div>
                 {errors.email && (
                   <p className="mt-1 text-xs text-red-400">{errors.email.message as string}</p>
@@ -130,7 +117,7 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-semibold text-cyan-200/80 uppercase tracking-wider mb-1.5">
+                <label className="block text-[11px] font-semibold text-cyan-700 dark:text-cyan-200/80 uppercase tracking-wider mb-1.5">
                   Password
                 </label>
                 <div className="relative">
@@ -141,20 +128,7 @@ export default function LoginPage() {
                     {...register('password')}
                     type="password"
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl text-slate-100 placeholder-slate-500 text-sm transition-all duration-200 focus:outline-none"
-                    style={{
-                      background: 'rgba(5, 10, 15, 0.75)',
-                      border: '1px solid rgba(6, 182, 212, 0.20)',
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.borderColor = '#06b6d4';
-                      e.target.style.boxShadow = '0 0 12px rgba(6, 182, 212, 0.3)';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.borderColor = 'rgba(6, 182, 212, 0.20)';
-                      e.target.style.boxShadow = 'none';
-                    }}
-                  />
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-100 dark:bg-[#050a0f] border border-cyan-600/20 dark:border-cyan-400/20 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 text-sm transition-all duration-200 focus:outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/20" />
                 </div>
                 {errors.password && (
                   <p className="mt-1 text-xs text-red-400">{errors.password.message as string}</p>
@@ -186,14 +160,14 @@ export default function LoginPage() {
               className="mt-6 pt-5 text-center"
               style={{ borderTop: '1px solid rgba(6, 182, 212, 0.12)' }}
             >
-              <div className="inline-flex items-center gap-1.5 text-xs text-slate-400 mb-1">
-                <Shield className="w-3.5 h-3.5 text-cyan-400" />
+              <div className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-1">
+                <Shield className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
                 <span>Default Credentials</span>
               </div>
-              <p className="text-xs text-slate-400">
-                <code className="text-cyan-300 font-mono bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40">admin@medcare.com</code>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                <code className="text-cyan-700 dark:text-cyan-300 font-mono bg-cyan-100 dark:bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-300 dark:border-cyan-800/40">admin@medcare.com</code>
                 {' / '}
-                <code className="text-cyan-300 font-mono bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-800/40">Admin@123456</code>
+                <code className="text-cyan-700 dark:text-cyan-300 font-mono bg-cyan-100 dark:bg-cyan-950/60 px-1.5 py-0.5 rounded border border-cyan-300 dark:border-cyan-800/40">Admin@123456</code>
               </p>
             </div>
           </div>
