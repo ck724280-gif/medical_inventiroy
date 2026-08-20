@@ -18,6 +18,11 @@ export class UsersService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
+    if (query?.branchId) {
+      where.branches = {
+        some: { branchId: query.branchId },
+      };
+    }
     if (query?.search) {
       where.OR = [
         { firstName: { contains: query.search, mode: 'insensitive' } },

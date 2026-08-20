@@ -21,6 +21,10 @@ import {
   FolderSync,
   ExternalLink,
   ShieldCheck,
+  Users,
+  UserPlus,
+  Key,
+  Shield,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
@@ -31,7 +35,7 @@ import { PaperWidth } from '@medical-inventory/shared-types';
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { fetchBranding } = useBrandingStore();
-  const [activeTab, setActiveTab] = useState<'business' | 'branding' | 'receipt' | 'branches' | 'backup'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'branding' | 'receipt' | 'branches' | 'staff' | 'backup'>('business');
   const [savedBanner, setSavedBanner] = useState(false);
   const [gdriveModal, setGdriveModal] = useState(false);
   const [gdriveFolderInput, setGdriveFolderInput] = useState('');
@@ -52,6 +56,22 @@ export default function SettingsPage() {
 
   const [retentionDays, setRetentionDays] = useState<number>(7);
   const [serviceAccountInput, setServiceAccountInput] = useState('');
+  // Staff & User Management States
+  const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any | null>(null);
+  const [staffSearch, setStaffSearch] = useState('');
+  const [staffBranchFilter, setStaffBranchFilter] = useState('');
+  const [staffRoleFilter, setStaffRoleFilter] = useState('');
+  const [staffForm, setStaffForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    mobile: '',
+    password: '',
+    roleId: '',
+    branchId: '',
+    isActive: true,
+  });
 
   // Queries
   const { data: businessData } = useQuery({
@@ -106,8 +126,33 @@ export default function SettingsPage() {
   const backups = Array.isArray(backupsData) ? backupsData : [];
   const gdrive = gdriveConfigData || {};
 
-  // Business Save Mutation
-    // Branch Mutations
+  // Queries for Users and Roles
+  const { data: usersData, isLoading: isUsersLoading } = useQuery({
+    queryKey: ['settings-users', staffBranchFilter, staffSearch],
+    queryFn: async () => {
+      const res = await apiClient.get('/users', {
+        params: {
+          branchId: staffBranchFilter || undefined,
+          search: staffSearch || undefined,
+          limit: 100,
+        },
+      });
+      return res.data?.data || res.data || [];
+    },
+  });
+
+  const { data: rolesData } = useQuery({
+    queryKey: ['settings-roles'],
+    queryFn: async () => {
+      const res = await apiClient.get('/roles');
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+    },
+  });
+
+  const staffUsers = Array.isArray(usersData) ? usersData : [];
+  const allRoles = Array.isArray(rolesData) ? rolesData : [];
+
+  // Branch Mutations
   const saveBranchMutation = useMutation({
     mutationFn: async (payload: any) => {
       if (editingBranch) {
@@ -139,6 +184,91 @@ export default function SettingsPage() {
       alert(err.response?.data?.message || 'Failed to delete branch.');
     },
   });
+
+    // Staff Mutations
+  const saveStaffMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const body: any = {
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        email: payload.email,
+        mobile: payload.mobile || undefined,
+        isActive: payload.isActive,
+        roleIds: payload.roleId ? [payload.roleId] : undefined,
+        branchIds: payload.branchId ? [payload.branchId] : undefined,
+      };
+      if (payload.password) {
+        body.password = payload.password;
+      }
+      if (editingStaff) {
+        return apiClient.patch(`/users/${editingStaff.id}`, body);
+      }
+      return apiClient.post('/users', body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+      setStaffModalOpen(false);
+      setEditingStaff(null);
+      setSavedBanner(true);
+      setTimeout(() => setSavedBanner(false), 3000);
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to save staff user.');
+    },
+  });
+
+  const deleteStaffMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiClient.delete(`/users/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings-users'] });
+      alert('Staff user deactivated successfully.');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to deactivate user.');
+    },
+  });
+
+  const handleOpenAddStaff = (presetBranchId?: string) => {
+    setEditingStaff(null);
+    const defaultBranchId = presetBranchId || (branches.length > 0 ? branches[0].id : '');
+    const defaultRoleId = allRoles.find((r: any) => r.name === 'CASHIER')?.id || (allRoles[0]?.id || '');
+    setStaffForm({
+      firstName: '',
+      lastName: '',
+      email: '',
+      mobile: '',
+      password: '',
+      roleId: defaultRoleId,
+      branchId: defaultBranchId,
+      isActive: true,
+    });
+    setStaffModalOpen(true);
+  };
+
+  const handleOpenEditStaff = (user: any) => {
+    setEditingStaff(user);
+    const userRoleId = user.roles && user.roles.length > 0 ? user.roles[0].id : '';
+    const userBranchId = user.branches && user.branches.length > 0 ? user.branches[0].id : '';
+    setStaffForm({
+      firstName: user.firstName || '',
+      lastName: user.lastName || '',
+      email: user.email || '',
+      mobile: user.mobile || '',
+      password: '', // blank unless changing
+      roleId: userRoleId,
+      branchId: userBranchId,
+      isActive: user.isActive ?? true,
+    });
+    setStaffModalOpen(true);
+  };
+
+  const handleDeleteStaff = (user: any) => {
+    if (confirm(`Are you sure you want to deactivate ${user.firstName} ${user.lastName} (${user.email})?`)) {
+      deleteStaffMutation.mutate(user.id);
+    }
+  };
 
   const handleOpenAddBranch = () => {
     setEditingBranch(null);
@@ -292,6 +422,7 @@ export default function SettingsPage() {
               { id: 'branding', label: 'White-Label Branding', icon: Palette },
               { id: 'receipt', label: 'Thermal Receipt Setup', icon: Printer },
               { id: 'branches', label: 'Store Branches', icon: Building2 },
+              { id: 'staff', label: 'Branch Staff & Roles', icon: Users },
               { id: 'backup', label: 'Database Backup & Google Drive', icon: Database },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -700,6 +831,19 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="text-slate-600 dark:text-slate-400 space-y-0.5">
+                      <div className="flex items-center gap-1.5 py-1 text-sky-600 dark:text-sky-400 font-semibold">
+                        <Users className="w-3.5 h-3.5" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStaffBranchFilter(b.id);
+                            setActiveTab('staff');
+                          }}
+                          className="hover:underline cursor-pointer"
+                        >
+                          Manage Staff &amp; Cashiers →
+                        </button>
+                      </div>
                       <p>{b.address || 'No address configured'}, {b.city || ''}</p>
                       <p>Phone: {b.phone || 'N/A'}</p>
                       {b.email && <p>Email: {b.email}</p>}
@@ -860,6 +1004,316 @@ export default function SettingsPage() {
                           className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition"
                         >
                           {saveBranchMutation.isPending ? 'Saving...' : editingBranch ? 'Update Branch' : 'Save Branch'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: Branch Staff & Roles */}
+          {activeTab === 'staff' && (
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl p-6 space-y-5">
+              {/* Header Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                    <Users className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                    Branch Staff, Cashiers &amp; Role Management
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Add and manage multiple billing cashiers, licensed pharmacists, store managers, and stock executives per branch.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddStaff(staffBranchFilter)}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 transition cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  Add New Staff Person
+                </button>
+              </div>
+
+              {/* Filters & Search */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-slate-50 dark:bg-[#090d16] rounded-xl border border-slate-200 dark:border-slate-800">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter by Branch</label>
+                  <select
+                    value={staffBranchFilter}
+                    onChange={(e) => setStaffBranchFilter(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="">All Branches</option>
+                    {branches.map((b: any) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter by Role</label>
+                  <select
+                    value={staffRoleFilter}
+                    onChange={(e) => setStaffRoleFilter(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                  >
+                    <option value="">All Roles</option>
+                    {allRoles.map((r: any) => (
+                      <option key={r.id} value={r.name}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Search Staff</label>
+                  <input
+                    type="text"
+                    value={staffSearch}
+                    onChange={(e) => setStaffSearch(e.target.value)}
+                    placeholder="Search by Name or Email..."
+                    className="w-full px-3 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Staff Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {isUsersLoading ? (
+                  <p className="col-span-3 py-10 text-center text-xs text-slate-400">Loading branch staff directory...</p>
+                ) : (
+                  staffUsers
+                    .filter((u: any) => {
+                      if (!staffRoleFilter) return true;
+                      return u.roles?.some((r: any) => r.name === staffRoleFilter);
+                    })
+                    .map((user: any) => {
+                      const userRoleName = user.roles?.[0]?.name || 'STAFF';
+                      const userBranch = user.branches?.[0]?.name || 'Main Dispensary Branch';
+
+                      let badgeColor = 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+                      if (userRoleName === 'OWNER' || userRoleName === 'ADMIN') {
+                        badgeColor = 'bg-purple-100 dark:bg-purple-950 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800';
+                      } else if (userRoleName === 'MANAGER') {
+                        badgeColor = 'bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border-sky-200 dark:border-sky-800';
+                      } else if (userRoleName === 'PHARMACIST') {
+                        badgeColor = 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800';
+                      } else if (userRoleName === 'CASHIER') {
+                        badgeColor = 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800';
+                      } else if (userRoleName === 'INVENTORY_STAFF') {
+                        badgeColor = 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800';
+                      } else if (userRoleName === 'ACCOUNTANT') {
+                        badgeColor = 'bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border-teal-200 dark:border-teal-800';
+                      }
+
+                      return (
+                        <div
+                          key={user.id}
+                          className="p-4 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs space-y-3 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-bold text-slate-900 dark:text-white text-sm">
+                                {user.firstName} {user.lastName}
+                              </h4>
+                              <span className={`inline-block px-2 py-0.5 rounded font-mono font-bold text-[10px] border ${badgeColor} mt-1`}>
+                                {userRoleName}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditStaff(user)}
+                                title="Edit Staff Member"
+                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              {userRoleName !== 'OWNER' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteStaff(user)}
+                                  title="Deactivate Staff"
+                                  className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="text-slate-600 dark:text-slate-400 space-y-1 font-mono text-[11px]">
+                            <p>✉ {user.email}</p>
+                            <p>📱 {user.mobile || 'No Phone'}</p>
+                            <p className="font-sans text-[11px] text-slate-500">🏢 {userBranch}</p>
+                          </div>
+
+                          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px]">
+                            <span className={user.isActive ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}>
+                              {user.isActive ? '● Active Login' : '○ Disabled'}
+                            </span>
+                            <span className="text-slate-400 font-mono text-[10px]">ID: {user.id.slice(0, 8)}...</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                )}
+              </div>
+
+              {/* Staff Add / Edit Modal */}
+              {staffModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh]">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                          {editingStaff ? 'Edit Staff Member / Cashier' : 'Add New Staff Member / Cashier'}
+                        </h3>
+                      </div>
+                      <button onClick={() => setStaffModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        saveStaffMutation.mutate(staffForm);
+                      }}
+                      className="space-y-3"
+                    >
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">First Name *</label>
+                          <input
+                            required
+                            type="text"
+                            value={staffForm.firstName}
+                            onChange={(e) => setStaffForm({ ...staffForm, firstName: e.target.value })}
+                            placeholder="e.g. Amit"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Last Name</label>
+                          <input
+                            type="text"
+                            value={staffForm.lastName}
+                            onChange={(e) => setStaffForm({ ...staffForm, lastName: e.target.value })}
+                            placeholder="e.g. Kumar (Cashier)"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Email / User ID *</label>
+                          <input
+                            required
+                            type="email"
+                            value={staffForm.email}
+                            onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
+                            placeholder="cashier2@medcare.com"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Mobile Number</label>
+                          <input
+                            type="tel"
+                            value={staffForm.mobile}
+                            onChange={(e) => setStaffForm({ ...staffForm, mobile: e.target.value })}
+                            placeholder="9876543210"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          {editingStaff ? 'New Password (Leave blank to keep unchanged)' : 'Login Password *'}
+                        </label>
+                        <input
+                          type="password"
+                          required={!editingStaff}
+                          value={staffForm.password}
+                          onChange={(e) => setStaffForm({ ...staffForm, password: e.target.value })}
+                          placeholder={editingStaff ? '••••••••' : 'Min. 6 characters (e.g. Cashier@123456)'}
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned Role *</label>
+                          <select
+                            required
+                            value={staffForm.roleId}
+                            onChange={(e) => setStaffForm({ ...staffForm, roleId: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-bold"
+                          >
+                            <option value="">Select Role...</option>
+                            {allRoles.map((r: any) => (
+                              <option key={r.id} value={r.id}>
+                                {r.name} - {r.description?.slice(0, 30)}...
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned Store Branch *</label>
+                          <select
+                            required
+                            value={staffForm.branchId}
+                            onChange={(e) => setStaffForm({ ...staffForm, branchId: e.target.value })}
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          >
+                            <option value="">Select Branch...</option>
+                            {branches.map((b: any) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name} ({b.code})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">
+                        <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200 font-semibold">
+                          <input
+                            type="checkbox"
+                            checked={staffForm.isActive}
+                            onChange={(e) => setStaffForm({ ...staffForm, isActive: e.target.checked })}
+                            className="rounded text-sky-600"
+                          />
+                          <span>Active Login Access Enabled</span>
+                        </label>
+                      </div>
+
+                      <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setStaffModalOpen(false)}
+                          className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={saveStaffMutation.isPending}
+                          className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition"
+                        >
+                          {saveStaffMutation.isPending ? 'Saving...' : editingStaff ? 'Update Staff Member' : 'Create Staff Member'}
                         </button>
                       </div>
                     </form>
