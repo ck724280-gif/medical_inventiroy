@@ -31,7 +31,7 @@ export default function LoginPage() {
   } = useForm({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      email: 'admin@medcare.com',
+      email: '',
       password: '',
     },
   });
@@ -179,25 +179,10 @@ export default function LoginPage() {
                 </button>
               </div>
             </form>
-
-            <div className="mt-6 pt-5 text-center border-t border-slate-200 dark:border-slate-800">
-              <div className="inline-flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mb-1.5 font-medium">
-                <Shield className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
-                <span>Default Credentials</span>
-              </div>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                <code className="text-sky-700 dark:text-sky-300 font-mono bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-semibold">
-                  admin@medcare.com
-                </code>
-                {' / '}
-                <code className="text-sky-700 dark:text-sky-300 font-mono bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700 font-semibold">
-                  Admin@123456
-                </code>
-              </p>
-            </div>
           </div>
         </div>
       </motion.div>
     </div>
   );
 }
+
