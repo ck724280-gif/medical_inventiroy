@@ -39,8 +39,16 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // If user is OWNER or Super Admin, grant all permissions
-    if (user.roles && user.roles.includes('OWNER')) {
-      return true;
+    if (user.roles) {
+      const rolesUpper = user.roles.map((r: string) => r.toUpperCase());
+      if (
+        rolesUpper.includes('OWNER') ||
+        rolesUpper.includes('SUPER_ADMIN') ||
+        rolesUpper.includes('SUPERADMIN') ||
+        rolesUpper.includes('SUPER ADMIN')
+      ) {
+        return true;
+      }
     }
 
     const userPermissions: string[] = user.permissions || [];

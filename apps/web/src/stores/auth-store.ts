@@ -21,6 +21,7 @@ interface AuthState {
   setSelectedBranchId: (branchId: string) => void;
   initialize: () => void;
   hasPermission: (permission: string) => boolean;
+  isSuperAdmin: () => boolean;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -98,7 +99,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   hasPermission: (permission: string) => {
     const { user } = get();
     if (!user) return false;
-    if (user.roles?.includes('OWNER')) return true;
+    const roles = (user.roles || []).map((r) => r.toUpperCase());
+    if (
+      roles.includes('OWNER') ||
+      roles.includes('SUPER_ADMIN') ||
+      roles.includes('SUPERADMIN') ||
+      roles.includes('SUPER ADMIN')
+    ) {
+      return true;
+    }
     return user.permissions?.includes(permission) || false;
+  },
+
+  isSuperAdmin: () => {
+    const { user } = get();
+    if (!user) return false;
+    const roles = (user.roles || []).map((r) => r.toUpperCase());
+    return (
+      roles.includes('OWNER') ||
+      roles.includes('SUPER_ADMIN') ||
+      roles.includes('SUPERADMIN') ||
+      roles.includes('SUPER ADMIN')
+    );
   },
 }));
