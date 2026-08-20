@@ -1,14 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ShoppingCart,
   Search,
   Barcode,
   Trash2,
   CheckCircle2,
-  Printer,
   Plus,
   Minus,
   CreditCard,
@@ -18,18 +17,14 @@ import {
   ShieldAlert,
   MessageCircle,
   X,
-  Layers,
   PauseCircle,
   PlayCircle,
   RotateCcw,
   Receipt,
   UserPlus,
-  Clock,
   Coins,
-  AlertTriangle,
   FileText,
   ChevronDown,
-  Sparkles,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
@@ -37,7 +32,7 @@ import { Header } from '../../components/header';
 import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
-import { useCartStore, BatchOption, CartItem } from '../../stores/cart-store';
+import { useCartStore, BatchOption } from '../../stores/cart-store';
 import { PaymentMode, PaperWidth, ThermalReceiptDataDto } from '@medical-inventory/shared-types';
 import { formatCurrency, generateWhatsAppInvoiceUrl, formatDate } from '@medical-inventory/shared-utils';
 
@@ -49,16 +44,16 @@ export default function PosPage() {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [customerSearch, setCustomerSearch] = useState('');
   const [activePaymentMode, setActivePaymentMode] = useState<PaymentMode>(PaymentMode.CASH);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [completedReceiptData, setCompletedReceiptData] = useState<ThermalReceiptDataDto | null>(null);
   const [savedInvoiceData, setSavedInvoiceData] = useState<any | null>(null);
 
-  // Active Batch Selector Popup State
-  const [batchModalItem, setBatchModalItem] = useState<{ medicineId: string; medicineName: string; currentBatchId?: string } | null>(null);
+  // Mobile Active Tab: 'cart' | 'payment'
+  const [mobileTab, setMobileTab] = useState<'cart' | 'payment'>('cart');
 
   // Modals
+  const [batchModalItem, setBatchModalItem] = useState<{ medicineId: string; medicineName: string; currentBatchId?: string } | null>(null);
   const [showRxModal, setShowRxModal] = useState(false);
   const [showShiftModal, setShowShiftModal] = useState(false);
   const [showHeldModal, setShowHeldModal] = useState(false);
@@ -80,14 +75,14 @@ export default function PosPage() {
     creditLimit: 0,
   });
 
-  // Sales Return Search & Form
+  // Sales Return State
   const [returnInvoiceSearch, setReturnInvoiceSearch] = useState('');
   const [returnInvoiceData, setReturnInvoiceData] = useState<any | null>(null);
   const [returnItemsState, setReturnItemsState] = useState<Record<string, { returnQty: number; condition: string; reason: string }>>({});
   const [returnRefundMode, setReturnRefundMode] = useState<PaymentMode>(PaymentMode.CASH);
   const [isProcessingReturn, setIsProcessingReturn] = useState(false);
 
-  // Schedule H Prescription Modal State
+  // Schedule H Prescription Form
   const [prescriptionForm, setPrescriptionForm] = useState({
     doctorName: '',
     doctorRegNo: '',
@@ -101,7 +96,7 @@ export default function PosPage() {
   const barcodeRef = useRef<HTMLInputElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Debounce medicine search
+  // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchQuery.trim());
@@ -109,7 +104,7 @@ export default function PosPage() {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Focus barcode scanner on mount
+  // Focus barcode input on mount
   useEffect(() => {
     barcodeRef.current?.focus();
   }, []);
@@ -117,7 +112,6 @@ export default function PosPage() {
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger if inside an active text input unless special key
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';
 
@@ -177,7 +171,7 @@ export default function PosPage() {
     enabled: !!selectedBranchId,
   });
 
-  // 2. Debounced Medicine Smart Search
+  // 2. Medicine Search
   const { data: searchResults = [] } = useQuery({
     queryKey: ['pos-search', debouncedSearch, selectedBranchId],
     queryFn: async () => {
@@ -190,7 +184,7 @@ export default function PosPage() {
     enabled: !!debouncedSearch && !!selectedBranchId,
   });
 
-  // 3. Held Carts List
+  // 3. Held Carts
   const { data: heldCartsList = [], refetch: refetchHeld } = useQuery({
     queryKey: ['pos-held-carts', selectedBranchId],
     queryFn: async () => {
@@ -202,7 +196,7 @@ export default function PosPage() {
     enabled: !!selectedBranchId,
   });
 
-  // 4. Batch Selector Query for specific medicine
+  // 4. Batch Selector
   const { data: medicineBatches = [] } = useQuery({
     queryKey: ['pos-batches', batchModalItem?.medicineId, selectedBranchId],
     queryFn: async () => {
@@ -215,9 +209,8 @@ export default function PosPage() {
     enabled: !!batchModalItem?.medicineId && !!selectedBranchId,
   });
 
-  // ── Actions & Handlers ─────────────────────────────────────
+  // ── Handlers ───────────────────────────────────────────────
 
-  // Quick Barcode Scanning with auto-increment
   const handleBarcodeScan = async (e: React.FormEvent) => {
     e.preventDefault();
     const code = barcodeInput.trim();
@@ -261,7 +254,6 @@ export default function PosPage() {
     }
   };
 
-  // Add Product from Autocomplete Search
   const handleAddSearchResult = (med: any) => {
     cart.addItem({
       medicineId: med.id,
@@ -291,10 +283,9 @@ export default function PosPage() {
     barcodeRef.current?.focus();
   };
 
-  // Hold Active Cart
   const handleHoldCart = async () => {
     if (cart.items.length === 0) {
-      alert('Cart is empty. Nothing to hold.');
+      alert('Cart is empty.');
       return;
     }
 
@@ -319,7 +310,6 @@ export default function PosPage() {
     }
   };
 
-  // Resume Held Cart
   const handleResumeHeldCart = async (id: string) => {
     try {
       const res = await apiClient.post(`/pos/resume/${id}`);
@@ -337,7 +327,6 @@ export default function PosPage() {
     }
   };
 
-  // Delete Held Cart
   const handleDeleteHeldCart = async (id: string) => {
     try {
       await apiClient.delete(`/pos/held/${id}`);
@@ -347,7 +336,6 @@ export default function PosPage() {
     }
   };
 
-  // Last Bill Reprint
   const handleLastBillReprint = async () => {
     try {
       const res = await apiClient.get('/pos/last-bill', {
@@ -362,7 +350,6 @@ export default function PosPage() {
     }
   };
 
-  // Shift: Open Shift
   const handleOpenShift = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -378,7 +365,6 @@ export default function PosPage() {
     }
   };
 
-  // Shift: Close Shift
   const handleCloseShift = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentShift?.shiftId) return;
@@ -400,7 +386,6 @@ export default function PosPage() {
     }
   };
 
-  // Customer: Quick Add
   const handleQuickAddCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCustomer.name || !newCustomer.mobile) {
@@ -419,7 +404,6 @@ export default function PosPage() {
     }
   };
 
-  // Sales Return: Search Invoice
   const handleSearchReturnInvoice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!returnInvoiceSearch.trim()) return;
@@ -434,12 +418,10 @@ export default function PosPage() {
         return;
       }
 
-      // Fetch full details
       const invoiceRes = await apiClient.get(`/sales/${list[0].id}`);
       const fullInvoice = invoiceRes.data?.data || invoiceRes.data;
       setReturnInvoiceData(fullInvoice);
 
-      // Initialize return state
       const initial: Record<string, any> = {};
       for (const item of fullInvoice.items || []) {
         initial[item.id] = { returnQty: 0, condition: 'RESALABLE', reason: 'Customer Return' };
@@ -450,7 +432,6 @@ export default function PosPage() {
     }
   };
 
-  // Sales Return: Process Submit
   const handleProcessReturn = async () => {
     if (!returnInvoiceData) return;
 
@@ -494,7 +475,6 @@ export default function PosPage() {
     }
   };
 
-  // Check Schedule H requirement
   const hasScheduleHDrug = cart.items.some((i) => i.prescriptionRequired);
 
   const handleCheckoutClick = () => {
@@ -515,7 +495,6 @@ export default function PosPage() {
     executeCheckout(prescriptionForm);
   };
 
-  // Final Execution of Checkout
   const executeCheckout = async (rxData?: any) => {
     setIsCheckingOut(true);
     try {
@@ -553,7 +532,6 @@ export default function PosPage() {
       const invoice = res.data?.data || res.data;
       setSavedInvoiceData(invoice);
 
-      // Load receipt data for preview
       if (invoice?.id) {
         const receiptRes = await apiClient.get(`/sales/${invoice.id}/receipt`, {
           params: { paperWidth: cart.paperWidth },
@@ -580,91 +558,71 @@ export default function PosPage() {
   };
 
   return (
-    <div className="flex h-screen bg-obsidian-950 overflow-hidden select-none text-slate-100 font-sans">
+    <div className="flex h-screen bg-[#090d16] overflow-hidden select-none text-slate-100 font-sans">
       <Sidebar />
 
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-obsidian-950">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#090d16]">
         <Header />
 
-        {/* ── POS Secondary Action & Shift Bar ───────────────────── */}
-        <div
-          className="h-12 px-5 flex items-center justify-between flex-shrink-0 text-xs border-b border-cyan-950/60"
-          style={{ background: 'rgba(7, 14, 24, 0.95)' }}
-        >
+        {/* ── Top Secondary Action & Shift Bar ───────────────────── */}
+        <div className="h-auto min-h-[48px] py-2 px-3 sm:px-5 flex flex-wrap items-center justify-between gap-2 border-b border-[#1e293b] bg-[#0c1220] flex-shrink-0 text-xs">
           {/* Shift Status Badge */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setShowShiftModal(true)}
-              className="flex items-center gap-2 px-3 py-1 rounded-lg border transition-all duration-200 cursor-pointer"
-              style={
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer ${
                 currentShift
-                  ? {
-                      background: 'rgba(6, 182, 212, 0.08)',
-                      borderColor: 'rgba(6, 182, 212, 0.3)',
-                      color: '#22d3ee',
-                    }
-                  : {
-                      background: 'rgba(234, 179, 8, 0.08)',
-                      borderColor: 'rgba(234, 179, 8, 0.3)',
-                      color: '#fde047',
-                    }
-              }
+                  ? 'bg-sky-500/10 border-sky-500/30 text-sky-300'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-300'
+              }`}
             >
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  currentShift ? 'bg-cyan-400 animate-cyan-pulse' : 'bg-amber-400'
-                }`}
-              />
-              <span className="font-semibold">
+              <span className={`w-2 h-2 rounded-full ${currentShift ? 'bg-sky-400' : 'bg-amber-400'}`} />
+              <span>
                 {currentShift
                   ? `Shift: Active (Cash: ${formatCurrency(currentShift.totalCashSales + currentShift.openingCash)})`
                   : 'No Active Shift — Click to Open'}
               </span>
-              <Coins className="w-3.5 h-3.5 ml-1 opacity-70" />
+              <Coins className="w-3.5 h-3.5 ml-0.5 opacity-70" />
             </button>
           </div>
 
-          {/* Action Buttons: Hold Bills, Returns, Last Bill, Shortcuts */}
-          <div className="flex items-center gap-2">
-            {/* Held Bills (F8) */}
+          {/* Action Buttons: Hold, Return, Last Bill */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             <button
               onClick={() => setShowHeldModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-cyan-900/40 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-200 bg-obsidian-900/80 transition"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-700 transition"
               title="Hold & Resume Bills (F8)"
             >
-              <PauseCircle className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Held Bills</span>
+              <PauseCircle className="w-3.5 h-3.5 text-sky-400" />
+              <span>Held</span>
               {heldCartsList.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.2 rounded-full bg-cyan-500 text-obsidian-950 font-bold text-[10px]">
+                <span className="px-1.5 py-0.2 rounded-full bg-sky-500 text-slate-950 font-bold text-[10px]">
                   {heldCartsList.length}
                 </span>
               )}
             </button>
 
-            {/* Sales Return */}
             <button
               onClick={() => setShowReturnModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-cyan-900/40 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-200 bg-obsidian-900/80 transition"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-700 transition"
             >
               <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
-              <span>Sales Return</span>
+              <span>Return</span>
             </button>
 
-            {/* Last Bill / Reprint (F4) */}
             <button
               onClick={handleLastBillReprint}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-cyan-900/40 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-200 bg-obsidian-900/80 transition"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800/80 text-slate-200 hover:text-white hover:bg-slate-700 transition"
               title="Reprint Last Invoice (F4)"
             >
-              <Receipt className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Last Bill (F4)</span>
+              <Receipt className="w-3.5 h-3.5 text-sky-400" />
+              <span>Last Bill</span>
             </button>
 
-            {/* Hold Current Cart Button */}
             <button
               disabled={cart.items.length === 0}
               onClick={handleHoldCart}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition disabled:opacity-30 disabled:pointer-events-none"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 transition disabled:opacity-30 disabled:pointer-events-none"
             >
               <PauseCircle className="w-3.5 h-3.5" />
               <span>Hold Cart</span>
@@ -672,25 +630,46 @@ export default function PosPage() {
           </div>
         </div>
 
-        {/* ── Main POS Workspace ───────────────────────────────── */}
-        <div className="flex-1 flex overflow-hidden p-4 gap-4">
+        {/* ── Mobile View Toggle Tabs ───────────────────────────── */}
+        <div className="lg:hidden flex border-b border-slate-800 bg-slate-900/90 text-xs font-semibold">
+          <button
+            onClick={() => setMobileTab('cart')}
+            className={`flex-1 py-2.5 text-center border-b-2 flex items-center justify-center gap-2 ${
+              mobileTab === 'cart'
+                ? 'border-sky-400 text-sky-400 bg-slate-800/50'
+                : 'border-transparent text-slate-400'
+            }`}
+          >
+            <ShoppingCart className="w-4 h-4" />
+            <span>Items &amp; Cart ({cart.items.length})</span>
+          </button>
+          <button
+            onClick={() => setMobileTab('payment')}
+            className={`flex-1 py-2.5 text-center border-b-2 flex items-center justify-center gap-2 ${
+              mobileTab === 'payment'
+                ? 'border-sky-400 text-sky-400 bg-slate-800/50'
+                : 'border-transparent text-slate-400'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            <span>Payment (₹{cart.getGrandTotal().toFixed(2)})</span>
+          </button>
+        </div>
+
+        {/* ── Main Workspace ───────────────────────────────────── */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden p-2.5 sm:p-4 gap-3 sm:gap-4">
+          
           {/* LEFT: Item Entry & Cart Table */}
           <div
-            className="flex-1 rounded-2xl flex flex-col overflow-hidden border border-cyan-950/80"
-            style={{
-              background: 'rgba(10, 22, 40, 0.75)',
-              backdropFilter: 'blur(20px)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-            }}
+            className={`flex-1 night-card flex flex-col overflow-hidden ${
+              mobileTab === 'cart' ? 'flex' : 'hidden lg:flex'
+            }`}
           >
-            {/* Top Scanning & Medicine Search Bar */}
-            <div
-              className="p-3.5 border-b border-cyan-950/80 flex gap-3 relative"
-              style={{ background: 'rgba(5, 10, 15, 0.70)' }}
-            >
+            {/* Top Scanning & Search Controls */}
+            <div className="p-3 border-b border-[#1e293b] flex flex-col sm:flex-row gap-2 sm:gap-3 bg-[#0d1424] relative">
               {/* Barcode Quick Scan */}
-              <form onSubmit={handleBarcodeScan} className="w-2/5 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-cyan-500/60">
+              <form onSubmit={handleBarcodeScan} className="w-full sm:w-2/5 relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   <Barcode className="w-4 h-4" />
                 </div>
                 <input
@@ -699,13 +678,13 @@ export default function PosPage() {
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
                   placeholder="Scan Barcode / SKU (Enter)... [F1]"
-                  className="w-full pl-9 pr-4 py-2 bg-obsidian-950/80 border border-cyan-900/40 focus:border-cyan-400 rounded-xl text-xs font-mono text-cyan-100 placeholder-slate-500 focus:outline-none transition shadow-inner"
+                  className="w-full pl-9 pr-3 py-2 night-input text-xs font-mono placeholder-slate-500"
                 />
               </form>
 
               {/* Medicine Autocomplete Search */}
               <div className="flex-1 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-cyan-500/60">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
                   <Search className="w-4 h-4" />
                 </div>
                 <input
@@ -714,46 +693,40 @@ export default function PosPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search Medicine, Generic, Brand, Molecule..."
-                  className="w-full pl-9 pr-4 py-2 bg-obsidian-950/80 border border-cyan-900/40 focus:border-cyan-400 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition shadow-inner"
+                  className="w-full pl-9 pr-3 py-2 night-input text-xs placeholder-slate-500"
                 />
 
-                {/* Dropdown Results */}
+                {/* Search Results Dropdown */}
                 {searchResults.length > 0 && (
-                  <div
-                    className="absolute left-0 right-0 top-11 z-50 rounded-xl border border-cyan-500/30 max-h-80 overflow-y-auto divide-y divide-cyan-950/60 shadow-2xl"
-                    style={{
-                      background: 'rgba(7, 14, 24, 0.98)',
-                      backdropFilter: 'blur(24px)',
-                    }}
-                  >
+                  <div className="absolute left-0 right-0 top-11 z-50 rounded-xl border border-slate-700 bg-slate-900 max-h-80 overflow-y-auto divide-y divide-slate-800 shadow-2xl">
                     {searchResults.map((med: any) => (
                       <div
                         key={med.id}
                         onClick={() => handleAddSearchResult(med)}
-                        className="p-3 hover:bg-cyan-950/50 cursor-pointer flex justify-between items-center transition duration-150 group"
+                        className="p-3 hover:bg-slate-800 cursor-pointer flex justify-between items-center transition group"
                       >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
-                            <p className="font-bold text-xs text-slate-100 group-hover:text-cyan-300 transition">
+                            <p className="font-bold text-xs text-white group-hover:text-sky-300">
                               {med.name}
                             </p>
                             {med.prescriptionRequired && (
-                              <span className="px-1.5 py-0.2 rounded bg-red-950/80 border border-red-800 text-red-300 font-mono text-[9px] font-bold">
+                              <span className="px-1.5 py-0.2 rounded bg-red-950 text-red-300 border border-red-800 text-[9px] font-bold">
                                 Rx ({med.drugSchedule || 'H'})
                               </span>
                             )}
                           </div>
                           <p className="text-[10px] text-slate-400">
-                            <span className="text-cyan-400/80 font-mono">{med.genericName || med.brandName || 'Generics'}</span> • MFR: {med.manufacturer}
+                            <span className="text-sky-400 font-mono">{med.genericName || med.brandName || 'Generics'}</span> • MFR: {med.manufacturer}
                           </p>
                           <div className="flex items-center gap-3 text-[10px] text-slate-400 font-mono">
-                            <span>Batch: <strong className="text-cyan-300">{med.fefoBatch?.batchNumber || 'Auto-FEFO'}</strong></span>
+                            <span>Batch: <strong className="text-sky-300">{med.fefoBatch?.batchNumber || 'Auto-FEFO'}</strong></span>
                             <span>Exp: {med.fefoBatch?.expiryDate ? formatDate(med.fefoBatch.expiryDate, 'MM/YY') : 'N/A'}</span>
                             <span>Stock: <strong className={med.availableStock > 5 ? 'text-emerald-400' : 'text-amber-400'}>{med.availableStock} {med.baseUnit}</strong></span>
                           </div>
                         </div>
                         <div className="text-right flex-shrink-0">
-                          <p className="text-xs font-mono font-bold text-cyan-300">
+                          <p className="text-xs font-mono font-bold text-sky-300">
                             ₹{Number(med.fefoBatch?.sellingPrice ?? med.defaultSellingPrice).toFixed(2)}
                           </p>
                           <p className="text-[10px] text-slate-500 line-through">
@@ -767,31 +740,25 @@ export default function PosPage() {
               </div>
             </div>
 
-            {/* Cart Items Table */}
-            <div className="flex-1 overflow-y-auto">
+            {/* Cart Table Container */}
+            <div className="flex-1 overflow-y-auto overflow-x-auto">
               {cart.items.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-slate-500 p-8 space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-cyan-950/30 border border-cyan-800/20 flex items-center justify-center text-cyan-400">
-                    <ShoppingCart className="w-8 h-8 stroke-1" />
+                  <div className="w-14 h-14 rounded-2xl bg-slate-800/60 border border-slate-700 flex items-center justify-center text-slate-400">
+                    <ShoppingCart className="w-7 h-7 stroke-1" />
                   </div>
-                  <p className="text-sm font-semibold text-slate-300">Billing Cart is Empty</p>
+                  <p className="text-sm font-semibold text-slate-300">Cart is Empty</p>
                   <p className="text-xs text-slate-500 max-w-sm text-center">
-                    Scan barcode with reader or search medicine to add items. FEFO batch is auto-selected.
+                    Scan barcode or search medicines to add items. FEFO batch is auto-selected.
                   </p>
                 </div>
               ) : (
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead
-                    className="text-cyan-200/70 font-semibold sticky top-0 z-10 uppercase tracking-wider text-[10px]"
-                    style={{
-                      background: 'rgba(5, 10, 15, 0.90)',
-                      borderBottom: '1px solid rgba(6, 182, 212, 0.15)',
-                    }}
-                  >
+                <table className="w-full text-left border-collapse text-xs min-w-[600px]">
+                  <thead className="bg-[#0c1322] text-slate-400 font-semibold sticky top-0 z-10 uppercase tracking-wider text-[10px] border-b border-slate-800">
                     <tr>
                       <th className="py-2.5 px-3">#</th>
                       <th className="py-2.5 px-3">Medicine &amp; Batch</th>
-                      <th className="py-2.5 px-3 text-right">Unit Rate</th>
+                      <th className="py-2.5 px-3 text-right">Rate</th>
                       <th className="py-2.5 px-3 text-center">Unit</th>
                       <th className="py-2.5 px-3 text-center">Qty (+/-)</th>
                       <th className="py-2.5 px-3 text-right">Disc %</th>
@@ -800,33 +767,28 @@ export default function PosPage() {
                       <th className="py-2.5 px-3 text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-cyan-950/40">
+                  <tbody className="divide-y divide-slate-800/60">
                     {cart.items.map((item, idx) => {
                       const isSelected = cart.selectedItemIndex === idx;
                       return (
                         <tr
                           key={`${item.medicineId}-${item.batchId || idx}`}
                           onClick={() => cart.setSelectedItemIndex(idx)}
-                          className={`transition duration-150 cursor-pointer ${
-                            isSelected
-                              ? 'bg-cyan-950/40 border-l-2 border-cyan-400'
-                              : 'hover:bg-cyan-950/20'
+                          className={`transition cursor-pointer ${
+                            isSelected ? 'bg-slate-800/80 border-l-2 border-sky-400' : 'hover:bg-slate-800/30'
                           }`}
                         >
-                          <td className="py-2.5 px-3 text-slate-500 font-mono text-[11px]">
-                            {idx + 1}
-                          </td>
-                          <td className="py-2.5 px-3">
-                            <div className="font-bold text-slate-100 flex items-center gap-1.5">
+                          <td className="py-2 px-3 text-slate-500 font-mono text-[11px]">{idx + 1}</td>
+                          <td className="py-2 px-3">
+                            <div className="font-semibold text-slate-100 flex items-center gap-1.5">
                               <span>{item.name}</span>
                               {item.prescriptionRequired && (
-                                <span className="px-1.5 py-0.2 rounded bg-red-950/80 border border-red-800 text-red-300 font-mono text-[9px] font-bold">
+                                <span className="px-1.5 py-0.2 rounded bg-red-950 border border-red-800 text-red-300 font-mono text-[9px] font-bold">
                                   Rx
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-0.5">
-                              {/* Clickable Batch Selector Chip */}
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -837,37 +799,33 @@ export default function PosPage() {
                                     currentBatchId: item.batchId,
                                   });
                                 }}
-                                className="px-1.5 py-0.2 rounded font-mono text-[10px] font-semibold flex items-center gap-1 border border-cyan-800/40 bg-cyan-950/60 text-cyan-300 hover:bg-cyan-900/60 transition"
+                                className="px-1.5 py-0.2 rounded font-mono text-[10px] font-medium flex items-center gap-1 border border-slate-700 bg-slate-800 text-sky-300 hover:bg-slate-700 transition"
                               >
                                 <span>Batch: {item.batchNumber || 'Auto-FEFO'}</span>
                                 <ChevronDown className="w-3 h-3" />
                               </button>
-                              {item.expiryDate && (
-                                <span className="font-mono text-slate-500">Exp: {item.expiryDate}</span>
-                              )}
+                              {item.expiryDate && <span>Exp: {item.expiryDate}</span>}
                               <span className="text-slate-500">MRP: ₹{item.mrp}</span>
                             </div>
                           </td>
 
-                          <td className="py-2.5 px-3 text-right font-mono font-medium text-slate-200">
+                          <td className="py-2 px-3 text-right font-mono font-medium text-slate-200">
                             ₹{Number(item.rate || 0).toFixed(2)}
                           </td>
 
-                          {/* Unit Level */}
-                          <td className="py-2.5 px-3 text-center">
+                          <td className="py-2 px-3 text-center">
                             <select
                               value={item.unitLevel || 'TABLET'}
                               onChange={(e) => cart.updateItemUnitLevel(item.medicineId, e.target.value, item.batchId)}
-                              className="px-1.5 py-0.5 bg-obsidian-900 text-cyan-300 border border-cyan-800/40 rounded font-semibold text-[10px] focus:outline-none"
+                              className="px-1.5 py-0.5 bg-slate-900 text-sky-300 border border-slate-700 rounded font-semibold text-[10px] focus:outline-none"
                             >
-                              <option value="TABLET">Tablet / Loose</option>
+                              <option value="TABLET">Tablet</option>
                               <option value="STRIP">Strip</option>
                               <option value="BOX">Box</option>
                             </select>
                           </td>
 
-                          {/* Quantity +/- Buttons */}
-                          <td className="py-2.5 px-3 text-center">
+                          <td className="py-2 px-3 text-center">
                             <div className="flex items-center justify-center gap-1">
                               <button
                                 type="button"
@@ -875,7 +833,7 @@ export default function PosPage() {
                                   e.stopPropagation();
                                   cart.decrementItemQty(idx);
                                 }}
-                                className="w-6 h-6 rounded-lg bg-obsidian-900 hover:bg-cyan-950 border border-cyan-900/40 flex items-center justify-center text-slate-300 hover:text-cyan-300 transition"
+                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 transition"
                               >
                                 <Minus className="w-3 h-3" />
                               </button>
@@ -884,7 +842,7 @@ export default function PosPage() {
                                 min="1"
                                 value={item.qty}
                                 onChange={(e) => cart.updateItemQty(item.medicineId, parseInt(e.target.value) || 1, item.batchId)}
-                                className="w-12 text-center font-mono font-bold text-slate-100 bg-obsidian-950 border border-cyan-800/40 rounded-lg py-0.5 text-xs focus:outline-none focus:border-cyan-400"
+                                className="w-11 text-center font-mono font-bold text-white bg-slate-900 border border-slate-700 rounded py-0.5 text-xs focus:outline-none focus:border-sky-400"
                               />
                               <button
                                 type="button"
@@ -892,37 +850,33 @@ export default function PosPage() {
                                   e.stopPropagation();
                                   cart.incrementItemQty(idx);
                                 }}
-                                className="w-6 h-6 rounded-lg bg-obsidian-900 hover:bg-cyan-950 border border-cyan-900/40 flex items-center justify-center text-slate-300 hover:text-cyan-300 transition"
+                                className="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 transition"
                               >
                                 <Plus className="w-3 h-3" />
                               </button>
                             </div>
                           </td>
 
-                          {/* Discount % */}
-                          <td className="py-2.5 px-3 text-right">
+                          <td className="py-2 px-3 text-right">
                             <input
                               type="number"
                               min="0"
                               max="100"
                               value={item.discountPercent}
                               onChange={(e) => cart.updateItemDiscount(item.medicineId, parseFloat(e.target.value) || 0, item.batchId)}
-                              className="w-12 text-right bg-obsidian-950 border border-cyan-800/40 rounded-lg py-0.5 px-1 font-mono text-xs text-slate-100 focus:outline-none focus:border-cyan-400"
+                              className="w-12 text-right bg-slate-900 border border-slate-700 rounded py-0.5 px-1 font-mono text-xs text-white focus:outline-none focus:border-sky-400"
                             />
                           </td>
 
-                          {/* Tax % */}
-                          <td className="py-2.5 px-3 text-right font-mono text-slate-400">
+                          <td className="py-2 px-3 text-right font-mono text-slate-400">
                             {item.taxPercent}%
                           </td>
 
-                          {/* Line Total */}
-                          <td className="py-2.5 px-3 text-right font-bold text-cyan-300 font-mono text-sm">
+                          <td className="py-2 px-3 text-right font-bold text-sky-300 font-mono text-xs">
                             ₹{Number(item.lineTotal || 0).toFixed(2)}
                           </td>
 
-                          {/* Delete Action */}
-                          <td className="py-2.5 px-3 text-center">
+                          <td className="py-2 px-3 text-center">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -942,48 +896,38 @@ export default function PosPage() {
               )}
             </div>
 
-            {/* Bottom Keyboard Shortcuts Cheat Sheet */}
-            <div
-              className="p-2 px-4 border-t border-cyan-950/80 flex items-center justify-between text-[11px] text-slate-400"
-              style={{ background: 'rgba(5, 10, 15, 0.85)' }}
-            >
-              <div className="flex items-center gap-4 font-mono text-[10px]">
-                <span><kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/40 text-cyan-300">F1</kbd> Scan / Search</span>
-                <span><kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/40 text-cyan-300">F2</kbd> Customer</span>
-                <span><kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/40 text-cyan-300">F4</kbd> Last Bill</span>
-                <span><kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/40 text-cyan-300">F8</kbd> Hold Bills</span>
-                <span><kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/40 text-cyan-300">F9</kbd> Checkout</span>
-                <span><kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/40 text-cyan-300">+/-</kbd> Change Qty</span>
-                <span><kbd className="px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-800/40 text-cyan-300">Del</kbd> Remove Item</span>
+            {/* Bottom Keyboard Shortcuts Cheat Sheet (Desktop) */}
+            <div className="hidden lg:flex p-2 px-4 border-t border-slate-800 bg-[#0c1220] items-center justify-between text-[11px] text-slate-400">
+              <div className="flex items-center gap-3 font-mono text-[10px]">
+                <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300">F1</kbd> Search</span>
+                <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300">F2</kbd> Customer</span>
+                <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300">F4</kbd> Last Bill</span>
+                <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300">F8</kbd> Hold</span>
+                <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300">F9</kbd> Checkout</span>
+                <span><kbd className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-sky-300">+/-</kbd> Qty</span>
               </div>
-              <span className="text-cyan-400/70 font-mono text-[10px]">{cart.items.length} items in cart</span>
+              <span className="text-sky-400 font-mono text-[10px]">{cart.items.length} items</span>
             </div>
           </div>
 
-          {/* RIGHT: Customer, Payment & Fast Checkout Panel */}
+          {/* RIGHT: Customer, Payment & Checkout Panel */}
           <div
-            className="w-96 rounded-2xl border border-cyan-950/80 flex flex-col p-5 gap-4 justify-between"
-            style={{
-              background: 'rgba(10, 22, 40, 0.75)',
-              backdropFilter: 'blur(20px)',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
-            }}
+            className={`w-full lg:w-96 night-card flex flex-col p-4 gap-4 justify-between ${
+              mobileTab === 'payment' ? 'flex' : 'hidden lg:flex'
+            }`}
           >
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {/* Customer Quick Card */}
-              <div
-                className="p-3.5 rounded-xl border border-cyan-900/30 space-y-2.5"
-                style={{ background: 'rgba(5, 10, 15, 0.60)' }}
-              >
+              <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/70 space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 font-bold text-slate-200">
-                    <Users className="w-4 h-4 text-cyan-400" />
+                  <div className="flex items-center gap-1.5 font-semibold text-slate-200">
+                    <Users className="w-4 h-4 text-sky-400" />
                     <span>Customer</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setShowCustomerModal(true)}
-                    className="flex items-center gap-1 text-[10px] text-cyan-400 hover:text-cyan-300 transition cursor-pointer font-medium"
+                    className="flex items-center gap-1 text-[10px] text-sky-400 hover:text-sky-300 transition font-medium"
                   >
                     <UserPlus className="w-3 h-3" />
                     <span>+ New (F2)</span>
@@ -1002,7 +946,7 @@ export default function PosPage() {
                         name: cart.customer?.name || 'Walk-in Customer',
                       })
                     }
-                    className="px-2.5 py-1.5 bg-obsidian-950 border border-cyan-900/40 rounded-lg text-xs font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    className="px-2.5 py-1.5 night-input text-xs font-mono placeholder-slate-500"
                   />
                   <input
                     type="text"
@@ -1014,19 +958,14 @@ export default function PosPage() {
                         name: e.target.value,
                       })
                     }
-                    className="px-2.5 py-1.5 bg-obsidian-950 border border-cyan-900/40 rounded-lg text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-400"
+                    className="px-2.5 py-1.5 night-input text-xs placeholder-slate-500"
                   />
                 </div>
 
-                {/* Outstanding / Credit Limits Preview */}
                 {cart.customer?.creditLimit ? (
-                  <div className="flex justify-between items-center text-[10px] font-mono pt-1 border-t border-cyan-950/80">
-                    <span className="text-slate-400">
-                      Balance: <strong className="text-amber-400">₹{cart.customer.currentBalance || 0}</strong>
-                    </span>
-                    <span className="text-slate-400">
-                      Limit: <strong className="text-cyan-300">₹{cart.customer.creditLimit}</strong>
-                    </span>
+                  <div className="flex justify-between items-center text-[10px] font-mono pt-1 border-t border-slate-800">
+                    <span className="text-slate-400">Balance: <strong className="text-amber-400">₹{cart.customer.currentBalance || 0}</strong></span>
+                    <span className="text-slate-400">Limit: <strong className="text-sky-300">₹{cart.customer.creditLimit}</strong></span>
                   </div>
                 ) : null}
               </div>
@@ -1034,11 +973,11 @@ export default function PosPage() {
               {/* Payment Mode Selector */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-slate-200">Payment Mode</label>
+                  <label className="text-xs font-semibold text-slate-200">Payment Mode</label>
                   <button
                     type="button"
                     onClick={() => setShowSplitPaymentModal(true)}
-                    className="text-[10px] text-cyan-400 hover:text-cyan-300 font-mono transition cursor-pointer"
+                    className="text-[10px] text-sky-400 hover:text-sky-300 font-mono transition"
                   >
                     Split Payment &gt;
                   </button>
@@ -1059,8 +998,8 @@ export default function PosPage() {
                         onClick={() => setActivePaymentMode(p.mode)}
                         className={`flex flex-col items-center justify-center p-2 rounded-xl border text-[11px] font-semibold gap-1 transition ${
                           isSelected
-                            ? 'bg-cyan-500 text-obsidian-950 border-cyan-400 shadow-md shadow-cyan-500/20 font-bold'
-                            : 'bg-obsidian-900 text-slate-300 border-cyan-900/40 hover:bg-obsidian-800'
+                            ? 'bg-sky-600 text-white border-sky-500 shadow-md font-bold'
+                            : 'bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800'
                         }`}
                       >
                         <Icon className="w-3.5 h-3.5" />
@@ -1071,23 +1010,19 @@ export default function PosPage() {
                 </div>
               </div>
 
-              {/* Quick Cash Tender Buttons (if Cash mode) */}
+              {/* Cash Tender Helper */}
               {activePaymentMode === PaymentMode.CASH && (
-                <div
-                  className="p-3 rounded-xl border border-cyan-900/30 space-y-2"
-                  style={{ background: 'rgba(5, 10, 15, 0.60)' }}
-                >
+                <div className="p-3 rounded-xl border border-slate-800 bg-slate-900/70 space-y-2">
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-400 font-medium">Cash Tendered:</span>
                     <input
                       type="number"
                       value={cart.receivedCash || ''}
                       onChange={(e) => cart.setReceivedCash(parseFloat(e.target.value) || 0)}
-                      className="w-24 px-2 py-1 text-right font-mono font-bold bg-obsidian-950 border border-cyan-800/40 rounded-lg text-slate-100 focus:outline-none focus:border-cyan-400 text-xs"
+                      className="w-24 px-2 py-1 text-right font-mono font-bold night-input text-xs"
                     />
                   </div>
 
-                  {/* Cash Preset Tender Buttons */}
                   <div className="grid grid-cols-4 gap-1 pt-1">
                     {[
                       { label: 'Exact', val: cart.getGrandTotal() },
@@ -1099,15 +1034,14 @@ export default function PosPage() {
                         key={btn.label}
                         type="button"
                         onClick={() => cart.setReceivedCash(btn.val)}
-                        className="py-1 px-1.5 rounded-lg border border-cyan-900/40 bg-obsidian-900 hover:bg-cyan-950/60 text-[10px] font-mono text-cyan-300 font-semibold transition"
+                        className="py-1 px-1.5 rounded-lg border border-slate-700 bg-slate-800 text-[10px] font-mono text-sky-300 font-semibold hover:bg-slate-700 transition"
                       >
                         {btn.label}
                       </button>
                     ))}
                   </div>
 
-                  {/* Change to Return Display */}
-                  <div className="flex justify-between items-center pt-2 border-t border-cyan-950/80 text-xs">
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-xs">
                     <span className="text-slate-300 font-semibold">Change to Return:</span>
                     <span className="font-mono font-bold text-emerald-400 text-sm">
                       {formatCurrency(cart.getChangeAmount())}
@@ -1117,39 +1051,32 @@ export default function PosPage() {
               )}
             </div>
 
-            {/* Bill Summary & Checkout Button */}
-            <div className="border-t border-cyan-950/80 pt-3 space-y-2">
+            {/* Bill Summary & Primary Checkout */}
+            <div className="border-t border-slate-800 pt-3 space-y-2">
               <div className="flex justify-between text-xs text-slate-400">
                 <span>Items Subtotal:</span>
-                <span className="font-mono font-medium text-slate-200">
-                  ₹{cart.getSubtotal().toFixed(2)}
-                </span>
+                <span className="font-mono font-medium text-slate-200">₹{cart.getSubtotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xs text-slate-400">
                 <span>Discount Total:</span>
-                <span className="font-mono text-emerald-400 font-semibold">
-                  -₹{cart.getDiscountTotal().toFixed(2)}
-                </span>
+                <span className="font-mono text-emerald-400 font-semibold">-₹{cart.getDiscountTotal().toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-xs text-slate-400">
                 <span>Tax / GST:</span>
-                <span className="font-mono font-medium text-slate-200">
-                  ₹{cart.getTaxTotal().toFixed(2)}
-                </span>
+                <span className="font-mono font-medium text-slate-200">₹{cart.getTaxTotal().toFixed(2)}</span>
               </div>
 
-              <div className="flex justify-between items-baseline pt-2 border-t border-cyan-950/80">
+              <div className="flex justify-between items-baseline pt-2 border-t border-slate-800">
                 <span className="font-bold text-slate-200 text-sm">TOTAL PAYABLE:</span>
-                <span className="text-2xl font-extrabold text-cyan-300 font-mono tracking-tight glow-text-cyan">
+                <span className="text-2xl font-extrabold text-white font-mono tracking-tight">
                   ₹{cart.getGrandTotal().toFixed(2)}
                 </span>
               </div>
 
-              {/* Primary Checkout Action Button */}
               <button
                 disabled={cart.items.length === 0 || isCheckingOut}
                 onClick={handleCheckoutClick}
-                className="w-full mt-3 py-3.5 btn-cyan rounded-xl font-bold text-sm flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-40 disabled:pointer-events-none"
+                className="w-full mt-3 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-40 disabled:pointer-events-none shadow-lg"
               >
                 <CheckCircle2 className="w-5 h-5" />
                 {isCheckingOut ? 'Completing Sale...' : 'Checkout & Print Thermal (F9)'}
@@ -1158,22 +1085,18 @@ export default function PosPage() {
           </div>
         </div>
 
-        {/* ── MODAL 1: BATCH SELECTOR POPUP ────────────────────── */}
+        {/* ── MODALS (Fully Mobile & PC Responsive) ─────────────── */}
+
+        {/* Modal 1: Batch Selector */}
         {batchModalItem && (
-          <div className="fixed inset-0 z-50 bg-obsidian-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div
-              className="rounded-2xl border border-cyan-500/30 max-w-lg w-full p-5 space-y-4 text-xs"
-              style={{ background: 'rgba(10, 22, 40, 0.95)', backdropFilter: 'blur(24px)' }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-cyan-900/40">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-lg w-full p-5 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div>
                   <h3 className="font-bold text-sm text-white">Select Batch</h3>
-                  <p className="text-[10px] text-cyan-400/80 font-mono">{batchModalItem.medicineName}</p>
+                  <p className="text-[10px] text-sky-400 font-mono">{batchModalItem.medicineName}</p>
                 </div>
-                <button
-                  onClick={() => setBatchModalItem(null)}
-                  className="p-1 text-slate-400 hover:text-white"
-                >
+                <button onClick={() => setBatchModalItem(null)} className="p-1 text-slate-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1192,17 +1115,15 @@ export default function PosPage() {
                           setBatchModalItem(null);
                         }}
                         className={`p-3 rounded-xl border cursor-pointer transition flex items-center justify-between ${
-                          isSelected
-                            ? 'bg-cyan-500/20 border-cyan-400'
-                            : 'bg-obsidian-900/80 border-cyan-900/40 hover:border-cyan-500/40'
+                          isSelected ? 'bg-sky-950 border-sky-500' : 'bg-slate-850 border-slate-800 hover:border-slate-600'
                         }`}
                       >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-slate-100">{b.batchNumber}</span>
+                            <span className="font-mono font-bold text-white">{b.batchNumber}</span>
                             {idx === 0 && (
-                              <span className="px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 font-mono text-[9px] font-bold">
-                                FEFO Priority
+                              <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 font-mono text-[9px] font-bold">
+                                FEFO
                               </span>
                             )}
                           </div>
@@ -1211,7 +1132,7 @@ export default function PosPage() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-mono font-bold text-cyan-300 text-xs">₹{b.sellingPrice}</p>
+                          <p className="font-mono font-bold text-sky-300 text-xs">₹{b.sellingPrice}</p>
                           <p className="text-[10px] text-slate-500 line-through">MRP: ₹{b.mrp}</p>
                         </div>
                       </div>
@@ -1223,44 +1144,37 @@ export default function PosPage() {
           </div>
         )}
 
-        {/* ── MODAL 2: CASHIER SHIFT MANAGEMENT ─────────────────── */}
+        {/* Modal 2: Shift Manager */}
         {showShiftModal && (
-          <div className="fixed inset-0 z-50 bg-obsidian-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div
-              className="rounded-2xl border border-cyan-500/30 max-w-md w-full p-6 space-y-4 text-xs"
-              style={{ background: 'rgba(10, 22, 40, 0.95)', backdropFilter: 'blur(24px)' }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-cyan-900/40">
-                <div className="flex items-center gap-2 text-cyan-300">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-md w-full p-6 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2 text-sky-400">
                   <Coins className="w-5 h-5" />
                   <h3 className="font-bold text-sm text-white">Cashier Register &amp; Shift</h3>
                 </div>
-                <button
-                  onClick={() => setShowShiftModal(false)}
-                  className="p-1 text-slate-400 hover:text-white"
-                >
+                <button onClick={() => setShowShiftModal(false)} className="p-1 text-slate-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {currentShift ? (
-                // Active Shift Summary & Close Form
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div className="p-2.5 rounded-xl bg-obsidian-950 border border-cyan-900/40">
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <p className="text-slate-400 text-[10px]">Opening Float</p>
                       <p className="text-sm font-bold text-white">₹{currentShift.openingCash}</p>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-obsidian-950 border border-cyan-900/40">
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <p className="text-slate-400 text-[10px]">Cash Sales</p>
                       <p className="text-sm font-bold text-emerald-400">₹{currentShift.totalCashSales}</p>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-obsidian-950 border border-cyan-900/40">
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <p className="text-slate-400 text-[10px]">UPI / Digital Sales</p>
-                      <p className="text-sm font-bold text-cyan-300">₹{currentShift.totalUpiSales + currentShift.totalCardSales}</p>
+                      <p className="text-sm font-bold text-sky-300">₹{currentShift.totalUpiSales + currentShift.totalCardSales}</p>
                     </div>
-                    <div className="p-2.5 rounded-xl bg-obsidian-950 border border-cyan-900/40">
-                      <p className="text-slate-400 text-[10px]">Expected Drawer Cash</p>
+                    <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
+                      <p className="text-slate-400 text-[10px]">Expected Cash</p>
                       <p className="text-sm font-bold text-amber-300">₹{currentShift.expectedCash}</p>
                     </div>
                   </div>
@@ -1274,34 +1188,18 @@ export default function PosPage() {
                         required
                         type="number"
                         step="0.01"
-                        placeholder="Enter counted cash amount"
+                        placeholder="Counted cash amount"
                         value={closingCashInput}
                         onChange={(e) => setClosingCashInput(e.target.value)}
-                        className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl font-mono text-sm text-white focus:outline-none focus:border-cyan-400"
+                        className="w-full px-3 py-2 night-input font-mono text-sm text-white"
                       />
                     </div>
-
-                    {closingCashInput && (
-                      <div className="p-2.5 rounded-xl bg-obsidian-950 border border-cyan-900/40 flex justify-between items-center text-xs font-mono">
-                        <span className="text-slate-400">Cash Variance:</span>
-                        <span
-                          className={`font-bold ${
-                            parseFloat(closingCashInput) - currentShift.expectedCash >= 0
-                              ? 'text-emerald-400'
-                              : 'text-red-400'
-                          }`}
-                        >
-                          {parseFloat(closingCashInput) - currentShift.expectedCash >= 0 ? '+' : ''}
-                          ₹{(parseFloat(closingCashInput) - currentShift.expectedCash).toFixed(2)}
-                        </span>
-                      </div>
-                    )}
 
                     <div className="pt-2 flex justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => setShowShiftModal(false)}
-                        className="px-4 py-2 rounded-xl bg-obsidian-900 border border-cyan-900/40 text-slate-300"
+                        className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300"
                       >
                         Cancel
                       </button>
@@ -1315,10 +1213,9 @@ export default function PosPage() {
                   </form>
                 </div>
               ) : (
-                // Open Shift Form
                 <form onSubmit={handleOpenShift} className="space-y-4">
                   <p className="text-slate-400 text-xs">
-                    Start a new cashier session by entering the initial opening cash in the counter drawer.
+                    Start a cashier shift by entering the opening cash drawer float amount.
                   </p>
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">
@@ -1330,32 +1227,20 @@ export default function PosPage() {
                       step="0.01"
                       value={openingCashInput}
                       onChange={(e) => setOpeningCashInput(e.target.value)}
-                      className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl font-mono text-sm text-white focus:outline-none focus:border-cyan-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
-                      Shift Notes (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Morning counter shift"
-                      value={shiftNotes}
-                      onChange={(e) => setShiftNotes(e.target.value)}
-                      className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full px-3 py-2 night-input font-mono text-sm text-white"
                     />
                   </div>
                   <div className="pt-2 flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setShowShiftModal(false)}
-                      className="px-4 py-2 rounded-xl bg-obsidian-900 border border-cyan-900/40 text-slate-300"
+                      className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-xl btn-cyan font-bold text-white shadow-lg transition"
+                      className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition"
                     >
                       Open Cashier Shift
                     </button>
@@ -1366,22 +1251,16 @@ export default function PosPage() {
           </div>
         )}
 
-        {/* ── MODAL 3: HELD BILLS MANAGER ──────────────────────── */}
+        {/* Modal 3: Held Bills */}
         {showHeldModal && (
-          <div className="fixed inset-0 z-50 bg-obsidian-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div
-              className="rounded-2xl border border-cyan-500/30 max-w-xl w-full p-6 space-y-4 text-xs"
-              style={{ background: 'rgba(10, 22, 40, 0.95)', backdropFilter: 'blur(24px)' }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-cyan-900/40">
-                <div className="flex items-center gap-2 text-cyan-300">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-xl w-full p-6 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2 text-sky-400">
                   <PauseCircle className="w-5 h-5" />
                   <h3 className="font-bold text-sm text-white">Held Carts &amp; Suspended Bills</h3>
                 </div>
-                <button
-                  onClick={() => setShowHeldModal(false)}
-                  className="p-1 text-slate-400 hover:text-white"
-                >
+                <button onClick={() => setShowHeldModal(false)} className="p-1 text-slate-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1396,11 +1275,11 @@ export default function PosPage() {
                   heldCartsList.map((held: any) => (
                     <div
                       key={held.id}
-                      className="p-3.5 rounded-xl border border-cyan-900/40 bg-obsidian-950 flex items-center justify-between hover:border-cyan-500/40 transition"
+                      className="p-3.5 rounded-xl border border-slate-800 bg-slate-950 flex items-center justify-between hover:border-slate-700 transition"
                     >
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-cyan-400">{held.code}</span>
+                          <span className="font-mono font-bold text-sky-400">{held.code}</span>
                           <span className="font-semibold text-slate-200">{held.name}</span>
                         </div>
                         <p className="text-[10px] text-slate-400 font-mono">
@@ -1413,7 +1292,7 @@ export default function PosPage() {
                         </span>
                         <button
                           onClick={() => handleResumeHeldCart(held.id)}
-                          className="px-3 py-1.5 btn-cyan rounded-lg font-bold text-[11px] flex items-center gap-1"
+                          className="px-3 py-1.5 bg-sky-600 hover:bg-sky-500 rounded-lg font-bold text-[11px] flex items-center gap-1 text-white"
                         >
                           <PlayCircle className="w-3.5 h-3.5" />
                           Resume
@@ -1433,22 +1312,16 @@ export default function PosPage() {
           </div>
         )}
 
-        {/* ── MODAL 4: QUICK ADD CUSTOMER ───────────────────────── */}
+        {/* Modal 4: Quick Add Customer */}
         {showCustomerModal && (
-          <div className="fixed inset-0 z-50 bg-obsidian-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div
-              className="rounded-2xl border border-cyan-500/30 max-w-md w-full p-6 space-y-4 text-xs"
-              style={{ background: 'rgba(10, 22, 40, 0.95)', backdropFilter: 'blur(24px)' }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-cyan-900/40">
-                <div className="flex items-center gap-2 text-cyan-300">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-md w-full p-6 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2 text-sky-400">
                   <UserPlus className="w-5 h-5" />
                   <h3 className="font-bold text-sm text-white">Quick Add Customer</h3>
                 </div>
-                <button
-                  onClick={() => setShowCustomerModal(false)}
-                  className="p-1 text-slate-400 hover:text-white"
-                >
+                <button onClick={() => setShowCustomerModal(false)} className="p-1 text-slate-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1464,7 +1337,7 @@ export default function PosPage() {
                     placeholder="e.g. Ramesh Kumar"
                     value={newCustomer.name}
                     onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl text-xs text-white focus:outline-none focus:border-cyan-400"
+                    className="w-full px-3 py-2 night-input text-xs text-white"
                   />
                 </div>
                 <div>
@@ -1477,7 +1350,7 @@ export default function PosPage() {
                     placeholder="9876543210"
                     value={newCustomer.mobile}
                     onChange={(e) => setNewCustomer({ ...newCustomer, mobile: e.target.value })}
-                    className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl font-mono text-xs text-white focus:outline-none focus:border-cyan-400"
+                    className="w-full px-3 py-2 night-input font-mono text-xs text-white"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1490,7 +1363,7 @@ export default function PosPage() {
                       placeholder="0"
                       value={newCustomer.creditLimit || ''}
                       onChange={(e) => setNewCustomer({ ...newCustomer, creditLimit: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl font-mono text-xs text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full px-3 py-2 night-input font-mono text-xs text-white"
                     />
                   </div>
                   <div>
@@ -1502,7 +1375,7 @@ export default function PosPage() {
                       placeholder="29AAAAA0000A1Z5"
                       value={newCustomer.gstNumber}
                       onChange={(e) => setNewCustomer({ ...newCustomer, gstNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl font-mono text-xs text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full px-3 py-2 night-input font-mono text-xs text-white"
                     />
                   </div>
                 </div>
@@ -1511,15 +1384,15 @@ export default function PosPage() {
                   <button
                     type="button"
                     onClick={() => setShowCustomerModal(false)}
-                    className="px-4 py-2 rounded-xl bg-obsidian-900 border border-cyan-900/40 text-slate-300"
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl btn-cyan font-bold text-white shadow-lg transition"
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition"
                   >
-                    Save &amp; Select Customer
+                    Save &amp; Select
                   </button>
                 </div>
               </form>
@@ -1527,27 +1400,20 @@ export default function PosPage() {
           </div>
         )}
 
-        {/* ── MODAL 5: SALES RETURN & REFUND ────────────────────── */}
+        {/* Modal 5: Sales Return */}
         {showReturnModal && (
-          <div className="fixed inset-0 z-50 bg-obsidian-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div
-              className="rounded-2xl border border-cyan-500/30 max-w-2xl w-full p-6 space-y-4 text-xs"
-              style={{ background: 'rgba(10, 22, 40, 0.95)', backdropFilter: 'blur(24px)' }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-cyan-900/40">
-                <div className="flex items-center gap-2 text-amber-300">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-2xl w-full p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2 text-amber-400">
                   <RotateCcw className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">Sales Return &amp; Refund Processing</h3>
+                  <h3 className="font-bold text-sm text-white">Sales Return &amp; Refund</h3>
                 </div>
-                <button
-                  onClick={() => setShowReturnModal(false)}
-                  className="p-1 text-slate-400 hover:text-white"
-                >
+                <button onClick={() => setShowReturnModal(false)} className="p-1 text-slate-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Search Original Invoice */}
               <form onSubmit={handleSearchReturnInvoice} className="flex gap-2">
                 <input
                   required
@@ -1555,42 +1421,41 @@ export default function PosPage() {
                   placeholder="Enter Invoice # (e.g. INV-000001)..."
                   value={returnInvoiceSearch}
                   onChange={(e) => setReturnInvoiceSearch(e.target.value)}
-                  className="flex-1 px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl text-xs font-mono text-white focus:outline-none focus:border-cyan-400"
+                  className="flex-1 px-3 py-2 night-input text-xs font-mono text-white"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl btn-cyan font-bold text-white text-xs flex items-center gap-1.5"
+                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white text-xs flex items-center gap-1.5"
                 >
                   <Search className="w-3.5 h-3.5" />
-                  Lookup Bill
+                  Lookup
                 </button>
               </form>
 
               {returnInvoiceData && (
                 <div className="space-y-3 pt-2">
-                  <div className="p-3 rounded-xl bg-obsidian-950 border border-cyan-900/40 flex justify-between items-center text-xs">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex justify-between items-center text-xs">
                     <div>
-                      <p className="font-bold text-slate-100 font-mono">{returnInvoiceData.invoiceNumber}</p>
+                      <p className="font-bold text-white font-mono">{returnInvoiceData.invoiceNumber}</p>
                       <p className="text-[10px] text-slate-400">
                         Date: {formatDate(returnInvoiceData.createdAt)} • Customer: {returnInvoiceData.customer?.name || 'Walk-in'}
                       </p>
                     </div>
-                    <span className="font-bold font-mono text-cyan-300">
+                    <span className="font-bold font-mono text-sky-300">
                       Total: ₹{returnInvoiceData.totalAmount}
                     </span>
                   </div>
 
-                  {/* Return Item Quantities & Conditions */}
                   <div className="max-h-56 overflow-y-auto space-y-2">
                     {returnInvoiceData.items.map((it: any) => {
                       const state = returnItemsState[it.id] || { returnQty: 0, condition: 'RESALABLE', reason: '' };
                       return (
                         <div
                           key={it.id}
-                          className="p-3 rounded-xl border border-cyan-900/30 bg-obsidian-950/80 flex items-center justify-between gap-3"
+                          className="p-3 rounded-xl border border-slate-800 bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                         >
                           <div className="flex-1">
-                            <p className="font-semibold text-slate-100">{it.medicine?.name}</p>
+                            <p className="font-semibold text-white">{it.medicine?.name}</p>
                             <p className="text-[10px] text-slate-400 font-mono">
                               Sold Qty: {it.qty} • Rate: ₹{it.rate}
                             </p>
@@ -1604,14 +1469,14 @@ export default function PosPage() {
                                   [it.id]: { ...state, condition: e.target.value },
                                 })
                               }
-                              className="px-2 py-1 bg-obsidian-900 text-cyan-300 border border-cyan-800/40 rounded-lg text-[10px]"
+                              className="px-2 py-1 bg-slate-900 text-sky-300 border border-slate-700 rounded-lg text-[10px]"
                             >
-                              <option value="RESALABLE">Resalable (Restock)</option>
+                              <option value="RESALABLE">Resalable</option>
                               <option value="DAMAGED">Damaged</option>
                               <option value="EXPIRED">Expired</option>
                             </select>
                             <div className="flex items-center gap-1">
-                              <span className="text-[10px] text-slate-400">Return Qty:</span>
+                              <span className="text-[10px] text-slate-400">Qty:</span>
                               <input
                                 type="number"
                                 min="0"
@@ -1626,7 +1491,7 @@ export default function PosPage() {
                                     },
                                   })
                                 }
-                                className="w-12 px-1.5 py-1 text-center bg-obsidian-900 border border-cyan-800/40 rounded-lg font-mono text-xs text-white"
+                                className="w-12 px-1.5 py-1 text-center bg-slate-900 border border-slate-700 rounded-lg font-mono text-xs text-white"
                               />
                             </div>
                           </div>
@@ -1635,25 +1500,25 @@ export default function PosPage() {
                     })}
                   </div>
 
-                  <div className="pt-2 flex justify-between items-center border-t border-cyan-900/40">
+                  <div className="pt-2 flex justify-between items-center border-t border-slate-800">
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400 text-xs">Refund Mode:</span>
                       <select
                         value={returnRefundMode}
                         onChange={(e) => setReturnRefundMode(e.target.value as PaymentMode)}
-                        className="px-2 py-1 bg-obsidian-900 text-white border border-cyan-800/40 rounded-lg text-xs"
+                        className="px-2 py-1 bg-slate-900 text-white border border-slate-700 rounded-lg text-xs"
                       >
                         <option value={PaymentMode.CASH}>Cash</option>
                         <option value={PaymentMode.UPI}>UPI</option>
-                        <option value={PaymentMode.CREDIT}>Store Credit / Ledger</option>
+                        <option value={PaymentMode.CREDIT}>Credit / Ledger</option>
                       </select>
                     </div>
                     <button
                       disabled={isProcessingReturn}
                       onClick={handleProcessReturn}
-                      className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-obsidian-950 font-bold text-xs shadow-lg transition"
+                      className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-lg transition"
                     >
-                      {isProcessingReturn ? 'Processing...' : 'Confirm Return & Refund'}
+                      {isProcessingReturn ? 'Processing...' : 'Confirm Return'}
                     </button>
                   </div>
                 </div>
@@ -1662,41 +1527,31 @@ export default function PosPage() {
           </div>
         )}
 
-        {/* ── MODAL 6: SCHEDULE H PRESCRIPTION DETAILS ─────────── */}
+        {/* Modal 6: Schedule H Rx */}
         {showRxModal && (
-          <div className="fixed inset-0 z-50 bg-obsidian-950/80 backdrop-blur-md flex items-center justify-center p-4">
-            <div
-              className="rounded-2xl border border-red-500/30 max-w-lg w-full p-6 space-y-4 text-xs"
-              style={{ background: 'rgba(10, 22, 40, 0.95)', backdropFilter: 'blur(24px)' }}
-            >
-              <div className="flex items-center justify-between pb-3 border-b border-red-900/40">
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-red-900 bg-slate-900 max-w-lg w-full p-6 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-red-950">
                 <div className="flex items-center gap-2 text-red-400">
                   <ShieldAlert className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">Schedule H / H1 Prescription Required</h3>
+                  <h3 className="font-bold text-sm text-white">Schedule H Prescription Required</h3>
                 </div>
-                <button
-                  onClick={() => setShowRxModal(false)}
-                  className="p-1 text-slate-400 hover:text-white"
-                >
+                <button onClick={() => setShowRxModal(false)} className="p-1 text-slate-400 hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <p className="text-[11px] text-slate-400 leading-relaxed">
-                Cart contains controlled Schedule H/H1 drugs. Regulatory compliance mandates recording prescribing doctor and patient details.
-              </p>
-
               <form onSubmit={handleRxSubmit} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Doctor's Name *</label>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">Doctor Name *</label>
                     <input
                       required
                       type="text"
                       placeholder="Dr. R. Sharma"
                       value={prescriptionForm.doctorName}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorName: e.target.value })}
-                      className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full px-3 py-2 night-input text-white"
                     />
                   </div>
                   <div>
@@ -1707,7 +1562,7 @@ export default function PosPage() {
                       placeholder="MCI-19842"
                       value={prescriptionForm.doctorRegNo}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorRegNo: e.target.value })}
-                      className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl font-mono text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full px-3 py-2 night-input font-mono text-white"
                     />
                   </div>
                 </div>
@@ -1720,7 +1575,7 @@ export default function PosPage() {
                       type="text"
                       value={prescriptionForm.patientName || cart.customer?.name || ''}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientName: e.target.value })}
-                      className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full px-3 py-2 night-input text-white"
                     />
                   </div>
                   <div>
@@ -1731,23 +1586,23 @@ export default function PosPage() {
                       min="1"
                       value={prescriptionForm.patientAge}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientAge: parseInt(e.target.value) || 30 })}
-                      className="w-full px-3 py-2 bg-obsidian-950 border border-cyan-800/40 rounded-xl font-mono text-white focus:outline-none focus:border-cyan-400"
+                      className="w-full px-3 py-2 night-input font-mono text-white"
                     />
                   </div>
                 </div>
 
-                <div className="pt-3 flex justify-end gap-2 border-t border-cyan-900/40">
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-800">
                   <button
                     type="button"
                     onClick={() => setShowRxModal(false)}
-                    className="px-4 py-2 rounded-xl bg-obsidian-900 border border-cyan-900/40 text-slate-300"
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={isCheckingOut}
-                    className="px-5 py-2 rounded-xl btn-cyan font-bold text-white shadow-lg transition"
+                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-white shadow-lg transition"
                   >
                     {isCheckingOut ? 'Saving...' : 'Confirm & Complete Sale'}
                   </button>
@@ -1757,7 +1612,7 @@ export default function PosPage() {
           </div>
         )}
 
-        {/* ── MODAL 7: THERMAL RECEIPT PREVIEW & WHATSAPP ───────── */}
+        {/* Modal 7: Thermal Receipt & WhatsApp */}
         {completedReceiptData && (
           <div className="relative">
             <ThermalReceiptPreview
@@ -1767,7 +1622,6 @@ export default function PosPage() {
                 barcodeRef.current?.focus();
               }}
             />
-            {/* Floating WhatsApp Share Button */}
             <div className="fixed bottom-6 right-6 z-50">
               <button
                 onClick={handleWhatsAppShare}

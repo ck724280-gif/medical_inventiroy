@@ -3,282 +3,118 @@
 @tailwind utilities;
 
 /* ============================================================
-   DARK OBSIDIAN + CYAN — Design Token System
-   MedCare Pharmacy ERP & POS
+   PREMIUM NIGHT MODE & DARK MODE SYSTEM
+   Deep Charcoal Midnight • Hospital & Pharmacy ERP Standard
    ============================================================ */
 :root {
-  /* Core color tokens */
-  --color-primary: #06b6d4;
-  --color-secondary: #050a0f;
+  --bg-base: #090d16;
+  --bg-surface: #0f172a;
+  --bg-elevated: #1e293b;
+  --bg-input: #0d1322;
 
-  /* Background layers */
-  --bg-base: #050a0f;
-  --bg-surface: #0a1628;
-  --bg-elevated: #0f2040;
-  --bg-overlay: #071525;
+  --color-primary: #38bdf8;
+  --color-primary-hover: #0ea5e9;
+  --color-emerald: #10b981;
+  --color-indigo: #6366f1;
 
-  /* Accent - Cyan */
-  --accent-cyan: #06b6d4;
-  --accent-cyan-glow: #22d3ee;
-  --accent-cyan-dim: #0891b2;
-  --accent-cyan-pale: #cffafe;
+  --border-subtle: #1e293b;
+  --border-card: #1e293b;
+  --border-active: #38bdf8;
 
-  /* Borders */
-  --border-subtle: #1a3a5c;
-  --border-glass: rgba(6, 182, 212, 0.15);
-  --border-glow: rgba(6, 182, 212, 0.35);
-
-  /* Text */
-  --text-primary: #e2f4ff;
-  --text-muted: #5a8ca8;
-  --text-dim: #2c5f7a;
-
-  /* Glassmorphism */
-  --glass-bg: rgba(6, 182, 212, 0.04);
-  --glass-bg-hover: rgba(6, 182, 212, 0.08);
-  --glass-border: rgba(6, 182, 212, 0.12);
-
-  /* Glow shadows */
-  --glow-cyan-sm: 0 0 12px rgba(6, 182, 212, 0.25);
-  --glow-cyan-md: 0 0 24px rgba(6, 182, 212, 0.35);
-  --glow-cyan-lg: 0 0 48px rgba(6, 182, 212, 0.25);
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.7), var(--glow-cyan-sm);
+  --text-main: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
 }
 
-/* ============================================================
-   BASE STYLES
-   ============================================================ */
+/* Base Body Setup */
 body {
   margin: 0;
   padding: 0;
   background-color: var(--bg-base);
-  color: var(--text-primary);
+  color: var(--text-main);
+  font-family: var(--font-inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-/* ============================================================
-   CUSTOM SCROLLBARS — Cyan accent
-   ============================================================ */
+/* Custom Clean Scrollbars */
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-surface);
+  background: #090d16;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--accent-cyan-dim);
-  border-radius: 4px;
-  opacity: 0.5;
+  background: #334155;
+  border-radius: 6px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-cyan);
-  box-shadow: var(--glow-cyan-sm);
+  background: #475569;
 }
 
-/* ============================================================
-   GLASSMORPHISM UTILITIES
-   ============================================================ */
-.glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-card);
-  transition: all 0.3s ease-out;
+/* Clean Dark Mode Cards */
+.night-card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-radius: 1rem;
 }
 
-.glass-card:hover {
-  background: var(--glass-bg-hover);
-  border-color: rgba(6, 182, 212, 0.25);
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-1px);
+.night-card-hover {
+  transition: all 0.2s ease-in-out;
 }
 
-.glass-surface {
-  background: rgba(10, 22, 40, 0.7);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--border-glass);
+.night-card-hover:hover {
+  border-color: #334155;
+  background: #131d33;
 }
 
-.glass-input {
-  background: rgba(5, 10, 15, 0.6);
-  border: 1px solid var(--border-subtle);
-  color: var(--text-primary);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+/* Inputs & Form Controls */
+.night-input {
+  background-color: #090d16;
+  border: 1px solid #1e293b;
+  color: #f8fafc;
+  border-radius: 0.75rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
-.glass-input:focus {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+.night-input:focus {
   outline: none;
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
 }
 
-/* ============================================================
-   GLOW EFFECTS
-   ============================================================ */
-.glow-cyan {
-  box-shadow: var(--glow-cyan-md);
-}
-
-.glow-cyan-sm {
-  box-shadow: var(--glow-cyan-sm);
-}
-
-.glow-text-cyan {
-  text-shadow: 0 0 20px rgba(6, 182, 212, 0.6);
-}
-
-.btn-cyan {
-  background: linear-gradient(135deg, #0891b2, #06b6d4);
+/* Primary Button */
+.btn-primary {
+  background-color: #0284c7;
   color: #ffffff;
-  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.35);
-  transition: all 0.25s ease-out;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
-.btn-cyan:hover {
-  background: linear-gradient(135deg, #06b6d4, #22d3ee);
-  box-shadow: 0 4px 24px rgba(6, 182, 212, 0.55);
-  transform: translateY(-1px);
+.btn-primary:hover {
+  background-color: #0369a1;
 }
 
-/* ============================================================
-   KEYFRAME ANIMATIONS
-   ============================================================ */
-
-/* Fade + Slide Up — main page entry */
-@keyframes fadeSlideUp {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.btn-emerald {
+  background-color: #059669;
+  color: #ffffff;
+  font-weight: 600;
+  transition: all 0.2s ease;
 }
 
-/* Fade In — gentle appearance */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+.btn-emerald:hover {
+  background-color: #047857;
 }
 
-/* Slide In from Left — sidebar nav items */
-@keyframes slideInLeft {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-/* Aurora Blob — login page background */
-@keyframes auroraFloat {
-  0%, 100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.25;
-  }
-  33% {
-    transform: translate(30px, -20px) scale(1.08);
-    opacity: 0.35;
-  }
-  66% {
-    transform: translate(-20px, 30px) scale(0.95);
-    opacity: 0.28;
-  }
-}
-
-/* Pulse ring — logo, notification */
-@keyframes pulseRing {
-  0% {
-    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 12px rgba(6, 182, 212, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0);
-  }
-}
-
-/* Cyan dot pulse — notifications */
-@keyframes cyanPulse {
-  0%, 100% {
-    opacity: 1;
-    box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.6);
-  }
-  50% {
-    opacity: 0.8;
-    box-shadow: 0 0 0 6px rgba(6, 182, 212, 0);
-  }
-}
-
-/* POS Quick Scan animations — existing, preserved */
-@keyframes flash-green {
-  0%   { background-color: rgba(34, 197, 94, 0.2); }
-  100% { background-color: transparent; }
-}
-
-/* ============================================================
-   ANIMATION UTILITY CLASSES
-   ============================================================ */
-.animate-fade-slide-up {
-  animation: fadeSlideUp 0.4s ease-out both;
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.35s ease-out both;
-}
-
-.animate-slide-in-left {
-  animation: slideInLeft 0.3s ease-out both;
-}
-
-.animate-aurora {
-  animation: auroraFloat 8s ease-in-out infinite;
-}
-
-.animate-pulse-ring {
-  animation: pulseRing 2s ease-out infinite;
-}
-
-.animate-cyan-pulse {
-  animation: cyanPulse 1.5s ease-in-out infinite;
-}
-
-/* Stagger delays for card grids */
-.stagger-1 { animation-delay: 0.08s; }
-.stagger-2 { animation-delay: 0.16s; }
-.stagger-3 { animation-delay: 0.24s; }
-.stagger-4 { animation-delay: 0.32s; }
-
-.flash-item-added {
-  animation: flash-green 0.6s ease-out;
-}
-
-/* ============================================================
-   REDUCED MOTION — Accessibility
-   ============================================================ */
-@media (prefers-reduced-motion: reduce) {
-  .animate-fade-slide-up,
-  .animate-fade-in,
-  .animate-slide-in-left,
-  .animate-aurora,
-  .animate-pulse-ring,
-  .animate-cyan-pulse,
-  .glass-card {
-    animation: none !important;
-    transition: none !important;
-    transform: none !important;
+/* Responsive Touch Target Helper */
+@media (max-width: 768px) {
+  .touch-target {
+    min-height: 44px;
   }
 }
