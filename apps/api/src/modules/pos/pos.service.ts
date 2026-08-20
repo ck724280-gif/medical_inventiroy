@@ -292,11 +292,30 @@ export class PosService {
   // CASHIER SHIFT MANAGEMENT
   // ============================================================
 
-  async getCurrentShift(userId: string, branchId: string) {
+  async resolveBranchId(userId: string, branchId?: string): Promise<string> {
+    if (branchId && branchId.trim()) return branchId.trim();
+    const membership = await this.prisma.branchMembership.findFirst({
+      where: { userId },
+      select: { branchId: true },
+    });
+    if (membership?.branchId) return membership.branchId;
+    const anyBranch = await this.prisma.branch.findFirst({
+      where: { isActive: true },
+      select: { id: true },
+    });
+    if (anyBranch?.id) return anyBranch.id;
+    const fallback = await this.prisma.branch.findFirst({ select: { id: true } });
+    return fallback?.id || '';
+  }
+
+  async getCurrentShift(userId: string, branchId?: string) {
+    const resolvedBranchId = await this.resolveBranchId(userId, branchId);
+    if (!resolvedBranchId) return null;
+
     const shift = await this.prisma.cashierShift.findFirst({
       where: {
         userId,
-        branchId,
+        branchId: resolvedBranchId,
         status: ShiftStatus.OPEN,
       },
       include: {
@@ -310,10 +329,15 @@ export class PosService {
   }
 
   async openShift(dto: OpenShiftDto, userId: string) {
+    const resolvedBranchId = await this.resolveBranchId(userId, dto.branchId);
+    if (!resolvedBranchId) {
+      throw new BadRequestException('No active branch found. Please select or configure a branch first.');
+    }
+
     const existingOpen = await this.prisma.cashierShift.findFirst({
       where: {
         userId,
-        branchId: dto.branchId,
+        branchId: resolvedBranchId,
         status: ShiftStatus.OPEN,
       },
     });
@@ -324,7 +348,7 @@ export class PosService {
 
     const shift = await this.prisma.cashierShift.create({
       data: {
-        branchId: dto.branchId,
+        branchId: resolvedBranchId,
         userId,
         status: ShiftStatus.OPEN,
         openingCash: Number(dto.openingCash) || 0,

@@ -159,16 +159,33 @@ export default function PosPage() {
 
   // ── Queries ────────────────────────────────────────────────
 
+  // 0. Branches list to ensure active branch is always selected
+  const { data: branches = [] } = useQuery({
+    queryKey: ['branches-list'],
+    queryFn: async () => {
+      const res = await apiClient.get('/branches');
+      return res.data?.data || res.data || [];
+    },
+  });
+
+  useEffect(() => {
+    if (!selectedBranchId && branches.length > 0) {
+      useAuthStore.getState().setSelectedBranchId(branches[0].id);
+    }
+  }, [selectedBranchId, branches]);
+
+  const activeBranchId = selectedBranchId || branches[0]?.id || user?.branches?.[0]?.id || '';
+
   // 1. Current Cashier Shift
   const { data: currentShift, refetch: refetchShift } = useQuery({
-    queryKey: ['pos-current-shift', selectedBranchId],
+    queryKey: ['pos-current-shift', activeBranchId],
     queryFn: async () => {
       const res = await apiClient.get('/pos/shift/current', {
-        params: { branchId: selectedBranchId },
+        params: { branchId: activeBranchId || undefined },
       });
       return res.data?.data || res.data || null;
     },
-    enabled: !!selectedBranchId,
+    enabled: true,
   });
 
   // 2. Medicine Search
@@ -299,7 +316,7 @@ export default function PosPage() {
           invoiceDiscountPercent: cart.invoiceDiscountPercent,
           notes: cart.notes,
         },
-        branchId: selectedBranchId,
+        branchId: activeBranchId,
       });
 
       cart.clearCart();
@@ -339,7 +356,7 @@ export default function PosPage() {
   const handleLastBillReprint = async () => {
     try {
       const res = await apiClient.get('/pos/last-bill', {
-        params: { branchId: selectedBranchId },
+        params: { branchId: activeBranchId || undefined },
       });
       const data = res.data?.data || res.data;
       if (data?.receipt) {
@@ -354,7 +371,7 @@ export default function PosPage() {
     e.preventDefault();
     try {
       await apiClient.post('/pos/shift/open', {
-        branchId: selectedBranchId,
+        branchId: activeBranchId || undefined,
         openingCash: parseFloat(openingCashInput) || 0,
         notes: shiftNotes || undefined,
       });
@@ -410,7 +427,7 @@ export default function PosPage() {
 
     try {
       const res = await apiClient.get('/sales', {
-        params: { search: returnInvoiceSearch.trim(), branchId: selectedBranchId },
+        params: { search: returnInvoiceSearch.trim(), branchId: activeBranchId || undefined },
       });
       const list = res.data?.data || res.data?.sales || [];
       if (list.length === 0) {
@@ -458,7 +475,7 @@ export default function PosPage() {
     try {
       await apiClient.post('/sales-returns', {
         salesInvoiceId: returnInvoiceData.id,
-        branchId: selectedBranchId,
+        branchId: activeBranchId,
         refundMode: returnRefundMode,
         items: itemsToReturn,
       });
@@ -506,7 +523,7 @@ export default function PosPage() {
       }
 
       const payload = {
-        branchId: selectedBranchId,
+        branchId: activeBranchId,
         customerId: cart.customer?.id || null,
         customerName: cart.customer?.name || undefined,
         customerMobile: cart.customer?.mobile || undefined,

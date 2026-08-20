@@ -170,9 +170,9 @@ export class CheckoutSaleDto {
 }
 
 export class OpenShiftDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Branch ID is required' })
-  branchId: string;
+  branchId?: string;
 
   @IsNumber()
   @Min(0, { message: 'Opening cash cannot be negative' })
