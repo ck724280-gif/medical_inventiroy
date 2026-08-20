@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   Trash2,
+  Edit2,
   X,
   CreditCard,
   Barcode,
@@ -29,6 +30,7 @@ function PurchasesContent() {
   const { selectedBranchId } = useAuthStore();
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingPurchase, setEditingPurchase] = useState<any | null>(null);
 
   // Supplier & Item inputs for new purchase entry
   const [supplierId, setSupplierId] = useState('');
@@ -121,7 +123,7 @@ function PurchasesContent() {
   const suppliers = Array.isArray(suppliersData) ? suppliersData : [];
   const medicines = Array.isArray(medicinesData) ? medicinesData : [];
 
-  const createPurchaseMutation = useMutation({
+    const createPurchaseMutation = useMutation({
     mutationFn: async (isDraft: boolean) => {
       const payload = {
         supplierId,
@@ -142,17 +144,93 @@ function PurchasesContent() {
         })),
       };
 
+      if (editingPurchase) {
+        return apiClient.patch(`/purchases/${editingPurchase.id}`, payload);
+      }
       return apiClient.post('/purchases', payload);
     },
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['purchases-list'] });
       setShowCreateModal(false);
-      // Offer barcode printing after saving purchase
-      if (res?.data) {
+      const isEdit = Boolean(editingPurchase);
+      setEditingPurchase(null);
+      if (!isEdit && res?.data) {
         setBarcodeModal(res.data?.data || res.data);
       }
     },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to save purchase entry.');
+    },
   });
+
+  const deletePurchaseMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiClient.delete(`/purchases/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['purchases-list'] });
+      alert('Purchase entry deleted successfully.');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to delete purchase entry.');
+    },
+  });
+
+  const handleOpenCreate = () => {
+    setEditingPurchase(null);
+    setSupplierId('');
+    setNotes('');
+    setItems([
+      {
+        medicineId: '',
+        batchNumber: '',
+        mfgDate: '',
+        expiryDate: '',
+        qty: 1,
+        unitLevel: 'BOX',
+        purchasePrice: 0,
+        sellingPrice: 0,
+        mrp: 0,
+        taxPercent: 12,
+      },
+    ]);
+    setShowCreateModal(true);
+  };
+
+  const handleOpenEdit = async (p: any) => {
+    try {
+      const res = await apiClient.get(`/purchases/${p.id}`);
+      const full = res.data?.data || res.data;
+      setEditingPurchase(full);
+      setSupplierId(full.supplierId || '');
+      setNotes(full.notes || '');
+      if (Array.isArray(full.items) && full.items.length > 0) {
+        setItems(
+          full.items.map((i: any) => ({
+            medicineId: i.medicineId,
+            batchNumber: i.batchNumber || '',
+            mfgDate: i.mfgDate ? i.mfgDate.split('T')[0] : '',
+            expiryDate: i.expiryDate ? i.expiryDate.split('T')[0] : '',
+            qty: i.qty || 1,
+            unitLevel: i.unitLevel || 'BOX',
+            purchasePrice: i.purchasePrice || 0,
+            sellingPrice: i.sellingPrice || 0,
+            mrp: i.mrp || 0,
+            taxPercent: i.taxPercent || 12,
+          }))
+        );
+      }
+      setShowCreateModal(true);
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to load purchase details');
+    }
+  };
+
+  const handleDelete = (p: any) => {
+    if (confirm(`Are you sure you want to delete purchase invoice #${p.invoiceNumber}?`)) {
+      deletePurchaseMutation.mutate(p.id);
+    }
+  };
 
   const paymentMutation = useMutation({
     mutationFn: async () => {
@@ -307,24 +385,39 @@ function PurchasesContent() {
                           {formatCurrency(p.totalAmount || 0)}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-2">
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => setBarcodeModal(p)}
                               title="Print 40x20mm Barcode Shelf Labels"
-                              className="px-2 py-1 bg-sky-50 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-sky-200 dark:border-slate-700 transition"
+                              className="p-1.5 bg-sky-50 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-sky-200 dark:border-slate-700 transition"
                             >
                               <Barcode className="w-3.5 h-3.5" />
-                              Labels
+                              <span className="hidden sm:inline">Labels</span>
                             </button>
                             <button
                               onClick={() => {
                                 setPaymentModal(p);
                                 setPaymentAmount(p.totalAmount || 0);
                               }}
-                              className="px-2 py-1 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-emerald-200 dark:border-slate-700 transition"
+                              title="Record Payment"
+                              className="p-1.5 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-emerald-200 dark:border-slate-700 transition"
                             >
                               <CreditCard className="w-3.5 h-3.5" />
-                              Pay
+                              <span className="hidden sm:inline">Pay</span>
+                            </button>
+                            <button
+                              onClick={() => handleOpenEdit(p)}
+                              title="Edit Purchase"
+                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(p)}
+                              title="Delete Purchase"
+                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </td>
@@ -340,13 +433,13 @@ function PurchasesContent() {
         {/* New Inward Purchase Bill Modal */}
         {showCreateModal && (
           <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh]">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-4xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh] text-slate-900 dark:text-slate-100">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                   <Truck className="w-5 h-5 text-sky-600" />
-                  <h3 className="font-bold text-sm text-slate-900">New Purchase Inward Entry</h3>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">{editingPurchase ? 'Edit Purchase Inward Entry' : 'New Purchase Inward Entry'}</h3>
                 </div>
-                <button onClick={() => setShowCreateModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+                <button onClick={() => setShowCreateModal(false)} className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -354,12 +447,12 @@ function PurchasesContent() {
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Supplier Agency *</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Supplier Agency *</label>
                     <select
                       required
                       value={supplierId}
                       onChange={(e) => setSupplierId(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                     >
                       <option value="">Select Supplier...</option>
                       {suppliers.map((s: any) => (
@@ -370,13 +463,13 @@ function PurchasesContent() {
                     </select>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Notes / PO Reference</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Notes / PO Reference</label>
                     <input
                       type="text"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                       placeholder="e.g. Inward from PO #PO-2026-001"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 </div>
@@ -384,11 +477,11 @@ function PurchasesContent() {
                 {/* Items Entry Grid */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800">Inward Line Items & Batches:</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">Inward Line Items &amp; Batches:</span>
                     <button
                       type="button"
                       onClick={addItemRow}
-                      className="px-2.5 py-1 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg text-xs font-semibold flex items-center gap-1"
+                      className="px-2.5 py-1 bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900 border border-sky-200 dark:border-sky-800 rounded-lg text-xs font-semibold flex items-center gap-1"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       Add Medicine Line
@@ -397,7 +490,7 @@ function PurchasesContent() {
 
                   <div className="space-y-2 max-h-72 overflow-y-auto">
                     {items.map((item, idx) => (
-                      <div key={idx} className="p-3 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-12 gap-2 items-center">
+                      <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-12 gap-2 items-center">
                         <div className="col-span-3">
                           <label className="text-[10px] text-slate-500 block">Medicine</label>
                           <select
@@ -413,7 +506,7 @@ function PurchasesContent() {
                               }
                               setItems(updated);
                             }}
-                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg text-xs"
+                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg text-xs focus:outline-none focus:border-sky-500"
                           >
                             <option value="">Select Medicine...</option>
                             {medicines.map((m: any) => (
@@ -435,7 +528,7 @@ function PurchasesContent() {
                               updated[idx].batchNumber = e.target.value;
                               setItems(updated);
                             }}
-                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs uppercase"
+                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs uppercase focus:outline-none focus:border-sky-500"
                           />
                         </div>
 
@@ -449,7 +542,7 @@ function PurchasesContent() {
                               updated[idx].expiryDate = e.target.value;
                               setItems(updated);
                             }}
-                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs"
+                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs focus:outline-none focus:border-sky-500"
                           />
                         </div>
 
@@ -466,7 +559,7 @@ function PurchasesContent() {
                               updated[idx].qty = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
                               setItems(updated);
                             }}
-                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs text-center"
+                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs text-center focus:outline-none focus:border-sky-500"
                           />
                         </div>
 
@@ -483,7 +576,7 @@ function PurchasesContent() {
                               updated[idx].purchasePrice = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                               setItems(updated);
                             }}
-                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs text-right"
+                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs text-right focus:outline-none focus:border-sky-500"
                           />
                         </div>
 
@@ -500,7 +593,7 @@ function PurchasesContent() {
                               updated[idx].mrp = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                               setItems(updated);
                             }}
-                            className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs text-right"
+                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs text-right focus:outline-none focus:border-sky-500"
                           />
                         </div>
 
@@ -629,7 +722,7 @@ function PurchasesContent() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Payment Amount (₹)</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Payment Amount (₹)</label>
                 <input
                   type="number" onFocus={(e) => e.target.select()}
                   step="0.01"
@@ -640,7 +733,7 @@ function PurchasesContent() {
               </div>
 
               <div>
-                <label className="block font-semibold text-slate-700 mb-1">Payment Mode</label>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Payment Mode</label>
                 <select
                   value={paymentMode}
                   onChange={(e) => setPaymentMode(e.target.value as PaymentMode)}

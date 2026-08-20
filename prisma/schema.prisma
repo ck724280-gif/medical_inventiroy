@@ -1029,3 +1029,31 @@ model PurchaseOrderItem {
 
   @@map("purchase_order_items")
 }
+
+model BackupRecord {
+  id           String   @id @default(uuid())
+  filename     String   @unique
+  sizeBytes    Int      @map("size_bytes")
+  status       String   @default("COMPLETED")
+  gdriveStatus String   @default("NOT_SYNCED") @map("gdrive_status")
+  gdriveFileId String?  @map("gdrive_file_id")
+  gdriveWebUrl String?  @map("gdrive_web_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("backup_records")
+}
+
+model BackupConfig {
+  id             String    @id @default(uuid())
+  retentionDays  Int       @default(7) @map("retention_days")
+  autoSyncDaily  Boolean   @default(false) @map("auto_sync_daily")
+  folderId       String?   @map("folder_id")
+  folderName     String?   @default("MedCare_Pharmacy_Backups") @map("folder_name")
+  serviceAccount String?   @map("service_account")
+  connected      Boolean   @default(false)
+  lastSyncTime   DateTime? @map("last_sync_time")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("backup_configs")
+}
+

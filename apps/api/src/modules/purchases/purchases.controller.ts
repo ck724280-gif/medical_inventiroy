@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -9,6 +11,7 @@ import {
 import { PurchasesService } from './purchases.service';
 import {
   CreatePurchaseDto,
+  UpdatePurchaseDto,
   RecordPurchasePaymentDto,
 } from './dto/create-purchase.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
@@ -43,6 +46,24 @@ export class PurchasesController {
     return this.purchasesService.create(dto, userId, isDraft);
   }
 
+  @Patch(':id')
+  @RequirePermissions('purchase.create')
+  @Auditable('update_purchase', 'PurchaseInvoice')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdatePurchaseDto,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.purchasesService.update(id, dto, userId);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('purchase.create')
+  @Auditable('delete_purchase', 'PurchaseInvoice')
+  async delete(@Param('id') id: string) {
+    return this.purchasesService.delete(id);
+  }
+
   @Post(':id/confirm')
   @RequirePermissions('purchase.create')
   @Auditable('confirm_purchase', 'PurchaseInvoice')
@@ -64,3 +85,4 @@ export class PurchasesController {
     return this.purchasesService.recordPayment(id, dto, userId);
   }
 }
+

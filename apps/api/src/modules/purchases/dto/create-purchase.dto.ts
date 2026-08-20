@@ -96,3 +96,24 @@ export class RecordPurchasePaymentDto {
   @IsString()
   notes?: string;
 }
+
+export class UpdatePurchaseDto {
+  @IsOptional()
+  @IsString()
+  supplierId?: string;
+
+  @IsOptional()
+  @IsString()
+  invoiceNumber?: string;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PurchaseItemDto)
+  items?: PurchaseItemDto[];
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+

@@ -400,4 +400,146 @@ export class PurchasesService {
       return payment;
     });
   }
+
+  async update(id: string, dto: any, userId: string) {
+    const purchase = await this.prisma.purchaseInvoice.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+
+    if (!purchase) {
+      throw new NotFoundException(`Purchase invoice with ID ${id} not found`);
+    }
+
+    if (purchase.status !== PurchaseStatus.DRAFT) {
+      return this.prisma.purchaseInvoice.update({
+        where: { id },
+        data: {
+          notes: dto.notes !== undefined ? dto.notes : purchase.notes,
+          supplierId: dto.supplierId || purchase.supplierId,
+        },
+        include: {
+          supplier: true,
+          items: { include: { medicine: true } },
+        },
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      let subtotal = purchase.subtotal;
+      let totalDiscount = purchase.discountAmount;
+      let totalTax = purchase.taxAmount;
+      let grandTotal = purchase.totalAmount;
+
+      if (dto.items && Array.isArray(dto.items) && dto.items.length > 0) {
+        subtotal = 0;
+        totalDiscount = 0;
+        totalTax = 0;
+        grandTotal = 0;
+
+        await tx.purchaseItem.deleteMany({
+          where: { purchaseInvoiceId: id },
+        });
+
+        for (const item of dto.items) {
+          const line = calculateLineTotal(
+            item.qty,
+            item.purchasePrice,
+            item.discountPercent || 0,
+            item.taxPercent || 0
+          );
+
+          subtotal += line.subtotal;
+          totalDiscount += line.discountAmount;
+          totalTax += line.taxAmount;
+          grandTotal += line.total;
+
+          await tx.purchaseItem.create({
+            data: {
+              purchaseInvoiceId: id,
+              medicineId: item.medicineId,
+              batchNumber: item.batchNumber,
+              mfgDate: new Date(item.mfgDate),
+              expiryDate: new Date(item.expiryDate),
+              qty: item.qty,
+              unitId: item.unitId || null,
+              purchasePrice: item.purchasePrice,
+              mrp: item.mrp,
+              sellingPrice: item.sellingPrice,
+              taxPercent: item.taxPercent || 0,
+              discountPercent: item.discountPercent || 0,
+              lineTotal: line.total,
+            },
+          });
+        }
+      }
+
+      const updated = await tx.purchaseInvoice.update({
+        where: { id },
+        data: {
+          supplierId: dto.supplierId || purchase.supplierId,
+          invoiceNumber: dto.invoiceNumber || purchase.invoiceNumber,
+          notes: dto.notes !== undefined ? dto.notes : purchase.notes,
+          subtotal,
+          discountAmount: totalDiscount,
+          taxAmount: totalTax,
+          totalAmount: grandTotal,
+        },
+        include: {
+          supplier: true,
+          items: { include: { medicine: true } },
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  async delete(id: string) {
+    const purchase = await this.prisma.purchaseInvoice.findUnique({
+      where: { id },
+      include: { items: true, payments: true },
+    });
+
+    if (!purchase) {
+      throw new NotFoundException(`Purchase invoice with ID ${id} not found`);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (purchase.status === PurchaseStatus.CONFIRMED) {
+        for (const item of purchase.items) {
+          if (item.batchId) {
+            const batch = await tx.batch.findUnique({ where: { id: item.batchId } });
+            if (batch) {
+              const newQty = Math.max(0, batch.currentQty - item.qty);
+              await tx.batch.update({
+                where: { id: item.batchId },
+                data: { currentQty: newQty },
+              });
+            }
+          }
+        }
+
+        await tx.stockMovement.deleteMany({
+          where: { referenceId: id, referenceType: 'PurchaseInvoice' },
+        });
+
+        const paidAmount = purchase.payments.reduce((sum, p) => sum + p.amount, 0);
+        const unpaidAmount = purchase.totalAmount - paidAmount;
+        if (unpaidAmount > 0) {
+          await tx.supplier.update({
+            where: { id: purchase.supplierId },
+            data: { currentBalance: { decrement: unpaidAmount } },
+          });
+        }
+      }
+
+      await tx.purchasePayment.deleteMany({ where: { purchaseInvoiceId: id } });
+      await tx.purchaseItem.deleteMany({ where: { purchaseInvoiceId: id } });
+      await tx.purchaseInvoice.delete({ where: { id } });
+
+      return { success: true, id };
+    });
+  }
 }
+

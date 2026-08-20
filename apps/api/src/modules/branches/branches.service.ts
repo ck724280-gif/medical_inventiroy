@@ -153,4 +153,38 @@ export class BranchesService {
       },
     });
   }
+
+  async delete(id: string) {
+    const branch = await this.prisma.branch.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: { sales: true, batches: true },
+        },
+      },
+    });
+
+    if (!branch) {
+      throw new NotFoundException(`Branch with ID ${id} not found`);
+    }
+
+    if (branch.isDefault) {
+      throw new BadRequestException('Cannot delete the primary/default store branch');
+    }
+
+    if (branch._count.sales > 0 || branch._count.batches > 0) {
+      await this.prisma.branch.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { success: true, message: 'Branch has historical sales/stock, so it was deactivated.', id };
+    }
+
+    await this.prisma.branchSettings.deleteMany({ where: { branchId: id } });
+    await this.prisma.branchMembership.deleteMany({ where: { branchId: id } });
+    await this.prisma.branch.delete({ where: { id } });
+
+    return { success: true, message: 'Branch deleted successfully.', id };
+  }
 }
+

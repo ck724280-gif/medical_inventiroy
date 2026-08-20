@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Param,
   Body,
 } from '@nestjs/common';
@@ -43,6 +44,13 @@ export class BranchesController {
     return this.branchesService.update(id, dto);
   }
 
+  @Delete(':id')
+  @RequirePermissions('branch.manage')
+  @Auditable('delete_branch', 'Branch')
+  async delete(@Param('id') id: string) {
+    return this.branchesService.delete(id);
+  }
+
   @Patch(':id/settings')
   @RequirePermissions('branch.manage')
   @Auditable('update_branch_settings', 'BranchSettings')
@@ -53,3 +61,4 @@ export class BranchesController {
     return this.branchesService.updateSettings(id, dto);
   }
 }
+

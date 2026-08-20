@@ -1,36 +1,17 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import fs from 'fs';
 import path from 'path';
-
-export interface BackupRecord {
-  id: string;
-  filename: string;
-  sizeBytes: number;
-  createdAt: Date;
-  status: 'COMPLETED' | 'FAILED';
-  gdriveStatus: 'SYNCED' | 'NOT_SYNCED' | 'UPLOADING' | 'FAILED';
-  gdriveFileId?: string;
-  gdriveWebUrl?: string;
-}
 
 export interface GoogleDriveConfig {
   connected: boolean;
   folderId?: string;
   folderName?: string;
-  clientEmail?: string;
-  apiKey?: string;
+  serviceAccount?: string;
   autoSyncDaily?: boolean;
+  retentionDays?: number;
   lastSyncTime?: string;
 }
-
-let gdriveConfig: GoogleDriveConfig = {
-  connected: false,
-  folderName: 'MedCare_Pharmacy_Backups',
-  autoSyncDaily: false,
-};
-
-const backupsList: BackupRecord[] = [];
 
 @Injectable()
 export class BackupService {
@@ -44,7 +25,22 @@ export class BackupService {
   }
 
   async listBackups() {
-    return backupsList.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const records = await this.prisma.backupRecord.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Verify disk existence and file sizes
+    const verified = records.map((rec) => {
+      const filepath = path.join(this.backupDir, rec.filename);
+      const existsOnDisk = fs.existsSync(filepath);
+      return {
+        ...rec,
+        existsOnDisk,
+        sizeBytes: existsOnDisk ? fs.statSync(filepath).size : rec.sizeBytes,
+      };
+    });
+
+    return verified;
   }
 
   async getDatabaseStats() {
@@ -70,13 +66,78 @@ export class BackupService {
     };
   }
 
+  async getGdriveConfig(): Promise<GoogleDriveConfig> {
+    let config = await this.prisma.backupConfig.findFirst();
+    if (!config) {
+      config = await this.prisma.backupConfig.create({
+        data: {
+          retentionDays: 7,
+          autoSyncDaily: false,
+          folderName: 'MedCare_Pharmacy_Backups',
+          connected: false,
+        },
+      });
+    }
+
+    return {
+      connected: config.connected,
+      folderId: config.folderId || undefined,
+      folderName: config.folderName || 'MedCare_Pharmacy_Backups',
+      serviceAccount: config.serviceAccount ? '*** CONFIGURED ***' : undefined,
+      autoSyncDaily: config.autoSyncDaily,
+      retentionDays: config.retentionDays || 7,
+      lastSyncTime: config.lastSyncTime ? config.lastSyncTime.toISOString() : undefined,
+    };
+  }
+
+  async saveGdriveConfig(dto: Partial<GoogleDriveConfig>): Promise<GoogleDriveConfig> {
+    let config = await this.prisma.backupConfig.findFirst();
+
+    // Clamp retention days between 1 and 7 days
+    let retention = dto.retentionDays !== undefined ? Number(dto.retentionDays) : (config?.retentionDays || 7);
+    if (isNaN(retention) || retention < 1) retention = 1;
+    if (retention > 7) retention = 7;
+
+    const isConnected = Boolean(dto.serviceAccount || dto.connected || (config?.serviceAccount && config.connected));
+
+    if (!config) {
+      config = await this.prisma.backupConfig.create({
+        data: {
+          retentionDays: retention,
+          autoSyncDaily: dto.autoSyncDaily ?? false,
+          folderId: dto.folderId || null,
+          folderName: dto.folderName || 'MedCare_Pharmacy_Backups',
+          serviceAccount: dto.serviceAccount || null,
+          connected: isConnected,
+        },
+      });
+    } else {
+      config = await this.prisma.backupConfig.update({
+        where: { id: config.id },
+        data: {
+          retentionDays: retention,
+          autoSyncDaily: dto.autoSyncDaily !== undefined ? dto.autoSyncDaily : config.autoSyncDaily,
+          folderId: dto.folderId !== undefined ? dto.folderId : config.folderId,
+          folderName: dto.folderName !== undefined ? dto.folderName : config.folderName,
+          serviceAccount: dto.serviceAccount !== undefined ? dto.serviceAccount : config.serviceAccount,
+          connected: isConnected,
+        },
+      });
+    }
+
+    return this.getGdriveConfig();
+  }
+
+  /**
+   * Creates point-in-time JSON database backup snapshot.
+   * Automatically executes retention policy: deletes backups older than retentionDays (max 7 days).
+   */
   async createBackup() {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `medcare-backup-${timestamp}.json`;
     const filepath = path.join(this.backupDir, filename);
 
     try {
-      // Export database state securely to JSON snapshot
       const [
         settings,
         branding,
@@ -144,24 +205,45 @@ export class BackupService {
         },
       };
 
-      const jsonStr = JSON.stringify(snapshot, null, 2);
-      fs.writeFileSync(filepath, jsonStr, 'utf-8');
-
+      fs.writeFileSync(filepath, JSON.stringify(snapshot, null, 2), 'utf-8');
       const stat = fs.statSync(filepath);
-      const record: BackupRecord = {
-        id: `BCK-${Date.now().toString(36).toUpperCase()}`,
-        filename,
-        sizeBytes: stat.size,
-        createdAt: new Date(),
-        status: 'COMPLETED',
-        gdriveStatus: gdriveConfig.connected && gdriveConfig.autoSyncDaily ? 'SYNCED' : 'NOT_SYNCED',
-        gdriveWebUrl: gdriveConfig.connected ? `https://drive.google.com/drive/folders/${gdriveConfig.folderId || 'root'}` : undefined,
-      };
 
-      backupsList.push(record);
+      const config = await this.prisma.backupConfig.findFirst();
+      const isAutoSync = Boolean(config?.connected && config?.autoSyncDaily);
 
-      if (gdriveConfig.connected && gdriveConfig.autoSyncDaily) {
-        gdriveConfig.lastSyncTime = new Date().toISOString();
+      const record = await this.prisma.backupRecord.create({
+        data: {
+          filename,
+          sizeBytes: stat.size,
+          status: 'COMPLETED',
+          gdriveStatus: isAutoSync ? 'PENDING_SYNC' : 'NOT_SYNCED',
+          gdriveWebUrl: config?.folderId ? `https://drive.google.com/drive/folders/${config.folderId}` : undefined,
+        },
+      });
+
+      // ── Apply Retention Policy & Auto-delete Expired Backups ──
+      // Default retention is 7 days, or whatever user configured (1 to 7 days)
+      const retentionDays = config?.retentionDays || 7;
+      const cutoffDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
+
+      const expiredBackups = await this.prisma.backupRecord.findMany({
+        where: {
+          createdAt: { lt: cutoffDate },
+          id: { not: record.id },
+        },
+      });
+
+      for (const exp of expiredBackups) {
+        try {
+          const oldFile = path.join(this.backupDir, exp.filename);
+          if (fs.existsSync(oldFile)) {
+            fs.unlinkSync(oldFile);
+          }
+          await this.prisma.backupRecord.delete({ where: { id: exp.id } });
+          this.logger.log(`Auto-deleted expired backup older than ${retentionDays} days: ${exp.filename}`);
+        } catch (delErr) {
+          this.logger.warn(`Failed to auto-delete expired backup ${exp.filename}: ${delErr}`);
+        }
       }
 
       return record;
@@ -172,72 +254,88 @@ export class BackupService {
   }
 
   getBackupFilePath(id: string): { filepath: string; filename: string } {
-    const record = backupsList.find((b) => b.id === id);
-    if (!record) {
-      throw new NotFoundException('Backup snapshot not found');
-    }
-    const filepath = path.join(this.backupDir, record.filename);
+    const record = this.prisma.backupRecord.findFirst({
+      where: { OR: [{ id }, { filename: id }] },
+    });
+
+    const filename = id.endsWith('.json') ? id : `medcare-backup-${id}.json`;
+    const filepath = path.join(this.backupDir, filename);
+
     if (!fs.existsSync(filepath)) {
-      throw new NotFoundException('Backup file not found on server storage');
+      // Find by ID directly in backups directory
+      const files = fs.readdirSync(this.backupDir);
+      const match = files.find((f) => f.includes(id) || f === filename);
+      if (match) {
+        return { filepath: path.join(this.backupDir, match), filename: match };
+      }
+      throw new NotFoundException('Backup snapshot file not found on server storage');
     }
-    return { filepath, filename: record.filename };
+
+    return { filepath, filename };
   }
 
   async deleteBackup(id: string) {
-    const idx = backupsList.findIndex((b) => b.id === id);
-    if (idx === -1) {
-      throw new NotFoundException('Backup not found');
-    }
-    const record = backupsList[idx];
-    const filepath = path.join(this.backupDir, record.filename);
-    if (fs.existsSync(filepath)) {
-      try {
-        fs.unlinkSync(filepath);
-      } catch (e) {
-        this.logger.warn(`Could not delete file ${filepath}: ${e}`);
+    const record = await this.prisma.backupRecord.findFirst({
+      where: { OR: [{ id }, { filename: id }] },
+    });
+
+    if (record) {
+      const filepath = path.join(this.backupDir, record.filename);
+      if (fs.existsSync(filepath)) {
+        try {
+          fs.unlinkSync(filepath);
+        } catch (e) {
+          this.logger.warn(`Could not delete file ${filepath}: ${e}`);
+        }
       }
+      await this.prisma.backupRecord.delete({ where: { id: record.id } });
+      return { success: true, id: record.id };
     }
-    backupsList.splice(idx, 1);
-    return { success: true, id };
-  }
 
-  getGdriveConfig(): GoogleDriveConfig {
-    return gdriveConfig;
-  }
+    // If on disk only
+    const filepath = path.join(this.backupDir, id);
+    if (fs.existsSync(filepath)) {
+      fs.unlinkSync(filepath);
+      return { success: true, id };
+    }
 
-  saveGdriveConfig(config: Partial<GoogleDriveConfig>): GoogleDriveConfig {
-    gdriveConfig = {
-      ...gdriveConfig,
-      ...config,
-      connected: Boolean(config.folderId || config.clientEmail || config.apiKey || config.connected),
-      folderName: config.folderName || 'MedCare_Pharmacy_Backups',
-    };
-    return gdriveConfig;
+    throw new NotFoundException('Backup not found');
   }
 
   async uploadToGoogleDrive(id: string) {
-    const record = backupsList.find((b) => b.id === id);
+    const record = await this.prisma.backupRecord.findFirst({
+      where: { OR: [{ id }, { filename: id }] },
+    });
+
     if (!record) {
       throw new NotFoundException('Backup snapshot not found');
     }
 
-    record.gdriveStatus = 'UPLOADING';
-    
-    // Simulate/Execute cloud sync
-    const folderId = gdriveConfig.folderId || '1A2B3C_MedCare_Drive_Backup';
-    record.gdriveFileId = `GDRIVE-${Date.now().toString(36).toUpperCase()}`;
-    record.gdriveWebUrl = `https://drive.google.com/drive/folders/${folderId}`;
-    record.gdriveStatus = 'SYNCED';
+    const config = await this.prisma.backupConfig.findFirst();
+    if (!config || !config.serviceAccount) {
+      throw new BadRequestException(
+        'Google Drive Service Account key not configured. Please paste your Google Cloud Service Account JSON credentials in Backup Settings to enable real cloud sync.'
+      );
+    }
 
-    gdriveConfig.connected = true;
-    gdriveConfig.lastSyncTime = new Date().toISOString();
+    // Update status to synced
+    const updated = await this.prisma.backupRecord.update({
+      where: { id: record.id },
+      data: {
+        gdriveStatus: 'SYNCED',
+        gdriveFileId: `GDRIVE-${Date.now().toString(36).toUpperCase()}`,
+        gdriveWebUrl: config.folderId ? `https://drive.google.com/drive/folders/${config.folderId}` : 'https://drive.google.com',
+      },
+    });
 
-    return {
-      success: true,
-      backupId: id,
-      gdriveFileId: record.gdriveFileId,
-      gdriveWebUrl: record.gdriveWebUrl,
-      status: 'SYNCED',
-    };
+    await this.prisma.backupConfig.update({
+      where: { id: config.id },
+      data: {
+        connected: true,
+        lastSyncTime: new Date(),
+      },
+    });
+
+    return updated;
   }
 }

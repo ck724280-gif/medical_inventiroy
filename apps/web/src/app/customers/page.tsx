@@ -211,7 +211,7 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
@@ -222,7 +222,7 @@ export default function CustomersPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-white tracking-tight">Customer Directory</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Customer Directory</h2>
                 {canManage ? (
                   <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-semibold flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3" /> Super Admin Access
@@ -233,7 +233,7 @@ export default function CustomersPage() {
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Manage registered patients, customer credit limits, outstanding ledgers, and party pricing.
               </p>
             </div>
@@ -250,7 +250,7 @@ export default function CustomersPage() {
           </div>
 
           {/* Search Bar */}
-          <div className="p-3.5 rounded-2xl border border-slate-800 bg-[#0f172a] flex items-center gap-3">
+          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-sm flex items-center gap-3">
             <div className="flex-1 relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                 <Search className="w-4 h-4" />
@@ -260,16 +260,16 @@ export default function CustomersPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by Patient Name or Mobile..."
-                className="w-full pl-9 pr-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 transition"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
               />
             </div>
           </div>
 
           {/* Customers Table */}
-          <div className="rounded-2xl border border-slate-800 bg-[#0f172a] overflow-hidden shadow-xl">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] overflow-hidden shadow-sm dark:shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[700px]">
-                <thead className="bg-[#0c1322] text-slate-400 font-semibold border-b border-slate-800 text-[10px] uppercase tracking-wider">
+                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Customer / Patient</th>
                     <th className="py-3 px-4">Mobile Number</th>
@@ -279,7 +279,7 @@ export default function CustomersPage() {
                     <th className="py-3 px-4 text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {isLoading ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-500">
@@ -296,10 +296,10 @@ export default function CustomersPage() {
                     customers.map((c: any) => {
                       const balance = c.currentBalance || c.balance || 0;
                       return (
-                        <tr key={c.id} className="hover:bg-slate-800/40 transition">
-                          <td className="py-3 px-4 font-bold text-white">{c.name}</td>
+                        <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{c.name}</td>
                           <td className="py-3 px-4 font-mono text-sky-300 font-semibold">{c.mobile || '—'}</td>
-                          <td className="py-3 px-4 text-slate-300">
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300">
                             {c.gstNumber && <span className="font-mono text-[10px] text-sky-400 block">GST: {c.gstNumber}</span>}
                             <span>{c.address || '—'}</span>
                           </td>
@@ -317,7 +317,7 @@ export default function CustomersPage() {
                                 <button
                                   onClick={() => handleWhatsAppReminder(c)}
                                   title="Send WhatsApp Payment Reminder"
-                                  className="p-1.5 text-emerald-400 hover:bg-slate-800 rounded-lg transition"
+                                  className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
                                 >
                                   <MessageCircle className="w-3.5 h-3.5" />
                                 </button>
@@ -325,7 +325,7 @@ export default function CustomersPage() {
                               <button
                                 onClick={() => handleOpenSpecialPricing(c)}
                                 title="Special Pricing Matrix"
-                                className="p-1.5 text-indigo-400 hover:bg-slate-800 rounded-lg transition"
+                                className="p-1.5 text-indigo-600 dark:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
                               >
                                 <Tag className="w-3.5 h-3.5" />
                               </button>
@@ -336,14 +336,14 @@ export default function CustomersPage() {
                                   <button
                                     onClick={() => handleOpenEdit(c)}
                                     title="Edit Customer"
-                                    className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-slate-800 rounded-lg transition"
+                                    className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
                                   >
                                     <Edit2 className="w-3.5 h-3.5" />
                                   </button>
                                   <button
                                     onClick={() => handleDeleteCustomer(c)}
                                     title="Delete Customer"
-                                    className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition"
+                                    className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -368,78 +368,78 @@ export default function CustomersPage() {
         {/* Modal: Create / Edit Customer */}
         {showModal && canManage && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#0f172a] rounded-2xl border border-slate-700 max-w-md w-full p-6 space-y-4 text-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-700 max-w-md w-full p-6 space-y-4 text-xs shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
                 <div className="flex items-center gap-2 text-sky-400">
                   <Users className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
                     {editingCustomer ? 'Edit Customer' : 'Add New Customer'}
                   </h3>
                 </div>
-                <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-white rounded-lg">
+                <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg">
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Customer / Patient Name *</label>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Customer / Patient Name *</label>
                   <input
                     required
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Mobile Number (10 Digits) *</label>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Mobile Number (10 Digits) *</label>
                   <input
                     required
                     type="tel"
                     value={formData.mobile}
                     onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Credit Limit (₹)</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Credit Limit (₹)</label>
                     <input
                       type="number" onFocus={(e) => e.target.select()}
                       value={formData.creditLimit || ''}
                       onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">GSTIN (Optional)</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">GSTIN (Optional)</label>
                     <input
                       type="text"
                       value={formData.gstNumber}
                       onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Address</label>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Address</label>
                   <input
                     type="text"
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                   />
                 </div>
 
-                <div className="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                   >
                     Cancel
                   </button>
@@ -459,7 +459,7 @@ export default function CustomersPage() {
         {/* Modal: Special Pricing Matrix */}
         {showSpecialPriceModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#0f172a] rounded-2xl border border-slate-700 max-w-xl w-full p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-700 max-w-xl w-full p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto shadow-2xl">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2 text-indigo-400">
                   <Tag className="w-5 h-5" />
@@ -477,16 +477,16 @@ export default function CustomersPage() {
               </div>
 
               {canManage && (
-                <form onSubmit={handleAddSpecialPrice} className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-3">
-                  <p className="font-bold text-slate-200">Add Special Price Rule</p>
+                <form onSubmit={handleAddSpecialPrice} className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <p className="font-bold text-slate-800 dark:text-slate-200">Add Special Price Rule</p>
                   <div className="grid grid-cols-3 gap-2">
                     <div className="col-span-3 sm:col-span-1">
-                      <label className="block text-[10px] text-slate-400 mb-1">Select Medicine *</label>
+                      <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-1">Select Medicine *</label>
                       <select
                         required
                         value={newSpecialPrice.medicineId}
                         onChange={(e) => setNewSpecialPrice({ ...newSpecialPrice, medicineId: e.target.value })}
-                        className="w-full px-2 py-1.5 bg-[#090d16] border border-slate-800 rounded-lg text-white text-xs"
+                        className="w-full px-2 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white text-xs"
                       >
                         <option value="">Select Item</option>
                         {medicines.map((m: any) => (
@@ -498,25 +498,25 @@ export default function CustomersPage() {
                     </div>
 
                     <div>
-                      <label className="block text-[10px] text-slate-400 mb-1">Fixed Custom Price (₹)</label>
+                      <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-1">Fixed Custom Price (₹)</label>
                       <input
                         type="number" onFocus={(e) => e.target.select()}
                         step="0.01"
                         placeholder="e.g. 180"
                         value={newSpecialPrice.customPrice}
                         onChange={(e) => setNewSpecialPrice({ ...newSpecialPrice, customPrice: e.target.value })}
-                        className="w-full px-2 py-1.5 bg-[#090d16] border border-slate-800 rounded-lg text-white text-xs"
+                        className="w-full px-2 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white text-xs"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-[10px] text-slate-400 mb-1">Discount (%)</label>
+                      <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-1">Discount (%)</label>
                       <input
                         type="number" onFocus={(e) => e.target.select()}
                         placeholder="e.g. 10"
                         value={newSpecialPrice.discountPercent}
                         onChange={(e) => setNewSpecialPrice({ ...newSpecialPrice, discountPercent: e.target.value })}
-                        className="w-full px-2 py-1.5 bg-[#090d16] border border-slate-800 rounded-lg text-white text-xs"
+                        className="w-full px-2 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white text-xs"
                       />
                     </div>
                   </div>
@@ -534,15 +534,15 @@ export default function CustomersPage() {
               )}
 
               <div className="space-y-2">
-                <p className="font-bold text-slate-300">Active Configured Price Rules</p>
+                <p className="font-bold text-slate-700 dark:text-slate-300">Active Configured Price Rules</p>
                 {partyPrices.length === 0 ? (
                   <p className="text-slate-500 py-4 text-center">No special pricing rules configured yet.</p>
                 ) : (
-                  <div className="divide-y divide-slate-800 border border-slate-800 rounded-xl overflow-hidden bg-slate-950">
+                  <div className="divide-y divide-slate-200 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-950">
                     {partyPrices.map((rule: any) => (
-                      <div key={rule.id} className="p-3 flex items-center justify-between hover:bg-slate-900">
+                      <div key={rule.id} className="p-3 flex items-center justify-between hover:bg-slate-100 dark:hover:bg-slate-900">
                         <div>
-                          <p className="font-bold text-white">{rule.medicine?.name || 'Medicine'}</p>
+                          <p className="font-bold text-slate-900 dark:text-white">{rule.medicine?.name || 'Medicine'}</p>
                           <p className="text-[10px] text-slate-400 font-mono">
                             Base MRP: ₹{rule.medicine?.mrp} | Custom Price: <b className="text-sky-300">₹{rule.customPrice}</b>
                             {rule.discountPercent > 0 && ` (${rule.discountPercent}% off)`}

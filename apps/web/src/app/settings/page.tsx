@@ -4,6 +4,9 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
+  Plus,
+  Edit2,
+  X,
   Palette,
   Printer,
   Database,
@@ -33,6 +36,22 @@ export default function SettingsPage() {
   const [gdriveModal, setGdriveModal] = useState(false);
   const [gdriveFolderInput, setGdriveFolderInput] = useState('');
   const [gdriveAutoSync, setGdriveAutoSync] = useState(false);
+  const [branchModalOpen, setBranchModalOpen] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<any | null>(null);
+  const [branchForm, setBranchForm] = useState({
+    name: '',
+    code: '',
+    address: '',
+    city: '',
+    state: '',
+    phone: '',
+    email: '',
+    isDefault: false,
+    isActive: true,
+  });
+
+  const [retentionDays, setRetentionDays] = useState<number>(7);
+  const [serviceAccountInput, setServiceAccountInput] = useState('');
 
   // Queries
   const { data: businessData } = useQuery({
@@ -78,6 +97,7 @@ export default function SettingsPage() {
       const cfg = res.data?.data || res.data || {};
       if (cfg.folderId) setGdriveFolderInput(cfg.folderId);
       if (cfg.autoSyncDaily !== undefined) setGdriveAutoSync(cfg.autoSyncDaily);
+      if (cfg.retentionDays !== undefined) setRetentionDays(cfg.retentionDays);
       return cfg;
     },
   });
@@ -87,6 +107,81 @@ export default function SettingsPage() {
   const gdrive = gdriveConfigData || {};
 
   // Business Save Mutation
+    // Branch Mutations
+  const saveBranchMutation = useMutation({
+    mutationFn: async (payload: any) => {
+      if (editingBranch) {
+        return apiClient.patch(`/branches/${editingBranch.id}`, payload);
+      }
+      return apiClient.post('/branches', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings-branches'] });
+      setBranchModalOpen(false);
+      setEditingBranch(null);
+      setSavedBanner(true);
+      setTimeout(() => setSavedBanner(false), 3000);
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to save store branch.');
+    },
+  });
+
+  const deleteBranchMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return apiClient.delete(`/branches/${id}`);
+    },
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['settings-branches'] });
+      alert(res.data?.message || 'Branch removed successfully.');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to delete branch.');
+    },
+  });
+
+  const handleOpenAddBranch = () => {
+    setEditingBranch(null);
+    setBranchForm({
+      name: '',
+      code: `BR-${(branches.length + 1).toString().padStart(2, '0')}`,
+      address: '',
+      city: '',
+      state: '',
+      phone: '',
+      email: '',
+      isDefault: branches.length === 0,
+      isActive: true,
+    });
+    setBranchModalOpen(true);
+  };
+
+  const handleOpenEditBranch = (b: any) => {
+    setEditingBranch(b);
+    setBranchForm({
+      name: b.name || '',
+      code: b.code || '',
+      address: b.address || '',
+      city: b.city || '',
+      state: b.state || '',
+      phone: b.phone || '',
+      email: b.email || '',
+      isDefault: b.isDefault || false,
+      isActive: b.isActive ?? true,
+    });
+    setBranchModalOpen(true);
+  };
+
+  const handleDeleteBranch = (b: any) => {
+    if (b.isDefault) {
+      alert('Cannot delete the primary default store branch.');
+      return;
+    }
+    if (confirm(`Are you sure you want to delete or deactivate branch "${b.name}" (${b.code})?`)) {
+      deleteBranchMutation.mutate(b.id);
+    }
+  };
+
   const saveBusinessMutation = useMutation({
     mutationFn: async (payload: any) => apiClient.patch('/settings/business', payload),
     onSuccess: () => {
@@ -551,27 +646,226 @@ export default function SettingsPage() {
 
           {/* TAB 4: Store Branches */}
           {activeTab === 'branches' && (
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl p-6 space-y-4">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">Multi-Branch Locations</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl p-6 space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-200 dark:border-slate-800">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Multi-Branch Locations &amp; Outlets</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Manage multiple physical pharmacy locations, warehouses, sub-branches, and separate cash registers.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddBranch}
+                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Store Branch
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {branches.map((b: any) => (
-                  <div key={b.id} className="p-4 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="font-bold text-slate-900 dark:text-white text-sm">{b.name}</span>
-                      <span className="font-mono bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 px-2 py-0.5 rounded font-bold">
-                        {b.code}
-                      </span>
+                  <div
+                    key={b.id}
+                    className="p-4 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-2xl text-xs space-y-3 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white text-sm">{b.name}</h4>
+                        <span className="font-mono bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded text-[10px] font-bold">
+                          {b.code}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditBranch(b)}
+                          title="Edit Branch"
+                          className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        {!b.isDefault && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBranch(b)}
+                            title="Delete / Deactivate Branch"
+                            className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    <p className="text-slate-600 dark:text-slate-300">{b.address}, {b.city}</p>
-                    <p className="text-slate-500 dark:text-slate-400">Phone: {b.phone || 'N/A'}</p>
-                    {b.isMain && (
-                      <span className="inline-block mt-2 px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-full font-bold text-[10px]">
-                        Primary Store
+
+                    <div className="text-slate-600 dark:text-slate-400 space-y-0.5">
+                      <p>{b.address || 'No address configured'}, {b.city || ''}</p>
+                      <p>Phone: {b.phone || 'N/A'}</p>
+                      {b.email && <p>Email: {b.email}</p>}
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-[10px]">
+                      <span className={b.isActive ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400 font-medium'}>
+                        {b.isActive ? '● Active' : '○ Inactive'}
                       </span>
-                    )}
+                      {b.isDefault && (
+                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-full font-bold">
+                          Primary Default
+                        </span>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
+
+              {/* Branch Modal */}
+              {branchModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh]">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                          {editingBranch ? 'Edit Store Branch' : 'Add New Store Branch'}
+                        </h3>
+                      </div>
+                      <button onClick={() => setBranchModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        saveBranchMutation.mutate(branchForm);
+                      }}
+                      className="space-y-3"
+                    >
+                      <div>
+                        <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Branch Name *</label>
+                        <input
+                          required
+                          type="text"
+                          value={branchForm.name}
+                          onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                          placeholder="e.g. Main Dispensary / South Branch"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Branch Code *</label>
+                          <input
+                            required
+                            type="text"
+                            value={branchForm.code}
+                            disabled={Boolean(editingBranch)}
+                            onChange={(e) => setBranchForm({ ...branchForm, code: e.target.value.toUpperCase() })}
+                            placeholder="e.g. BR-01"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono uppercase focus:outline-none focus:border-sky-500 disabled:opacity-60"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Phone Number</label>
+                          <input
+                            type="tel"
+                            value={branchForm.phone}
+                            onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                            placeholder="+91 98765 43210"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={branchForm.email}
+                          onChange={(e) => setBranchForm({ ...branchForm, email: e.target.value })}
+                          placeholder="branch@medcare.com"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Address</label>
+                        <input
+                          type="text"
+                          value={branchForm.address}
+                          onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                          placeholder="Shop No. 4, Commercial Complex"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">City</label>
+                          <input
+                            type="text"
+                            value={branchForm.city}
+                            onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
+                            placeholder="Bangalore"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">State</label>
+                          <input
+                            type="text"
+                            value={branchForm.state}
+                            onChange={(e) => setBranchForm({ ...branchForm, state: e.target.value })}
+                            placeholder="Karnataka"
+                            className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between border-t border-slate-200 dark:border-slate-800">
+                        <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
+                          <input
+                            type="checkbox"
+                            checked={branchForm.isDefault}
+                            onChange={(e) => setBranchForm({ ...branchForm, isDefault: e.target.checked })}
+                            className="rounded text-sky-600"
+                          />
+                          <span>Primary Store</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
+                          <input
+                            type="checkbox"
+                            checked={branchForm.isActive}
+                            onChange={(e) => setBranchForm({ ...branchForm, isActive: e.target.checked })}
+                            className="rounded text-sky-600"
+                          />
+                          <span>Active Outlet</span>
+                        </label>
+                      </div>
+
+                      <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => setBranchModalOpen(false)}
+                          className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={saveBranchMutation.isPending}
+                          className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition"
+                        >
+                          {saveBranchMutation.isPending ? 'Saving...' : editingBranch ? 'Update Branch' : 'Save Branch'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -618,7 +912,7 @@ export default function SettingsPage() {
               <div className="bg-white dark:bg-[#0f172a] p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
                   <div>
-                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Create Immediate Database Backup</h3>
+                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">Create Immediate Database Snapshot &amp; Retention Policy</h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                       Generates a verified snapshot including medicines, batches, sales, ledger entries, and tax receipts.
                     </p>
@@ -643,6 +937,34 @@ export default function SettingsPage() {
                     </button>
                   </div>
                 </div>
+
+                <div className="flex flex-wrap items-center gap-3 pt-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Backup Retention Period:
+                      </label>
+                      <select
+                        value={retentionDays}
+                        onChange={(e) => {
+                          const val = Number(e.target.value);
+                          setRetentionDays(val);
+                          saveGdriveConfigMutation.mutate({ retentionDays: val });
+                        }}
+                        className="px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      >
+                        <option value={1}>1 Day (Auto-delete older backups on next upload)</option>
+                        <option value={2}>2 Days</option>
+                        <option value={3}>3 Days</option>
+                        <option value={4}>4 Days</option>
+                        <option value={5}>5 Days</option>
+                        <option value={6}>6 Days</option>
+                        <option value={7}>7 Days (Maximum 1 Week)</option>
+                      </select>
+                    </div>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      • Expired snapshots older than {retentionDays} {retentionDays === 1 ? 'day' : 'days'} are automatically purged to prevent server disk overflow.
+                    </span>
+                  </div>
 
                 {/* Google Drive Status Bar */}
                 <div className={`p-4 rounded-xl border flex items-center justify-between text-xs ${
