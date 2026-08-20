@@ -348,10 +348,12 @@ export default function PurchaseOrdersPage() {
                           <input
                             type="number"
                             min="1"
-                            value={item.orderedQty}
+                            placeholder="1"
+                            value={item.orderedQty === 0 ? '' : item.orderedQty}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               const updated = [...items];
-                              updated[idx].orderedQty = parseInt(e.target.value) || 1;
+                              updated[idx].orderedQty = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
                               setItems(updated);
                             }}
                             className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs text-center"
@@ -363,10 +365,12 @@ export default function PurchaseOrdersPage() {
                           <input
                             type="number"
                             step="0.01"
-                            value={item.expectedRate}
+                            placeholder="0"
+                            value={item.expectedRate === 0 ? '' : item.expectedRate}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               const updated = [...items];
-                              updated[idx].expectedRate = parseFloat(e.target.value) || 0;
+                              updated[idx].expectedRate = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                               setItems(updated);
                             }}
                             className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs text-right"

@@ -458,10 +458,12 @@ function PurchasesContent() {
                           <input
                             type="number"
                             min="1"
-                            value={item.qty}
+                            placeholder="1"
+                            value={item.qty === 0 ? '' : item.qty}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               const updated = [...items];
-                              updated[idx].qty = parseInt(e.target.value) || 1;
+                              updated[idx].qty = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
                               setItems(updated);
                             }}
                             className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs text-center"
@@ -473,10 +475,12 @@ function PurchasesContent() {
                           <input
                             type="number"
                             step="0.01"
-                            value={item.purchasePrice}
+                            placeholder="0"
+                            value={item.purchasePrice === 0 ? '' : item.purchasePrice}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               const updated = [...items];
-                              updated[idx].purchasePrice = parseFloat(e.target.value) || 0;
+                              updated[idx].purchasePrice = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                               setItems(updated);
                             }}
                             className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs text-right"
@@ -488,10 +492,12 @@ function PurchasesContent() {
                           <input
                             type="number"
                             step="0.01"
-                            value={item.mrp}
+                            placeholder="0"
+                            value={item.mrp === 0 ? '' : item.mrp}
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => {
                               const updated = [...items];
-                              updated[idx].mrp = parseFloat(e.target.value) || 0;
+                              updated[idx].mrp = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                               setItems(updated);
                             }}
                             className="w-full px-2 py-1 bg-white border border-slate-300 rounded-lg font-mono text-xs text-right"
