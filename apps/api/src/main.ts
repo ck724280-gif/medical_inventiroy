@@ -51,9 +51,9 @@ async function bootstrap() {
   SwaggerModule.setup('docs', app, document);
 
   const port = process.env.PORT || 4000;
-  await app.listen(port);
-  logger.log(`🚀 Medical Inventory ERP API is running on: http://localhost:${port}/api`);
-  logger.log(`📚 Swagger API Documentation available at: http://localhost:${port}/docs`);
+  await app.listen(port, '0.0.0.0');
+  logger.log(`🚀 Medical Inventory ERP API is running on: http://0.0.0.0:${port}/api`);
+  logger.log(`📚 Swagger API Documentation available at: http://0.0.0.0:${port}/docs`);
 }
 
 bootstrap();
