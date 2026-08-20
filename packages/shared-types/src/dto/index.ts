@@ -150,4 +150,39 @@ export interface ThermalReceiptDataDto {
   thankYouMessage?: string | null;
   returnPolicy?: string | null;
   paperWidth: PaperWidth;
+  isReprint?: boolean;
 }
+
+export interface OpenShiftDto {
+  branchId: string;
+  openingCash: number;
+  notes?: string;
+}
+
+export interface CloseShiftDto {
+  shiftId: string;
+  closingCash: number;
+  notes?: string;
+}
+
+export interface ShiftSummaryDto {
+  shiftId: string;
+  branchId: string;
+  cashierName: string;
+  status: string;
+  openedAt: string;
+  closedAt?: string | null;
+  openingCash: number;
+  totalSalesCount: number;
+  totalSalesAmount: number;
+  totalCashSales: number;
+  totalUpiSales: number;
+  totalCardSales: number;
+  totalCreditSales: number;
+  totalReturnsAmount: number;
+  totalExpensesAmount: number;
+  expectedCash: number;
+  closingCash?: number | null;
+  cashDifference?: number | null;
+}
+

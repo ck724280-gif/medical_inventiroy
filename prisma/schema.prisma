@@ -38,6 +38,7 @@ model User {
   expenses              Expense[]
   uploads               FileUpload[]
   createdPurchaseOrders PurchaseOrder[]    @relation("POCreator")
+  shifts                CashierShift[]     @relation("UserShifts")
 
   @@map("users")
 }
@@ -193,6 +194,7 @@ model Branch {
   salesReturns    SalesReturn[]
   purchaseReturns PurchaseReturn[]
   purchaseOrders  PurchaseOrder[]
+  shifts          CashierShift[]
 
   @@map("branches")
 }
@@ -512,10 +514,12 @@ model Customer {
   email     String?
   address   String?
   gstNumber String?   @map("gst_number")
-  dob       DateTime?
-  notes     String?
-  isActive  Boolean   @default(true) @map("is_active")
-  createdAt DateTime  @default(now()) @map("created_at")
+  dob            DateTime?
+  notes          String?
+  isActive       Boolean   @default(true) @map("is_active")
+  creditLimit    Float     @default(0) @map("credit_limit")
+  currentBalance Float     @default(0) @map("current_balance")
+  createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
   sales          SalesInvoice[]
@@ -669,24 +673,36 @@ model SalesInvoice {
   prescriptionRecord PrescriptionRecord?
   customerGstin      String?             @map("customer_gstin")
   isB2B              Boolean             @default(false) @map("is_b2b")
+  shiftId            String?             @map("shift_id")
+  shift              CashierShift?       @relation("ShiftSales", fields: [shiftId], references: [id], onDelete: SetNull)
+  idempotencyKey     String?             @unique @map("idempotency_key")
+  isReprint          Boolean             @default(false) @map("is_reprint")
 
   @@index([invoiceNumber])
   @@index([createdAt])
+  @@index([shiftId])
   @@map("sales_invoices")
 }
 
 model SalesItem {
-  id              String  @id @default(uuid())
-  salesInvoiceId  String  @map("sales_invoice_id")
-  medicineId      String  @map("medicine_id")
-  batchId         String  @map("batch_id")
-  qty             Int
-  unitId          String? @map("unit_id")
-  rate            Float
-  mrp             Float
-  discountPercent Float   @default(0) @map("discount_percent")
-  taxPercent      Float   @default(0) @map("tax_percent")
-  lineTotal       Float   @map("line_total")
+  id                  String  @id @default(uuid())
+  salesInvoiceId      String  @map("sales_invoice_id")
+  medicineId          String  @map("medicine_id")
+  batchId             String  @map("batch_id")
+  qty                 Int
+  unitId              String? @map("unit_id")
+  rate                Float
+  mrp                 Float
+  discountPercent     Float   @default(0) @map("discount_percent")
+  taxPercent          Float   @default(0) @map("tax_percent")
+  hsnCode             String? @map("hsn_code")
+  taxableAmount       Float   @default(0) @map("taxable_amount")
+  cgstAmount          Float   @default(0) @map("cgst_amount")
+  sgstAmount          Float   @default(0) @map("sgst_amount")
+  igstAmount          Float   @default(0) @map("igst_amount")
+  originalPrice       Float?  @map("original_price")
+  priceOverrideReason String? @map("price_override_reason")
+  lineTotal           Float   @map("line_total")
 
   salesInvoice SalesInvoice      @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
   medicine     Medicine          @relation(fields: [medicineId], references: [id], onDelete: Restrict)
@@ -748,6 +764,37 @@ model SalesReturnItem {
   batch        Batch       @relation(fields: [batchId], references: [id], onDelete: Restrict)
 
   @@map("sales_return_items")
+}
+
+model CashierShift {
+  id                  String    @id @default(uuid())
+  branchId            String    @map("branch_id")
+  userId              String    @map("user_id")
+  status              String    @default("OPEN") // OPEN, CLOSED
+  openingCash         Float     @default(0) @map("opening_cash")
+  closingCash         Float?    @map("closing_cash")
+  expectedCash        Float?    @map("expected_cash")
+  cashDifference      Float?    @map("cash_difference")
+  totalSalesCount     Int       @default(0) @map("total_sales_count")
+  totalSalesAmount    Float     @default(0) @map("total_sales_amount")
+  totalCashSales      Float     @default(0) @map("total_cash_sales")
+  totalUpiSales       Float     @default(0) @map("total_upi_sales")
+  totalCardSales      Float     @default(0) @map("total_card_sales")
+  totalCreditSales    Float     @default(0) @map("total_credit_sales")
+  totalReturnsAmount  Float     @default(0) @map("total_returns_amount")
+  totalExpensesAmount Float     @default(0) @map("total_expenses_amount")
+  notes               String?
+  openedAt            DateTime  @default(now()) @map("opened_at")
+  closedAt            DateTime? @map("closed_at")
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  user   User   @relation("UserShifts", fields: [userId], references: [id], onDelete: Restrict)
+
+  sales SalesInvoice[] @relation("ShiftSales")
+
+  @@index([branchId, status])
+  @@index([userId, status])
+  @@map("cashier_shifts")
 }
 
 // ============================================================

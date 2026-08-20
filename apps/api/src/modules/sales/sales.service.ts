@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CheckoutSaleDto } from './dto/create-sale.dto';
@@ -11,16 +12,20 @@ import {
   StockMovementType,
   MovementDirection,
   BatchStatus,
+  PaymentMode,
   PaperWidth,
+  ShiftStatus,
 } from '@medical-inventory/shared-types';
 import {
   calculateLineTotal,
+  calculateDetailedLineTotal,
   formatInvoiceNumber,
   formatDateTime,
   formatDate,
   allocateBatchesFefo,
   convertToBaseUnits,
   resolvePartyItemPrice,
+  roundToDecimals,
 } from '@medical-inventory/shared-utils';
 
 @Injectable()
@@ -84,7 +89,7 @@ export class SalesService {
         branch: {
           include: { settings: true },
         },
-        createdByUser: { select: { id: true, firstName: true, lastName: true } },
+        createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
         prescriptionRecord: true,
         items: {
           include: {
@@ -94,6 +99,7 @@ export class SalesService {
                 name: true,
                 genericName: true,
                 sku: true,
+                barcode: true,
                 dosageForm: true,
                 baseUnit: true,
                 drugSchedule: true,
@@ -108,6 +114,7 @@ export class SalesService {
                 batchNumber: true,
                 expiryDate: true,
                 mrp: true,
+                sellingPrice: true,
               },
             },
           },
@@ -126,37 +133,120 @@ export class SalesService {
     return sale;
   }
 
+  /**
+   * Concurrency-Safe, Atomic POS Checkout with MRP, Discount, Stock & Shift Guards
+   */
   async checkout(dto: CheckoutSaleDto, userId: string) {
+    // 0. Idempotency Check
+    if (dto.idempotencyKey) {
+      const existing = await this.prisma.salesInvoice.findUnique({
+        where: { idempotencyKey: dto.idempotencyKey },
+        include: { items: true, payments: true },
+      });
+      if (existing) {
+        return existing;
+      }
+    }
+
+    if (!dto.items || dto.items.length === 0) {
+      throw new BadRequestException('Cannot complete sale with an empty cart');
+    }
+
+    // Fetch user and permissions for role-based limits
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        roles: {
+          include: {
+            role: {
+              include: {
+                permissions: { include: { permission: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const userRoles = user?.roles.map((r) => r.role.name.toUpperCase()) || [];
+    const userPermissions = new Set<string>();
+    for (const r of user?.roles || []) {
+      for (const p of r.role.permissions) {
+        userPermissions.add(p.permission.code);
+      }
+    }
+
+    const isAdminOrOwner =
+      userRoles.includes('ADMIN') ||
+      userRoles.includes('OWNER') ||
+      userRoles.includes('MANAGER');
+    const isPharmacist = userRoles.includes('PHARMACIST');
+
+    // Determine max discount percent allowed for this user
+    let maxAllowedDiscount = 15; // default cashier limit: 15%
+    if (isAdminOrOwner) {
+      maxAllowedDiscount = 100;
+    } else if (isPharmacist) {
+      maxAllowedDiscount = 30;
+    }
+
+    // Check invoice-level discount
+    if (
+      dto.invoiceDiscountPercent &&
+      dto.invoiceDiscountPercent > maxAllowedDiscount
+    ) {
+      throw new ForbiddenException(
+        `Invoice discount of ${dto.invoiceDiscountPercent}% exceeds maximum allowed limit for your role (${maxAllowedDiscount}%). Manager override required.`
+      );
+    }
+
     return this.prisma.$transaction(
       async (tx) => {
-        // 1. Resolve or create customer if mobile is provided
+        // 1. Resolve or create Customer
         let customerId = dto.customerId || null;
-        if (!customerId && dto.customerMobile) {
+        let customerRecord: any = null;
+
+        if (customerId) {
+          customerRecord = await tx.customer.findUnique({ where: { id: customerId } });
+        } else if (dto.customerMobile) {
+          const mobileClean = dto.customerMobile.trim();
           let existingCustomer = await tx.customer.findUnique({
-            where: { mobile: dto.customerMobile },
+            where: { mobile: mobileClean },
           });
 
           if (existingCustomer) {
             customerId = existingCustomer.id;
+            customerRecord = existingCustomer;
           } else {
-            const newCust = await tx.customer.create({
+            customerRecord = await tx.customer.create({
               data: {
-                name: dto.customerName || 'Walk-in Customer',
-                mobile: dto.customerMobile,
-                gstNumber: dto.customerGstin || null,
+                name: dto.customerName?.trim() || 'Walk-in Customer',
+                mobile: mobileClean,
+                gstNumber: dto.customerGstin?.trim() || null,
               },
             });
-            customerId = newCust.id;
+            customerId = customerRecord.id;
           }
         }
 
-        // 2. Fetch and increment branch sequential invoice number safely
-        const branchSettings = await tx.branchSettings.findUnique({
+        // 2. Fetch and increment Branch sequential invoice number atomically
+        let branchSettings = await tx.branchSettings.findUnique({
           where: { branchId: dto.branchId },
         });
 
-        const prefix = branchSettings?.invoicePrefix || 'INV';
-        const seqNum = branchSettings?.invoiceNextNumber || 1;
+        if (!branchSettings) {
+          branchSettings = await tx.branchSettings.create({
+            data: {
+              branchId: dto.branchId,
+              invoicePrefix: 'INV',
+              invoiceNextNumber: 1,
+              thermalPaperWidth: '58mm',
+            },
+          });
+        }
+
+        const prefix = branchSettings.invoicePrefix || 'INV';
+        const seqNum = branchSettings.invoiceNextNumber || 1;
         const invoiceNumber = formatInvoiceNumber(prefix, seqNum, 6);
 
         await tx.branchSettings.update({
@@ -164,7 +254,23 @@ export class SalesService {
           data: { invoiceNextNumber: seqNum + 1 },
         });
 
-        // 3. Process items with unit conversion & FEFO / specific batch allocation
+        // 3. Resolve active Cashier Shift (if any)
+        let shiftId = dto.shiftId || null;
+        if (!shiftId) {
+          const activeShift = await tx.cashierShift.findFirst({
+            where: {
+              userId,
+              branchId: dto.branchId,
+              status: ShiftStatus.OPEN,
+            },
+            orderBy: { openedAt: 'desc' },
+          });
+          if (activeShift) {
+            shiftId = activeShift.id;
+          }
+        }
+
+        // 4. Process Items with Unit Conversion, Pricing, Discount & Stock Locks
         const processedSalesItems: {
           medicineId: string;
           batchId: string;
@@ -176,6 +282,13 @@ export class SalesService {
           mrp: number;
           discountPercent: number;
           taxPercent: number;
+          hsnCode: string | null;
+          taxableAmount: number;
+          cgstAmount: number;
+          sgstAmount: number;
+          igstAmount: number;
+          originalPrice: number | null;
+          priceOverrideReason: string | null;
           lineTotal: number;
         }[] = [];
 
@@ -183,36 +296,57 @@ export class SalesService {
         let totalDiscount = 0;
         let totalTax = 0;
         let grandTotal = 0;
-        let requiresScheduleHPrescription = false;
+
+        const branchRecord = await tx.branch.findUnique({ where: { id: dto.branchId } });
+        const isInterState = Boolean(
+          branchRecord?.state &&
+          customerRecord?.address &&
+          !customerRecord.address.toLowerCase().includes(branchRecord.state.toLowerCase())
+        );
 
         for (const cartItem of dto.items) {
           const medicine = await tx.medicine.findUnique({
             where: { id: cartItem.medicineId },
-            include: { partyPrices: customerId ? { where: { customerId, isActive: true } } : false },
+            include: {
+              partyPrices: customerId ? { where: { customerId, isActive: true } } : false,
+            },
           });
 
           if (!medicine || !medicine.isActive) {
-            throw new BadRequestException(`Medicine '${cartItem.medicineId}' is inactive or not found`);
+            throw new BadRequestException(
+              `Medicine '${cartItem.medicineId}' is inactive or not found.`
+            );
           }
 
-          if (medicine.isScheduleH || medicine.isScheduleH1 || medicine.isScheduleX || medicine.drugSchedule !== 'OTC') {
-            requiresScheduleHPrescription = true;
+          // Item-level discount validation
+          const itemDiscount = Number(cartItem.discountPercent || 0);
+          if (itemDiscount > maxAllowedDiscount) {
+            throw new ForbiddenException(
+              `Discount of ${itemDiscount}% on '${medicine.name}' exceeds maximum allowed limit for your role (${maxAllowedDiscount}%).`
+            );
           }
 
           // Multi-unit conversion to base units
           const stripsPerBox = medicine.stripsPerBox || 10;
           const tabletsPerStrip = medicine.tabletsPerStrip || 10;
-          const rawQty = cartItem.selectedQuantity !== undefined && cartItem.selectedQuantity !== null
-            ? Number(cartItem.selectedQuantity)
-            : Number(cartItem.qty);
+          const rawQty =
+            cartItem.selectedQuantity !== undefined && cartItem.selectedQuantity !== null
+              ? Number(cartItem.selectedQuantity)
+              : Number(cartItem.qty);
 
           const baseQty = cartItem.unitLevel
             ? convertToBaseUnits(rawQty, cartItem.unitLevel, stripsPerBox, tabletsPerStrip)
             : Math.round(rawQty);
 
-          // Party-wise special pricing resolution
+          if (baseQty <= 0) {
+            throw new BadRequestException(
+              `Invalid quantity '${baseQty}' for medicine '${medicine.name}'.`
+            );
+          }
+
+          // Rate resolution & Party Pricing
           let itemRate = cartItem.rate;
-          let itemDiscountPercent = cartItem.discountPercent || 0;
+          let itemDiscountPercent = itemDiscount;
 
           if (itemRate === undefined || itemRate === null) {
             const activeRule = (medicine as any).partyPrices?.[0];
@@ -228,32 +362,58 @@ export class SalesService {
           }
 
           if (cartItem.batchId) {
+            // Specific batch selected
             const batch = await tx.batch.findUnique({
               where: { id: cartItem.batchId },
             });
 
             if (!batch || batch.status !== BatchStatus.ACTIVE) {
-              throw new BadRequestException(`Batch is invalid or expired for ${medicine.name}`);
+              throw new BadRequestException(
+                `Batch '${batch?.batchNumber || cartItem.batchId}' is invalid or expired for ${medicine.name}.`
+              );
+            }
+
+            if (new Date(batch.expiryDate) <= new Date()) {
+              throw new BadRequestException(
+                `Batch '${batch.batchNumber}' for ${medicine.name} has expired on ${formatDate(batch.expiryDate)} and cannot be sold.`
+              );
             }
 
             if (batch.currentQty < baseQty) {
               throw new BadRequestException(
-                `Insufficient stock in batch ${batch.batchNumber} for ${medicine.name}. Available: ${batch.currentQty}, Requested: ${baseQty}`
+                `Insufficient stock in batch '${batch.batchNumber}' for ${medicine.name}. Available: ${batch.currentQty}, Requested: ${baseQty}.`
               );
             }
 
             const effectiveRate = itemRate ?? batch.sellingPrice;
-            const line = calculateLineTotal(
+
+            // MRP Protection Guard
+            if (effectiveRate > batch.mrp && !userPermissions.has('price.override') && !isAdminOrOwner) {
+              throw new BadRequestException(
+                `Selling price (₹${effectiveRate}) cannot exceed MRP (₹${batch.mrp}) for ${medicine.name}.`
+              );
+            }
+
+            // Price override audit check
+            let originalPrice: number | null = null;
+            let priceOverrideReason: string | null = null;
+            if (effectiveRate !== batch.sellingPrice) {
+              originalPrice = batch.sellingPrice;
+              priceOverrideReason = cartItem.priceOverrideReason || 'Cashier Manual Override';
+            }
+
+            const lineDetails = calculateDetailedLineTotal(
               baseQty,
               effectiveRate,
               itemDiscountPercent,
-              batch.taxPercent
+              batch.taxPercent,
+              isInterState
             );
 
-            subtotal += line.subtotal;
-            totalDiscount += line.discountAmount;
-            totalTax += line.taxAmount;
-            grandTotal += line.total;
+            subtotal += lineDetails.subtotal;
+            totalDiscount += lineDetails.discountAmount;
+            totalTax += lineDetails.taxAmount;
+            grandTotal += lineDetails.lineTotal;
 
             processedSalesItems.push({
               medicineId: medicine.id,
@@ -266,16 +426,24 @@ export class SalesService {
               mrp: batch.mrp,
               discountPercent: itemDiscountPercent,
               taxPercent: batch.taxPercent,
-              lineTotal: line.total,
+              hsnCode: medicine.hsnCode || null,
+              taxableAmount: lineDetails.taxableAmount,
+              cgstAmount: lineDetails.cgstAmount,
+              sgstAmount: lineDetails.sgstAmount,
+              igstAmount: lineDetails.igstAmount,
+              originalPrice,
+              priceOverrideReason,
+              lineTotal: lineDetails.lineTotal,
             });
           } else {
             // FEFO Automatic Batch Allocation
+            const now = new Date();
             const activeBatches = await tx.batch.findMany({
               where: {
                 medicineId: medicine.id,
                 branchId: dto.branchId,
                 status: BatchStatus.ACTIVE,
-                expiryDate: { gt: new Date() },
+                expiryDate: { gt: now },
                 currentQty: { gt: 0 },
               },
               orderBy: { expiryDate: 'asc' },
@@ -285,23 +453,38 @@ export class SalesService {
 
             if (!fefoResult.isFullySatisfied) {
               throw new BadRequestException(
-                `Insufficient valid stock for '${medicine.name}'. Available: ${fefoResult.allocatedTotal}, Requested: ${baseQty}`
+                `Insufficient non-expired stock for '${medicine.name}'. Available: ${fefoResult.allocatedTotal}, Requested: ${baseQty}.`
               );
             }
 
             for (const alloc of fefoResult.allocations) {
               const effectiveRate = itemRate ?? alloc.sellingPrice;
-              const line = calculateLineTotal(
+
+              if (effectiveRate > alloc.mrp && !userPermissions.has('price.override') && !isAdminOrOwner) {
+                throw new BadRequestException(
+                  `Selling price (₹${effectiveRate}) cannot exceed MRP (₹${alloc.mrp}) for ${medicine.name}.`
+                );
+              }
+
+              let originalPrice: number | null = null;
+              let priceOverrideReason: string | null = null;
+              if (effectiveRate !== alloc.sellingPrice) {
+                originalPrice = alloc.sellingPrice;
+                priceOverrideReason = cartItem.priceOverrideReason || 'Cashier Manual Override';
+              }
+
+              const lineDetails = calculateDetailedLineTotal(
                 alloc.allocatedQty,
                 effectiveRate,
                 itemDiscountPercent,
-                alloc.taxPercent
+                alloc.taxPercent,
+                isInterState
               );
 
-              subtotal += line.subtotal;
-              totalDiscount += line.discountAmount;
-              totalTax += line.taxAmount;
-              grandTotal += line.total;
+              subtotal += lineDetails.subtotal;
+              totalDiscount += lineDetails.discountAmount;
+              totalTax += lineDetails.taxAmount;
+              grandTotal += lineDetails.lineTotal;
 
               processedSalesItems.push({
                 medicineId: medicine.id,
@@ -311,10 +494,17 @@ export class SalesService {
                 conversionRatio: rawQty > 0 ? Number((baseQty / rawQty).toFixed(2)) : 1,
                 unitId: cartItem.unitId || null,
                 rate: effectiveRate,
-                mrp: alloc.sellingPrice,
+                mrp: alloc.mrp,
                 discountPercent: itemDiscountPercent,
                 taxPercent: alloc.taxPercent,
-                lineTotal: line.total,
+                hsnCode: medicine.hsnCode || null,
+                taxableAmount: lineDetails.taxableAmount,
+                cgstAmount: lineDetails.cgstAmount,
+                sgstAmount: lineDetails.sgstAmount,
+                igstAmount: lineDetails.igstAmount,
+                originalPrice,
+                priceOverrideReason,
+                lineTotal: lineDetails.lineTotal,
               });
             }
           }
@@ -322,15 +512,59 @@ export class SalesService {
 
         // Apply optional invoice-level discount
         if (dto.invoiceDiscountPercent && dto.invoiceDiscountPercent > 0) {
-          const invDiscount = (grandTotal * dto.invoiceDiscountPercent) / 100;
+          const invDiscount = roundToDecimals((grandTotal * dto.invoiceDiscountPercent) / 100);
           totalDiscount += invDiscount;
-          grandTotal -= invDiscount;
+          grandTotal = Math.max(0, roundToDecimals(grandTotal - invDiscount));
         }
 
-        // 4. Create SalesInvoice
-        const totalPaid = dto.payments.reduce((sum, p) => sum + p.amount, 0);
-        const paymentStatus = totalPaid >= grandTotal ? PaymentStatus.PAID : PaymentStatus.PARTIAL;
+        // 5. Payment Validation & Credit Sales Limit Checks
+        const paymentsList = dto.payments || [{ paymentMode: PaymentMode.CASH, amount: grandTotal }];
+        const totalPaid = roundToDecimals(
+          paymentsList.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+        );
 
+        let hasCreditPayment = false;
+        let creditAmount = 0;
+
+        for (const p of paymentsList) {
+          if (p.paymentMode === PaymentMode.CREDIT) {
+            hasCreditPayment = true;
+            creditAmount += Number(p.amount) || 0;
+          }
+        }
+
+        if (hasCreditPayment) {
+          if (!customerId || !customerRecord) {
+            throw new BadRequestException('Credit sale requires an identified registered customer.');
+          }
+
+          if (
+            customerRecord.creditLimit > 0 &&
+            customerRecord.currentBalance + creditAmount > customerRecord.creditLimit &&
+            !isAdminOrOwner
+          ) {
+            throw new ForbiddenException(
+              `Credit limit exceeded for customer '${customerRecord.name}'. Current Balance: ₹${customerRecord.currentBalance}, Limit: ₹${customerRecord.creditLimit}, Requested: ₹${creditAmount}.`
+            );
+          }
+
+          // Increment customer outstanding balance
+          await tx.customer.update({
+            where: { id: customerId },
+            data: {
+              currentBalance: { increment: creditAmount },
+            },
+          });
+        }
+
+        const paymentStatus =
+          totalPaid >= grandTotal
+            ? PaymentStatus.PAID
+            : totalPaid > 0
+            ? PaymentStatus.PARTIAL
+            : PaymentStatus.UNPAID;
+
+        // 6. Create SalesInvoice
         const invoice = await tx.salesInvoice.create({
           data: {
             invoiceNumber,
@@ -339,12 +573,15 @@ export class SalesService {
             customerGstin: dto.customerGstin || null,
             isB2B: Boolean(dto.isB2B || dto.customerGstin),
             status: SaleStatus.COMPLETED,
-            subtotal: Number(subtotal.toFixed(2)),
-            discountAmount: Number(totalDiscount.toFixed(2)),
-            taxAmount: Number(totalTax.toFixed(2)),
-            totalAmount: Number(grandTotal.toFixed(2)),
+            subtotal: roundToDecimals(subtotal),
+            discountAmount: roundToDecimals(totalDiscount),
+            taxAmount: roundToDecimals(totalTax),
+            totalAmount: roundToDecimals(grandTotal),
             paymentStatus,
             createdByUserId: userId,
+            shiftId,
+            idempotencyKey: dto.idempotencyKey || null,
+            isReprint: Boolean(dto.isReprint),
             items: {
               create: processedSalesItems.map((item) => ({
                 medicineId: item.medicineId,
@@ -357,12 +594,19 @@ export class SalesService {
                 mrp: item.mrp,
                 discountPercent: item.discountPercent,
                 taxPercent: item.taxPercent,
+                hsnCode: item.hsnCode,
+                taxableAmount: item.taxableAmount,
+                cgstAmount: item.cgstAmount,
+                sgstAmount: item.sgstAmount,
+                igstAmount: item.igstAmount,
+                originalPrice: item.originalPrice,
+                priceOverrideReason: item.priceOverrideReason,
                 lineTotal: item.lineTotal,
               })),
             },
             payments: {
-              create: dto.payments.map((p) => ({
-                amount: p.amount,
+              create: paymentsList.map((p) => ({
+                amount: roundToDecimals(p.amount),
                 paymentMode: p.paymentMode,
                 referenceNumber: p.referenceNumber || null,
                 createdByUserId: userId,
@@ -375,7 +619,7 @@ export class SalesService {
           },
         });
 
-        // 5. Create PrescriptionRecord if prescription provided or Schedule H drug present
+        // 7. Prescription Record (Schedule H / Doctor Rx compliance)
         if (dto.prescription) {
           await tx.prescriptionRecord.create({
             data: {
@@ -391,14 +635,23 @@ export class SalesService {
           });
         }
 
-        // 6. Deduct Stock from Batches & record Stock Movements
+        // 8. Atomic Concurrency-Safe Stock Deduction & Ledger Creation
         for (const item of processedSalesItems) {
-          await tx.batch.update({
-            where: { id: item.batchId },
+          const updateResult = await tx.batch.updateMany({
+            where: {
+              id: item.batchId,
+              currentQty: { gte: item.qty },
+            },
             data: {
               currentQty: { decrement: item.qty },
             },
           });
+
+          if (updateResult.count === 0) {
+            throw new BadRequestException(
+              `Stock concurrency error: Insufficient stock remaining in batch #${item.batchId}. It may have been sold by another cashier simultaneously.`
+            );
+          }
 
           await tx.stockMovement.create({
             data: {
@@ -416,20 +669,39 @@ export class SalesService {
           });
         }
 
+        // 9. Audit Logging for sensitive overrides
+        for (const item of processedSalesItems) {
+          if (item.originalPrice !== null && item.originalPrice !== item.rate) {
+            await tx.auditLog.create({
+              data: {
+                userId,
+                action: 'price_override',
+                entity: 'SalesItem',
+                entityId: invoice.id,
+                oldValue: JSON.stringify({ price: item.originalPrice }),
+                newValue: JSON.stringify({ price: item.rate, reason: item.priceOverrideReason }),
+              },
+            });
+          }
+        }
+
         return invoice;
       },
       { timeout: 30000, maxWait: 10000 }
     );
   }
 
-  async getReceiptData(invoiceId: string, requestedPaperWidth?: PaperWidth) {
+  async getReceiptData(invoiceId: string, requestedPaperWidth?: PaperWidth, isReprint?: boolean) {
     const sale = await this.findOne(invoiceId);
     const [business, template] = await Promise.all([
       this.prisma.businessSettings.findUnique({ where: { id: 'default' } }),
       this.prisma.receiptTemplate.findFirst({ where: { isDefault: true } }),
     ]);
 
-    const paperWidth = requestedPaperWidth || (sale.branch?.settings?.thermalPaperWidth as PaperWidth) || PaperWidth.WIDTH_58MM;
+    const paperWidth =
+      requestedPaperWidth ||
+      (sale.branch?.settings?.thermalPaperWidth as PaperWidth) ||
+      PaperWidth.WIDTH_58MM;
 
     const receiptItems = sale.items.map((item) => {
       return {
@@ -470,8 +742,11 @@ export class SalesService {
       headerText: template?.headerText || null,
       footerText: template?.footerText || null,
       thankYouMessage: template?.thankYouMessage || 'Thank You! Get Well Soon',
-      returnPolicy: template?.returnPolicy || 'Goods once sold can only be returned within 7 days with original invoice.',
+      returnPolicy:
+        template?.returnPolicy ||
+        'Goods once sold can only be returned within 7 days with original invoice.',
       paperWidth,
+      isReprint: Boolean(isReprint || sale.isReprint),
     };
   }
 }

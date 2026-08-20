@@ -59,6 +59,11 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
           >
             {/* Store Header */}
             <div className="text-center pb-2">
+              {data?.isReprint && (
+                <div className="border border-black py-0.5 mb-1.5 font-bold text-[10px] tracking-widest uppercase">
+                  *** DUPLICATE / REPRINT ***
+                </div>
+              )}
               <h2 className="font-bold text-sm uppercase tracking-wide">{data?.storeName || 'MedCare Pharmacy'}</h2>
               <p className="text-[10px] text-gray-700">{data?.address}</p>
               {data?.phone && <p className="text-[10px] text-gray-700">Ph: {data.phone}</p>}

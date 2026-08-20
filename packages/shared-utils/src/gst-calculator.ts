@@ -77,3 +77,52 @@ export interface HsnSummaryItem {
   stateTax: number;
   cessAmount: number;
 }
+
+export function calculateDetailedLineTotal(
+  qty: number,
+  rate: number,
+  discountPercent: number = 0,
+  taxPercent: number = 0,
+  isInterState: boolean = false
+) {
+  const quantity = Math.max(0, Number(qty) || 0);
+  const unitRate = Math.max(0, Number(rate) || 0);
+  const discountRate = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+  const gstRate = Math.max(0, Number(taxPercent) || 0);
+
+  const subtotal = Number((quantity * unitRate).toFixed(2));
+  const discountAmount = Number(((subtotal * discountRate) / 100).toFixed(2));
+  const taxableAmount = Number(Math.max(0, subtotal - discountAmount).toFixed(2));
+
+  const gst = calculateGstBreakdown(taxableAmount, gstRate, isInterState);
+  const lineTotal = Number((taxableAmount + gst.totalTax).toFixed(2));
+
+  return {
+    subtotal,
+    discountAmount,
+    taxableAmount,
+    cgstRate: gst.cgstRate,
+    cgstAmount: gst.cgstAmount,
+    sgstRate: gst.sgstRate,
+    sgstAmount: gst.sgstAmount,
+    igstRate: gst.igstRate,
+    igstAmount: gst.igstAmount,
+    taxAmount: gst.totalTax,
+    lineTotal,
+  };
+}
+
+export function calculateCashChange(grandTotal: number, receivedAmount: number): {
+  changeAmount: number;
+  isSufficient: boolean;
+} {
+  const total = Number(grandTotal || 0);
+  const received = Number(receivedAmount || 0);
+  const change = Number((received - total).toFixed(2));
+
+  return {
+    changeAmount: Math.max(0, change),
+    isSufficient: received >= total,
+  };
+}
+

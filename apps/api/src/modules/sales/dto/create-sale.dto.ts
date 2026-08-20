@@ -80,6 +80,10 @@ export class CartItemDto {
   @IsNumber()
   @Min(0)
   discountPercent?: number;
+
+  @IsOptional()
+  @IsString()
+  priceOverrideReason?: string;
 }
 
 export class PaymentSplitDto {
@@ -93,6 +97,10 @@ export class PaymentSplitDto {
   @IsOptional()
   @IsString()
   referenceNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }
 
 export class CheckoutSaleDto {
@@ -144,7 +152,47 @@ export class CheckoutSaleDto {
   notes?: string;
 
   @IsOptional()
+  @IsString()
+  shiftId?: string;
+
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isReprint?: boolean;
+
+  @IsOptional()
   @ValidateNested()
   @Type(() => PrescriptionDto)
   prescription?: PrescriptionDto;
+}
+
+export class OpenShiftDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Branch ID is required' })
+  branchId: string;
+
+  @IsNumber()
+  @Min(0, { message: 'Opening cash cannot be negative' })
+  openingCash: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class CloseShiftDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Shift ID is required' })
+  shiftId: string;
+
+  @IsNumber()
+  @Min(0, { message: 'Closing cash cannot be negative' })
+  closingCash: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

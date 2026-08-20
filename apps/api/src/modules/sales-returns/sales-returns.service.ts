@@ -107,6 +107,7 @@ export class SalesReturnsService {
         where: { id: dto.salesInvoiceId },
         include: {
           items: true,
+          payments: true,
           returns: { include: { items: true } },
         },
       });
@@ -202,6 +203,14 @@ export class SalesReturnsService {
             userId,
             reason: `Sales Return #${returnNumber} (${item.condition})`,
           },
+        });
+      }
+
+      // Update customer balance if credit refund
+      if (invoice.customerId && (dto.refundMode === PaymentMode.CREDIT || invoice.payments.some(p => p.paymentMode === PaymentMode.CREDIT))) {
+        await tx.customer.update({
+          where: { id: invoice.customerId },
+          data: { currentBalance: { decrement: totalRefund } },
         });
       }
 

@@ -6,6 +6,7 @@ export interface BatchAllocation {
   batchNumber: string;
   expiryDate: Date;
   sellingPrice: number;
+  mrp: number;
   taxPercent: number;
   allocatedQty: number;
   availableBefore: number;
@@ -64,6 +65,7 @@ export function allocateBatchesFefo(
         batchNumber: batch.batchNumber,
         expiryDate: batch.expiryDate,
         sellingPrice: batch.sellingPrice,
+        mrp: batch.mrp,
         taxPercent: batch.taxPercent,
         allocatedQty: allocate,
         availableBefore: available,

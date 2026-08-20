@@ -163,3 +163,9 @@ export enum AdjustmentReason {
   CORRECTION = 'CORRECTION',
   OTHER = 'OTHER',
 }
+
+export enum ShiftStatus {
+  OPEN = 'OPEN',
+  CLOSED = 'CLOSED',
+}
+
