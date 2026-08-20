@@ -663,13 +663,13 @@ export default function PosPage() {
         </div>
 
         {/* ── Mobile View Toggle Tabs ───────────────────────────── */}
-        <div className="lg:hidden flex border-b border-slate-800 bg-slate-900/90 text-xs font-semibold">
+        <div className="lg:hidden flex border-b border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-xs font-semibold">
           <button
             onClick={() => setMobileTab('cart')}
             className={`flex-1 py-2.5 text-center border-b-2 flex items-center justify-center gap-2 ${
               mobileTab === 'cart'
-                ? 'border-sky-400 text-sky-400 bg-slate-800/50'
-                : 'border-transparent text-slate-400'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-slate-800/50'
+                : 'border-transparent text-slate-500 dark:text-slate-400'
             }`}
           >
             <ShoppingCart className="w-4 h-4" />
@@ -679,8 +679,8 @@ export default function PosPage() {
             onClick={() => setMobileTab('payment')}
             className={`flex-1 py-2.5 text-center border-b-2 flex items-center justify-center gap-2 ${
               mobileTab === 'payment'
-                ? 'border-sky-400 text-sky-400 bg-slate-800/50'
-                : 'border-transparent text-slate-400'
+                ? 'border-sky-500 text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-slate-800/50'
+                : 'border-transparent text-slate-500 dark:text-slate-400'
             }`}
           >
             <CreditCard className="w-4 h-4" />
@@ -1150,13 +1150,13 @@ export default function PosPage() {
         {/* Modal 1: Batch Selector */}
         {batchModalItem && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-lg w-full p-5 space-y-4 text-xs">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-w-lg w-full p-5 space-y-4 text-xs">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div>
-                  <h3 className="font-bold text-sm text-white">Select Batch</h3>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Select Batch</h3>
                   <p className="text-[10px] text-sky-400 font-mono">{batchModalItem.medicineName}</p>
                 </div>
-                <button onClick={() => setBatchModalItem(null)} className="p-1 text-slate-400 hover:text-white">
+                <button onClick={() => setBatchModalItem(null)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1180,7 +1180,7 @@ export default function PosPage() {
                       >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
-                            <span className="font-mono font-bold text-white">{b.batchNumber}</span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-white">{b.batchNumber}</span>
                             {idx === 0 && (
                               <span className="px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 font-mono text-[9px] font-bold">
                                 FEFO
@@ -1207,13 +1207,13 @@ export default function PosPage() {
         {/* Modal 2: Shift Manager */}
         {showShiftModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-md w-full p-6 space-y-4 text-xs">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-w-md w-full p-6 space-y-4 text-xs">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2 text-sky-400">
                   <Coins className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">Cashier Register &amp; Shift</h3>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Cashier Register &amp; Shift</h3>
                 </div>
-                <button onClick={() => setShowShiftModal(false)} className="p-1 text-slate-400 hover:text-white">
+                <button onClick={() => setShowShiftModal(false)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1223,7 +1223,7 @@ export default function PosPage() {
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                     <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <p className="text-slate-400 text-[10px]">Opening Float</p>
-                      <p className="text-sm font-bold text-white">₹{currentShift.openingCash}</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">₹{currentShift.openingCash}</p>
                     </div>
                     <div className="p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                       <p className="text-slate-400 text-[10px]">Cash Sales</p>
@@ -1251,7 +1251,7 @@ export default function PosPage() {
                         placeholder="Counted cash amount"
                         value={closingCashInput}
                         onChange={(e) => setClosingCashInput(e.target.value)}
-                        className="w-full px-3 py-2 night-input font-mono text-sm text-white"
+                        className="w-full px-3 py-2 night-input font-mono text-sm text-slate-900 dark:text-white"
                       />
                     </div>
 
@@ -1287,7 +1287,7 @@ export default function PosPage() {
                       step="0.01"
                       value={openingCashInput}
                       onChange={(e) => setOpeningCashInput(e.target.value)}
-                      className="w-full px-3 py-2 night-input font-mono text-sm text-white"
+                      className="w-full px-3 py-2 night-input font-mono text-sm text-slate-900 dark:text-white"
                     />
                   </div>
                   <div className="pt-2 flex justify-end gap-2">
@@ -1314,13 +1314,13 @@ export default function PosPage() {
         {/* Modal 3: Held Bills */}
         {showHeldModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-xl w-full p-6 space-y-4 text-xs">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-w-xl w-full p-6 space-y-4 text-xs">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2 text-sky-400">
                   <PauseCircle className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">Held Carts &amp; Suspended Bills</h3>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Held Carts &amp; Suspended Bills</h3>
                 </div>
-                <button onClick={() => setShowHeldModal(false)} className="p-1 text-slate-400 hover:text-white">
+                <button onClick={() => setShowHeldModal(false)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1499,13 +1499,13 @@ export default function PosPage() {
         {/* Modal 4: Quick Add Customer */}
         {showCustomerModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-md w-full p-6 space-y-4 text-xs">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-w-md w-full p-6 space-y-4 text-xs">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2 text-sky-400">
                   <UserPlus className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">Quick Add Customer</h3>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Quick Add Customer</h3>
                 </div>
-                <button onClick={() => setShowCustomerModal(false)} className="p-1 text-slate-400 hover:text-white">
+                <button onClick={() => setShowCustomerModal(false)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1521,7 +1521,7 @@ export default function PosPage() {
                     placeholder="e.g. Ramesh Kumar"
                     value={newCustomer.name}
                     onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
-                    className="w-full px-3 py-2 night-input text-xs text-white"
+                    className="w-full px-3 py-2 night-input text-xs text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
@@ -1534,7 +1534,7 @@ export default function PosPage() {
                     placeholder="9876543210"
                     value={newCustomer.mobile}
                     onChange={(e) => setNewCustomer({ ...newCustomer, mobile: e.target.value })}
-                    className="w-full px-3 py-2 night-input font-mono text-xs text-white"
+                    className="w-full px-3 py-2 night-input font-mono text-xs text-slate-900 dark:text-white"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
@@ -1547,7 +1547,7 @@ export default function PosPage() {
                       placeholder="0"
                       value={newCustomer.creditLimit || ''}
                       onChange={(e) => setNewCustomer({ ...newCustomer, creditLimit: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 night-input font-mono text-xs text-white"
+                      className="w-full px-3 py-2 night-input font-mono text-xs text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1559,7 +1559,7 @@ export default function PosPage() {
                       placeholder="29AAAAA0000A1Z5"
                       value={newCustomer.gstNumber}
                       onChange={(e) => setNewCustomer({ ...newCustomer, gstNumber: e.target.value })}
-                      className="w-full px-3 py-2 night-input font-mono text-xs text-white"
+                      className="w-full px-3 py-2 night-input font-mono text-xs text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
@@ -1587,13 +1587,13 @@ export default function PosPage() {
         {/* Modal 5: Sales Return */}
         {showReturnModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 max-w-2xl w-full p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-w-2xl w-full p-6 space-y-4 text-xs max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-800">
                 <div className="flex items-center gap-2 text-amber-400">
                   <RotateCcw className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">Sales Return &amp; Refund</h3>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Sales Return &amp; Refund</h3>
                 </div>
-                <button onClick={() => setShowReturnModal(false)} className="p-1 text-slate-400 hover:text-white">
+                <button onClick={() => setShowReturnModal(false)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1605,7 +1605,7 @@ export default function PosPage() {
                   placeholder="Enter Invoice # (e.g. INV-000001)..."
                   value={returnInvoiceSearch}
                   onChange={(e) => setReturnInvoiceSearch(e.target.value)}
-                  className="flex-1 px-3 py-2 night-input text-xs font-mono text-white"
+                  className="flex-1 px-3 py-2 night-input text-xs font-mono text-slate-900 dark:text-white"
                 />
                 <button
                   type="submit"
@@ -1639,7 +1639,7 @@ export default function PosPage() {
                           className="p-3 rounded-xl border border-slate-800 bg-slate-950 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
                         >
                           <div className="flex-1">
-                            <p className="font-semibold text-white">{it.medicine?.name}</p>
+                            <p className="font-semibold text-slate-900 dark:text-white">{it.medicine?.name}</p>
                             <p className="text-[10px] text-slate-400 font-mono">
                               Sold Qty: {it.qty} • Rate: ₹{it.rate}
                             </p>
@@ -1653,7 +1653,7 @@ export default function PosPage() {
                                   [it.id]: { ...state, condition: e.target.value },
                                 })
                               }
-                              className="px-2 py-1 bg-slate-900 text-sky-300 border border-slate-700 rounded-lg text-[10px]"
+                              className="px-2 py-1 bg-slate-100 dark:bg-slate-900 text-sky-600 dark:text-sky-300 border border-slate-300 dark:border-slate-700 rounded-lg text-[10px]"
                             >
                               <option value="RESALABLE">Resalable</option>
                               <option value="DAMAGED">Damaged</option>
@@ -1675,7 +1675,7 @@ export default function PosPage() {
                                     },
                                   })
                                 }
-                                className="w-12 px-1.5 py-1 text-center bg-slate-900 border border-slate-700 rounded-lg font-mono text-xs text-white"
+                                className="w-12 px-1.5 py-1 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-mono text-xs text-slate-900 dark:text-white"
                               />
                             </div>
                           </div>
@@ -1690,7 +1690,7 @@ export default function PosPage() {
                       <select
                         value={returnRefundMode}
                         onChange={(e) => setReturnRefundMode(e.target.value as PaymentMode)}
-                        className="px-2 py-1 bg-slate-900 text-white border border-slate-700 rounded-lg text-xs"
+                        className="px-2 py-1 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white border border-slate-300 dark:border-slate-700 rounded-lg text-xs"
                       >
                         <option value={PaymentMode.CASH}>Cash</option>
                         <option value={PaymentMode.UPI}>UPI</option>
@@ -1714,13 +1714,13 @@ export default function PosPage() {
         {/* Modal 6: Schedule H Rx */}
         {showRxModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-red-900 bg-slate-900 max-w-lg w-full p-6 space-y-4 text-xs">
+            <div className="rounded-2xl border border-red-200 dark:border-red-900 bg-white dark:bg-slate-900 max-w-lg w-full p-6 space-y-4 text-xs">
               <div className="flex items-center justify-between pb-3 border-b border-red-950">
                 <div className="flex items-center gap-2 text-red-400">
                   <ShieldAlert className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">Schedule H Prescription Required</h3>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Schedule H Prescription Required</h3>
                 </div>
-                <button onClick={() => setShowRxModal(false)} className="p-1 text-slate-400 hover:text-white">
+                <button onClick={() => setShowRxModal(false)} className="p-1 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -1735,7 +1735,7 @@ export default function PosPage() {
                       placeholder="Dr. R. Sharma"
                       value={prescriptionForm.doctorName}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorName: e.target.value })}
-                      className="w-full px-3 py-2 night-input text-white"
+                      className="w-full px-3 py-2 night-input text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1746,7 +1746,7 @@ export default function PosPage() {
                       placeholder="MCI-19842"
                       value={prescriptionForm.doctorRegNo}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, doctorRegNo: e.target.value })}
-                      className="w-full px-3 py-2 night-input font-mono text-white"
+                      className="w-full px-3 py-2 night-input font-mono text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
@@ -1759,7 +1759,7 @@ export default function PosPage() {
                       type="text"
                       value={prescriptionForm.patientName || cart.customer?.name || ''}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientName: e.target.value })}
-                      className="w-full px-3 py-2 night-input text-white"
+                      className="w-full px-3 py-2 night-input text-slate-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -1770,7 +1770,7 @@ export default function PosPage() {
                       min="1"
                       value={prescriptionForm.patientAge}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientAge: parseInt(e.target.value) || 30 })}
-                      className="w-full px-3 py-2 night-input font-mono text-white"
+                      className="w-full px-3 py-2 night-input font-mono text-slate-900 dark:text-white"
                     />
                   </div>
                 </div>
