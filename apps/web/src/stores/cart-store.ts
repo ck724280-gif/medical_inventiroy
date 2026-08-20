@@ -170,7 +170,7 @@ export const useCartStore = create<CartState>((set, get) => ({
           ...item,
           baseRate,
           rate,
-          unitLevel: item.unitLevel || 'TABLET',
+          unitLevel: item.unitLevel || 'STRIP',
           lineTotal: line.lineTotal,
         },
       ];

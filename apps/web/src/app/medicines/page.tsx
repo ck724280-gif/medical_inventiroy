@@ -379,17 +379,17 @@ export default function MedicinesPage() {
         {/* Create / Edit Medicine Modal */}
         {showCreateModal && canManage && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#0f172a] rounded-2xl border border-slate-700 max-w-2xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh]">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-2 text-sky-400">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh] shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
                   <Pill className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-white">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
                     {editingMedicine ? 'Edit Medicine Master' : 'Add New Medicine'}
                   </h3>
                 </div>
                 <button
                   onClick={() => setShowCreateModal(false)}
-                  className="p-1 text-slate-400 hover:text-white rounded-lg"
+                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg transition"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -398,48 +398,48 @@ export default function MedicinesPage() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="block font-semibold text-slate-300 mb-1">Medicine Name *</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Medicine Name *</label>
                     <input
                       required
                       type="text"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       placeholder="e.g. Augmentin 625 Duo"
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Generic Composition</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Generic Composition</label>
                     <input
                       type="text"
                       value={formData.genericName}
                       onChange={(e) => setFormData({ ...formData, genericName: e.target.value })}
                       placeholder="e.g. Amoxicillin & Potassium Clavulanate"
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Brand Name</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Brand Name</label>
                     <input
                       type="text"
                       value={formData.brandName}
                       onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
                       placeholder="e.g. GSK"
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Dosage Form *</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Dosage Form *</label>
                     <select
                       value={formData.dosageForm}
                       onChange={(e) => setFormData({ ...formData, dosageForm: e.target.value as DosageForm })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     >
                       {Object.values(DosageForm).map((df) => (
-                        <option key={df} value={df}>
+                        <option key={df} value={df} className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">
                           {df}
                         </option>
                       ))}
@@ -447,15 +447,15 @@ export default function MedicinesPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Category</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Category</label>
                     <select
                       value={formData.categoryId}
                       onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     >
-                      <option value="">Select Category</option>
+                      <option value="" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Select Category</option>
                       {categories.map((cat: any) => (
-                        <option key={cat.id} value={cat.id}>
+                        <option key={cat.id} value={cat.id} className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">
                           {cat.name}
                         </option>
                       ))}
@@ -463,39 +463,39 @@ export default function MedicinesPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">SKU Code *</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">SKU Code *</label>
                     <input
                       required
                       type="text"
                       value={formData.sku}
                       onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                       placeholder="MED-AUG-625"
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Barcode / EAN-13</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Barcode / EAN-13</label>
                     <input
                       type="text"
                       value={formData.barcode}
                       onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
                       placeholder="8901234567890"
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Base Packaging Unit *</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Base Packaging Unit *</label>
                     <select
                       required
                       value={formData.baseUnitId}
                       onChange={(e) => setFormData({ ...formData, baseUnitId: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     >
-                      <option value="">Select Unit</option>
+                      <option value="" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Select Unit</option>
                       {units.map((u: any) => (
-                        <option key={u.id} value={u.id}>
+                        <option key={u.id} value={u.id} className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">
                           {u.name} ({u.abbreviation})
                         </option>
                       ))}
@@ -503,7 +503,7 @@ export default function MedicinesPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-300 mb-1">GST Tax Rate (%)</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">GST Tax Rate (%)</label>
                     <input
                       type="number"
                       placeholder="0"
@@ -513,19 +513,19 @@ export default function MedicinesPage() {
                         const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                         setFormData({ ...formData, taxPercent: val });
                       }}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     />
                   </div>
 
                   {/* Multi-Level Packaging Unit Conversion */}
-                  <div className="col-span-2 p-3 bg-slate-900 rounded-xl border border-slate-800 space-y-2">
-                    <div className="font-bold text-sky-400 flex items-center gap-1.5">
-                      <Layers className="w-4 h-4 text-sky-400" />
+                  <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+                      <Layers className="w-4 h-4" />
                       <span>Packaging Ratio (Box ➔ Strip ➔ Tablets)</span>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block font-medium text-slate-400 mb-1">Strips per Box</label>
+                        <label className="block font-medium text-slate-550 dark:text-slate-400 mb-1">Strips per Box</label>
                         <input
                           type="number"
                           min="1"
@@ -536,11 +536,11 @@ export default function MedicinesPage() {
                             const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
                             setFormData({ ...formData, stripsPerBox: val });
                           }}
-                          className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                         />
                       </div>
                       <div>
-                        <label className="block font-medium text-slate-400 mb-1">Tablets per Strip</label>
+                        <label className="block font-medium text-slate-550 dark:text-slate-400 mb-1">Tablets per Strip</label>
                         <input
                           type="number"
                           min="1"
@@ -551,7 +551,7 @@ export default function MedicinesPage() {
                             const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
                             setFormData({ ...formData, tabletsPerStrip: val });
                           }}
-                          className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                         />
                       </div>
                     </div>
@@ -560,7 +560,7 @@ export default function MedicinesPage() {
                   {/* Pricing Fields */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 col-span-2">
                     <div>
-                      <label className="block font-semibold text-slate-300 mb-1">MRP (Maximum Retail Price) *</label>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">MRP *</label>
                       <input
                         required
                         type="number"
@@ -569,12 +569,12 @@ export default function MedicinesPage() {
                         value={formData.mrp === 0 ? '' : formData.mrp}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-300 mb-1">Default Purchase Price *</label>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Purchase Price *</label>
                       <input
                         required
                         type="number"
@@ -583,12 +583,12 @@ export default function MedicinesPage() {
                         value={formData.defaultPurchasePrice === 0 ? '' : formData.defaultPurchasePrice}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setFormData({ ...formData, defaultPurchasePrice: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-300 mb-1">Default Selling Price *</label>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Selling Price *</label>
                       <input
                         required
                         type="number"
@@ -597,32 +597,32 @@ export default function MedicinesPage() {
                         value={formData.defaultSellingPrice === 0 ? '' : formData.defaultSellingPrice}
                         onFocus={(e) => e.target.select()}
                         onChange={(e) => setFormData({ ...formData, defaultSellingPrice: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                       />
                     </div>
                   </div>
 
                   {/* Schedule Selection */}
                   <div className="col-span-2">
-                    <label className="block font-semibold text-slate-300 mb-1">Drug Regulatory Schedule</label>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Drug Regulatory Schedule</label>
                     <select
                       value={formData.drugSchedule}
                       onChange={(e) => setFormData({ ...formData, drugSchedule: e.target.value })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
                     >
-                      <option value="OTC">OTC (Over The Counter - No Rx required)</option>
-                      <option value="SCHEDULE_H">Schedule H (Requires Registered Medical Doctor Rx)</option>
-                      <option value="SCHEDULE_H1">Schedule H1 (High-Risk Antibiotic / 3-Year Register)</option>
-                      <option value="SCHEDULE_X">Schedule X (Narcotics &amp; Psychotropic Substances)</option>
+                      <option value="OTC" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">OTC (Over The Counter - No Rx required)</option>
+                      <option value="SCHEDULE_H" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Schedule H (Requires Registered Medical Doctor Rx)</option>
+                      <option value="SCHEDULE_H1" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Schedule H1 (High-Risk Antibiotic / 3-Year Register)</option>
+                      <option value="SCHEDULE_X" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Schedule X (Narcotics &amp; Psychotropic Substances)</option>
                     </select>
                   </div>
                 </div>
 
-                <div className="pt-3 flex justify-end gap-2 border-t border-slate-800">
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
                   >
                     Cancel
                   </button>
