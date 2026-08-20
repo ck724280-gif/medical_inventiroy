@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { useBrandingStore } from '../stores/branding-store';
 
 import { ThemeProvider } from './theme-provider';
+import { AiAssistantWidget } from './ai-assistant-widget';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -31,7 +32,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider>{children}</ThemeProvider>
+      <ThemeProvider>
+        {children}
+        <AiAssistantWidget />
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
+

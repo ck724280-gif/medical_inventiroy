@@ -40,6 +40,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { BackupModule } from './modules/backup/backup.module';
 import { ImportExportModule } from './modules/import-export/import-export.module';
 import { PartyPricingModule } from './modules/party-pricing/party-pricing.module';
+import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
 
 @Module({
   imports: [
@@ -84,6 +85,7 @@ import { PartyPricingModule } from './modules/party-pricing/party-pricing.module
     NotificationsModule,
     BackupModule,
     ImportExportModule,
+    AiAssistantModule,
   ],
   providers: [
     // 1. Global Auth Guard (all routes protected by default unless @Public())

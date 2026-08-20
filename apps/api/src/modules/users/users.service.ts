@@ -12,7 +12,7 @@ import { CreateUserDto, UpdateUserDto } from './dto/create-user.dto';
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(query?: { search?: string; page?: number; limit?: number }) {
+  async findAll(query?: { search?: string; page?: number; limit?: number; branchId?: string }) {
     const page = Number(query?.page) || 1;
     const limit = Number(query?.limit) || 20;
     const skip = (page - 1) * limit;
