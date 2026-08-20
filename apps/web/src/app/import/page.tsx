@@ -259,7 +259,7 @@ export default function ImportPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {rows.map((row, idx) => (
-                    <tr key={idx}>
+                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
                       <td className="py-2 px-3">
                         <input
                           type="text"
@@ -270,7 +270,7 @@ export default function ImportPage() {
                             setRows(updated);
                           }}
                           placeholder="e.g. Paracetamol 650mg"
-                          className="w-full px-2 py-1 border border-slate-300 rounded font-medium focus:outline-none focus:border-sky-500"
+                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:outline-none focus:border-sky-500"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -283,7 +283,7 @@ export default function ImportPage() {
                             setRows(updated);
                           }}
                           placeholder="SKU"
-                          className="w-24 px-2 py-1 border border-slate-300 rounded font-mono text-[11px] focus:outline-none focus:border-sky-500"
+                          className="w-24 px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -296,7 +296,7 @@ export default function ImportPage() {
                             setRows(updated);
                           }}
                           placeholder="B2026-1"
-                          className="w-28 px-2 py-1 border border-slate-300 rounded font-mono text-[11px] focus:outline-none focus:border-sky-500"
+                          className="w-28 px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -308,69 +308,76 @@ export default function ImportPage() {
                             updated[idx].expiryDate = e.target.value;
                             setRows(updated);
                           }}
-                          className="w-32 px-2 py-1 border border-slate-300 rounded font-mono text-[11px] focus:outline-none focus:border-sky-500"
+                          className="w-32 px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                         />
                       </td>
                       <td className="py-2 px-3 text-center">
                         <input
                           type="number"
-                          value={row.qty}
+                          placeholder="0"
+                          value={row.qty === 0 ? '' : row.qty}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const updated = [...rows];
-                            updated[idx].qty = parseInt(e.target.value) || 0;
+                            updated[idx].qty = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
                             setRows(updated);
                           }}
-                          className="w-16 px-2 py-1 border border-slate-300 rounded font-mono text-center focus:outline-none focus:border-sky-500"
+                          className="w-16 px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-center text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                         />
                       </td>
                       <td className="py-2 px-3 text-right">
                         <input
                           type="number"
                           step="0.01"
-                          value={row.purchasePrice}
+                          placeholder="0"
+                          value={row.purchasePrice === 0 ? '' : row.purchasePrice}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const updated = [...rows];
-                            updated[idx].purchasePrice = parseFloat(e.target.value) || 0;
+                            updated[idx].purchasePrice = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                             setRows(updated);
                           }}
-                          className="w-20 px-2 py-1 border border-slate-300 rounded font-mono text-right focus:outline-none focus:border-sky-500"
+                          className="w-20 px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-right text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                         />
                       </td>
                       <td className="py-2 px-3 text-right">
                         <input
                           type="number"
                           step="0.01"
-                          value={row.sellingPrice}
+                          placeholder="0"
+                          value={row.sellingPrice === 0 ? '' : row.sellingPrice}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const updated = [...rows];
-                            updated[idx].sellingPrice = parseFloat(e.target.value) || 0;
+                            updated[idx].sellingPrice = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                             setRows(updated);
                           }}
-                          className="w-20 px-2 py-1 border border-slate-300 rounded font-mono text-right focus:outline-none focus:border-sky-500"
+                          className="w-20 px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-right text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                         />
                       </td>
                       <td className="py-2 px-3 text-right">
                         <input
                           type="number"
                           step="0.01"
-                          value={row.mrp}
+                          placeholder="0"
+                          value={row.mrp === 0 ? '' : row.mrp}
+                          onFocus={(e) => e.target.select()}
                           onChange={(e) => {
                             const updated = [...rows];
-                            updated[idx].mrp = parseFloat(e.target.value) || 0;
+                            updated[idx].mrp = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                             setRows(updated);
                           }}
-                          className="w-20 px-2 py-1 border border-slate-300 rounded font-mono text-right focus:outline-none focus:border-sky-500"
+                          className="w-20 px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-right text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                         />
                       </td>
                       <td className="py-2 px-3 text-center">
-                        {rows.length > 1 && (
-                          <button
-                            onClick={() => removeRow(idx)}
-                            className="p-1 text-red-500 hover:text-red-700 transition"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeRow(idx)}
+                          className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </td>
                     </tr>
                   ))}

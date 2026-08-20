@@ -38,7 +38,8 @@ import { formatCurrency, generateWhatsAppInvoiceUrl, formatDate } from '@medical
 
 export default function PosPage() {
   const queryClient = useQueryClient();
-  const { user, selectedBranchId } = useAuthStore();
+  const { user, selectedBranchId, isSuperAdmin, hasPermission } = useAuthStore();
+  const canEditRate = isSuperAdmin() || hasPermission('sale.edit') || hasPermission('price.override');
   const cart = useCartStore();
 
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -60,6 +61,12 @@ export default function PosPage() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showSplitPaymentModal, setShowSplitPaymentModal] = useState(false);
+
+  // Split Payment Rows
+  const [splitPaymentRows, setSplitPaymentRows] = useState<{ mode: PaymentMode; amount: number; ref?: string }[]>([
+    { mode: PaymentMode.CASH, amount: 0 },
+    { mode: PaymentMode.UPI, amount: 0 },
+  ]);
 
   // Shift Forms
   const [openingCashInput, setOpeningCashInput] = useState('1000');
@@ -240,6 +247,7 @@ export default function PosPage() {
 
       const scanData = res.data?.data || res.data;
       if (scanData?.medicine) {
+        const rate = Number(scanData.fefoBatch?.sellingPrice ?? scanData.medicine.defaultSellingPrice);
         cart.scanBarcodeItem({
           medicineId: scanData.medicine.id,
           name: scanData.medicine.name,
@@ -248,15 +256,18 @@ export default function PosPage() {
           barcode: scanData.medicine.barcode,
           hsnCode: scanData.medicine.hsnCode,
           qty: 1,
-          rate: scanData.fefoBatch?.sellingPrice ?? scanData.medicine.defaultSellingPrice,
-          mrp: scanData.fefoBatch?.mrp ?? scanData.medicine.mrp,
+          baseRate: rate,
+          rate,
+          mrp: Number(scanData.fefoBatch?.mrp ?? scanData.medicine.mrp),
           batchId: scanData.fefoBatch?.id,
           batchNumber: scanData.fefoBatch?.batchNumber,
           expiryDate: scanData.fefoBatch?.expiryDate ? formatDate(scanData.fefoBatch.expiryDate, 'MM/YY') : undefined,
-          taxPercent: scanData.fefoBatch?.taxPercent ?? scanData.medicine.taxPercent,
+          taxPercent: Number(scanData.fefoBatch?.taxPercent ?? scanData.medicine.taxPercent),
           discountPercent: 0,
-          unit: scanData.medicine.baseUnit,
+          unit: scanData.medicine.baseUnit || 'PCS',
           unitLevel: 'TABLET',
+          stripsPerBox: scanData.medicine.stripsPerBox || 10,
+          tabletsPerStrip: scanData.medicine.tabletsPerStrip || 10,
           availableStock: scanData.availableStock,
           prescriptionRequired: scanData.medicine.prescriptionRequired,
           drugSchedule: scanData.medicine.drugSchedule,
@@ -272,6 +283,7 @@ export default function PosPage() {
   };
 
   const handleAddSearchResult = (med: any) => {
+    const rate = Number(med.fefoBatch?.sellingPrice ?? med.defaultSellingPrice);
     cart.addItem({
       medicineId: med.id,
       name: med.name,
@@ -280,15 +292,18 @@ export default function PosPage() {
       barcode: med.barcode,
       hsnCode: med.hsnCode,
       qty: 1,
-      rate: med.fefoBatch?.sellingPrice ?? med.defaultSellingPrice,
-      mrp: med.fefoBatch?.mrp ?? med.mrp,
+      baseRate: rate,
+      rate,
+      mrp: Number(med.fefoBatch?.mrp ?? med.mrp),
       batchId: med.fefoBatch?.id,
       batchNumber: med.fefoBatch?.batchNumber,
       expiryDate: med.fefoBatch?.expiryDate ? formatDate(med.fefoBatch.expiryDate, 'MM/YY') : undefined,
-      taxPercent: med.fefoBatch?.taxPercent ?? med.taxPercent,
+      taxPercent: Number(med.fefoBatch?.taxPercent ?? med.taxPercent),
       discountPercent: 0,
-      unit: med.baseUnit,
+      unit: med.baseUnit || 'PCS',
       unitLevel: 'TABLET',
+      stripsPerBox: med.stripsPerBox || 10,
+      tabletsPerStrip: med.tabletsPerStrip || 10,
       availableStock: med.availableStock,
       prescriptionRequired: med.prescriptionRequired,
       drugSchedule: med.drugSchedule,
@@ -826,8 +841,26 @@ export default function PosPage() {
                             </div>
                           </td>
 
-                          <td className="py-2 px-3 text-right font-mono font-medium text-slate-800 dark:text-slate-200">
-                            ₹{Number(item.rate || 0).toFixed(2)}
+                          <td className="py-2 px-3 text-right">
+                            {canEditRate ? (
+                              <input
+                                type="number"
+                                step="0.01"
+                                placeholder="0"
+                                value={item.rate === 0 ? '' : item.rate}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                                  cart.updateItemRate(item.medicineId, val, item.batchId);
+                                }}
+                                className="w-20 px-1.5 py-0.5 text-right font-mono font-bold bg-sky-50 dark:bg-slate-900 border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 rounded text-xs focus:outline-none focus:ring-1 focus:ring-sky-500"
+                                title="Admin: Edit Rate on the fly"
+                              />
+                            ) : (
+                              <span className="font-mono font-medium text-slate-800 dark:text-slate-200">
+                                ₹{Number(item.rate || 0).toFixed(2)}
+                              </span>
+                            )}
                           </td>
 
                           <td className="py-2 px-3 text-center">
@@ -857,8 +890,13 @@ export default function PosPage() {
                               <input
                                 type="number"
                                 min="1"
-                                value={item.qty}
-                                onChange={(e) => cart.updateItemQty(item.medicineId, parseInt(e.target.value) || 1, item.batchId)}
+                                placeholder="1"
+                                value={item.qty === 0 ? '' : item.qty}
+                                onFocus={(e) => e.target.select()}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                                  cart.updateItemQty(item.medicineId, val, item.batchId);
+                                }}
                                 className="w-11 text-center font-mono font-bold text-slate-900 dark:text-white bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded py-0.5 text-xs focus:outline-none focus:border-sky-500"
                               />
                               <button
@@ -879,8 +917,13 @@ export default function PosPage() {
                               type="number"
                               min="0"
                               max="100"
-                              value={item.discountPercent}
-                              onChange={(e) => cart.updateItemDiscount(item.medicineId, parseFloat(e.target.value) || 0, item.batchId)}
+                              placeholder="0"
+                              value={item.discountPercent === 0 ? '' : item.discountPercent}
+                              onFocus={(e) => e.target.select()}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                                cart.updateItemDiscount(item.medicineId, val, item.batchId);
+                              }}
                               className="w-12 text-right bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded py-0.5 px-1 font-mono text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                             />
                           </td>
@@ -1324,6 +1367,130 @@ export default function PosPage() {
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal 3.5: Split Payment */}
+        {showSplitPaymentModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-md w-full p-6 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
+                  <CreditCard className="w-5 h-5" />
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Multi-Mode Split Payment</h3>
+                </div>
+                <button
+                  onClick={() => setShowSplitPaymentModal(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 flex justify-between items-center font-mono">
+                <span className="text-slate-600 dark:text-slate-400 text-xs font-sans">Total Bill Payable:</span>
+                <span className="text-lg font-bold text-slate-900 dark:text-white">
+                  ₹{cart.getGrandTotal().toFixed(2)}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                {splitPaymentRows.map((row, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <select
+                      value={row.mode}
+                      onChange={(e) => {
+                        const updated = [...splitPaymentRows];
+                        updated[idx].mode = e.target.value as PaymentMode;
+                        setSplitPaymentRows(updated);
+                      }}
+                      className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-900 dark:text-white"
+                    >
+                      <option value={PaymentMode.CASH}>Cash</option>
+                      <option value={PaymentMode.UPI}>UPI / QR</option>
+                      <option value={PaymentMode.CARD}>Card</option>
+                      <option value={PaymentMode.CREDIT}>Credit / Ledger</option>
+                    </select>
+
+                    <input
+                      type="number"
+                      step="0.01"
+                      placeholder="0"
+                      value={row.amount === 0 ? '' : row.amount}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const updated = [...splitPaymentRows];
+                        updated[idx].amount = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                        setSplitPaymentRows(updated);
+                      }}
+                      className="flex-1 px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono font-bold text-slate-900 dark:text-white"
+                    />
+
+                    {splitPaymentRows.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setSplitPaymentRows(splitPaymentRows.filter((_, i) => i !== idx))}
+                        className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/50 rounded-lg transition"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const allocated = splitPaymentRows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+                    const remaining = Math.max(0, Number((cart.getGrandTotal() - allocated).toFixed(2)));
+                    setSplitPaymentRows([...splitPaymentRows, { mode: PaymentMode.UPI, amount: remaining }]);
+                  }}
+                  className="text-xs text-sky-600 dark:text-sky-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  + Add Split Payment Row
+                </button>
+              </div>
+
+              <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                <div className="text-xs">
+                  <span className="text-slate-500">Allocated: </span>
+                  <strong className={`font-mono ${
+                    Math.abs(splitPaymentRows.reduce((sum, r) => sum + Number(r.amount || 0), 0) - cart.getGrandTotal()) < 0.05
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    ₹{splitPaymentRows.reduce((sum, r) => sum + Number(r.amount || 0), 0).toFixed(2)}
+                  </strong>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowSplitPaymentModal(false)}
+                    className="px-3.5 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allocated = splitPaymentRows.reduce((sum, r) => sum + Number(r.amount || 0), 0);
+                      const grand = cart.getGrandTotal();
+                      if (Math.abs(allocated - grand) > 0.05) {
+                        alert(`Split amount total (₹${allocated.toFixed(2)}) must equal Total Bill (₹${grand.toFixed(2)})`);
+                        return;
+                      }
+                      cart.setPayments(splitPaymentRows.map((r) => ({ paymentMode: r.mode, amount: Number(r.amount) })));
+                      setShowSplitPaymentModal(false);
+                      alert('Split payment configured successfully.');
+                    }}
+                    className="px-4 py-1.5 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl shadow cursor-pointer transition"
+                  >
+                    Apply Split
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -30,6 +30,9 @@ export interface CartItem {
   expiryDate?: string;
   unit: string;
   unitLevel?: string; // 'BOX' | 'STRIP' | 'TABLET'
+  baseRate: number;
+  stripsPerBox?: number;
+  tabletsPerStrip?: number;
   qty: number;
   rate: number;
   mrp: number;
@@ -100,6 +103,12 @@ interface CartState {
   getChangeAmount: () => number;
 }
 
+function getUnitMultiplier(unitLevel?: string, stripsPerBox = 10, tabletsPerStrip = 10): number {
+  if (unitLevel === 'STRIP') return tabletsPerStrip || 10;
+  if (unitLevel === 'BOX') return (stripsPerBox || 10) * (tabletsPerStrip || 10);
+  return 1; // TABLET / PIECE / BASE
+}
+
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   customer: null,
@@ -125,6 +134,10 @@ export const useCartStore = create<CartState>((set, get) => ({
       (i) => i.medicineId === item.medicineId && i.batchId === item.batchId
     );
 
+    const baseRate = item.baseRate || item.rate;
+    const multiplier = getUnitMultiplier(item.unitLevel, item.stripsPerBox, item.tabletsPerStrip);
+    const rate = item.rate || Number((baseRate * multiplier).toFixed(2));
+
     let updatedItems: CartItem[];
 
     if (existingIndex > -1) {
@@ -147,11 +160,20 @@ export const useCartStore = create<CartState>((set, get) => ({
     } else {
       const line = calculateDetailedLineTotal(
         item.qty || 1,
-        item.rate,
+        rate,
         item.discountPercent || 0,
         item.taxPercent || 0
       );
-      updatedItems = [...items, { ...item, lineTotal: line.lineTotal }];
+      updatedItems = [
+        ...items,
+        {
+          ...item,
+          baseRate,
+          rate,
+          unitLevel: item.unitLevel || 'TABLET',
+          lineTotal: line.lineTotal,
+        },
+      ];
       set({ selectedItemIndex: updatedItems.length - 1 });
     }
 
@@ -165,7 +187,6 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   scanBarcodeItem: (item) => {
     const { items } = get();
-    // Check if matching medicine (or barcode) is already in cart
     const existingIndex = items.findIndex(
       (i) => i.medicineId === item.medicineId && (item.batchId ? i.batchId === item.batchId : true)
     );
@@ -247,10 +268,13 @@ export const useCartStore = create<CartState>((set, get) => ({
   switchItemBatch: (medicineId, oldBatchId, newBatch) => {
     const items = get().items.map((item) => {
       if (item.medicineId === medicineId && (!oldBatchId || item.batchId === oldBatchId)) {
-        const rate = newBatch.sellingPrice || item.rate;
+        const baseRate = newBatch.sellingPrice || item.baseRate || item.rate;
+        const mult = getUnitMultiplier(item.unitLevel, item.stripsPerBox, item.tabletsPerStrip);
+        const rate = Number((baseRate * mult).toFixed(2));
         const line = calculateDetailedLineTotal(item.qty, rate, item.discountPercent, newBatch.taxPercent || item.taxPercent);
         return {
           ...item,
+          baseRate,
           batchId: newBatch.id,
           batchNumber: newBatch.batchNumber,
           expiryDate: typeof newBatch.expiryDate === 'string' ? newBatch.expiryDate : new Date(newBatch.expiryDate).toISOString().slice(0, 10),
@@ -291,8 +315,10 @@ export const useCartStore = create<CartState>((set, get) => ({
   updateItemRate: (medicineId, rate, batchId) => {
     const items = get().items.map((item) => {
       if (item.medicineId === medicineId && (!batchId || item.batchId === batchId)) {
+        const mult = getUnitMultiplier(item.unitLevel, item.stripsPerBox, item.tabletsPerStrip);
+        const baseRate = mult > 0 ? Number((rate / mult).toFixed(2)) : rate;
         const line = calculateDetailedLineTotal(item.qty, rate, item.discountPercent, item.taxPercent);
-        return { ...item, rate, lineTotal: line.lineTotal };
+        return { ...item, rate, baseRate, lineTotal: line.lineTotal };
       }
       return item;
     });
@@ -308,19 +334,29 @@ export const useCartStore = create<CartState>((set, get) => ({
   updateItemUnitLevel: (medicineId, unitLevel, batchId) => {
     const items = get().items.map((item) => {
       if (item.medicineId === medicineId && (!batchId || item.batchId === batchId)) {
-        return { ...item, unitLevel };
+        const mult = getUnitMultiplier(unitLevel, item.stripsPerBox, item.tabletsPerStrip);
+        const baseRate = item.baseRate || item.rate;
+        const rate = Number((baseRate * mult).toFixed(2));
+        const line = calculateDetailedLineTotal(item.qty, rate, item.discountPercent, item.taxPercent);
+        return { ...item, unitLevel, rate, lineTotal: line.lineTotal };
       }
       return item;
     });
 
     set({ items });
+    const total = get().getGrandTotal();
+    set({
+      payments: [{ paymentMode: PaymentMode.CASH, amount: total }],
+      receivedCash: total,
+    });
   },
 
   removeItem: (medicineId, batchId) => {
     const items = get().items.filter(
       (item) => !(item.medicineId === medicineId && (!batchId || item.batchId === batchId))
     );
-    set({ items, selectedItemIndex: Math.max(0, items.length - 1) });
+    const selectedItemIndex = Math.min(get().selectedItemIndex, Math.max(0, items.length - 1));
+    set({ items, selectedItemIndex });
     const total = get().getGrandTotal();
     set({
       payments: [{ paymentMode: PaymentMode.CASH, amount: total }],
@@ -330,10 +366,9 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   removeSelectedItem: () => {
     const { items, selectedItemIndex } = get();
-    if (items[selectedItemIndex]) {
-      const item = items[selectedItemIndex];
-      get().removeItem(item.medicineId, item.batchId);
-    }
+    if (items.length === 0 || !items[selectedItemIndex]) return;
+    const target = items[selectedItemIndex]!;
+    get().removeItem(target.medicineId, target.batchId);
   },
 
   clearCart: () => {
@@ -359,68 +394,70 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
   setPaperWidth: (paperWidth) => set({ paperWidth }),
   setNotes: (notes) => set({ notes }),
-  setPayments: (payments) => set({ payments }),
-  setReceivedCash: (receivedCash) => set({ receivedCash }),
-  setSelectedItemIndex: (selectedItemIndex) => set({ selectedItemIndex }),
+
+  setPayments: (payments) => {
+    set({ payments });
+  },
 
   addPayment: (payment) => {
     set({ payments: [...get().payments, payment] });
   },
 
   removePayment: (index) => {
-    const payments = get().payments.filter((_, i) => i !== index);
+    const payments = get().payments.filter((_, idx) => idx !== index);
     set({ payments });
   },
 
+  setReceivedCash: (receivedCash) => set({ receivedCash }),
+  setSelectedItemIndex: (selectedItemIndex) => set({ selectedItemIndex }),
+
+  // Computed Totals
   getSubtotal: () => {
-    return roundToDecimals(
-      get().items.reduce((sum, item) => sum + item.qty * item.rate, 0)
-    );
+    const total = get().items.reduce((sum, item) => sum + item.qty * item.rate, 0);
+    return roundToDecimals(total);
   },
 
   getDiscountTotal: () => {
-    const { items, invoiceDiscountPercent } = get();
-    const itemDiscounts = items.reduce((sum, item) => {
-      const line = calculateDetailedLineTotal(item.qty, item.rate, item.discountPercent, item.taxPercent);
-      return sum + line.discountAmount;
-    }, 0);
-
-    const subtotal = get().getSubtotal();
-    const invoiceDiscount = (subtotal * invoiceDiscountPercent) / 100;
-    return roundToDecimals(itemDiscounts + invoiceDiscount);
+    const itemDisc = get().items.reduce(
+      (sum, item) => sum + (item.qty * item.rate * item.discountPercent) / 100,
+      0
+    );
+    const sub = get().getSubtotal();
+    const invDisc = (sub * get().invoiceDiscountPercent) / 100;
+    return roundToDecimals(itemDisc + invDisc);
   },
 
   getTaxTotal: () => {
-    return roundToDecimals(
-      get().items.reduce((sum, item) => {
-        const line = calculateDetailedLineTotal(item.qty, item.rate, item.discountPercent, item.taxPercent);
-        return sum + line.taxAmount;
-      }, 0)
-    );
+    const total = get().items.reduce((sum, item) => {
+      const taxable = item.qty * item.rate * (1 - item.discountPercent / 100);
+      return sum + (taxable * item.taxPercent) / 100;
+    }, 0);
+    return roundToDecimals(total);
   },
 
   getGrandTotal: () => {
-    const subtotal = get().getSubtotal();
-    const discount = get().getDiscountTotal();
-    const tax = get().getTaxTotal();
-    return roundToDecimals(Math.max(0, subtotal - discount + tax));
+    const itemsTotal = get().items.reduce((sum, item) => sum + item.lineTotal, 0);
+    if (get().invoiceDiscountPercent > 0) {
+      const invDisc = (itemsTotal * get().invoiceDiscountPercent) / 100;
+      return Math.max(0, roundToDecimals(itemsTotal - invDisc));
+    }
+    return roundToDecimals(itemsTotal);
   },
 
   getTotalPaid: () => {
-    return roundToDecimals(
-      get().payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
-    );
+    const total = get().payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    return roundToDecimals(total);
   },
 
   getBalanceDue: () => {
     const grand = get().getGrandTotal();
     const paid = get().getTotalPaid();
-    return roundToDecimals(Math.max(0, grand - paid));
+    return Math.max(0, roundToDecimals(grand - paid));
   },
 
   getChangeAmount: () => {
     const grand = get().getGrandTotal();
-    const cash = get().receivedCash;
-    return calculateCashChange(grand, cash).changeAmount;
+    const received = get().receivedCash || 0;
+    return Math.max(0, roundToDecimals(received - grand));
   },
 }));

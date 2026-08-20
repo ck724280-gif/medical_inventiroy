@@ -62,4 +62,14 @@ export class InventoryController {
   ) {
     return this.inventoryService.receiveTransfer(id, userId);
   }
+
+  @Post('opening-stock')
+  @RequirePermissions('inventory.adjust')
+  @Auditable('import_opening_stock', 'Inventory')
+  async importOpeningStock(
+    @Body() dto: any,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.inventoryService.importOpeningStock(dto, userId);
+  }
 }

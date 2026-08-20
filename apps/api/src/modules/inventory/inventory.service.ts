@@ -394,4 +394,140 @@ export class InventoryService {
       });
     });
   }
+
+  async importOpeningStock(dto: { branchId?: string; items: any[] }, userId?: string) {
+    if (!dto.items || !Array.isArray(dto.items) || dto.items.length === 0) {
+      throw new BadRequestException('No items provided for opening stock migration');
+    }
+
+    let branchId = dto.branchId;
+    if (!branchId) {
+      const defaultBranch = await this.prisma.branch.findFirst({ where: { isActive: true } });
+      branchId = defaultBranch?.id || (await this.prisma.branch.findFirst())?.id;
+    }
+
+    if (!branchId) {
+      throw new BadRequestException('No active branch found');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      let defaultUnit = await tx.unit.findFirst({ where: { name: 'TABLET' } });
+      if (!defaultUnit) {
+        defaultUnit = (await tx.unit.findFirst()) || (await tx.unit.create({
+          data: { name: 'TABLET', abbreviation: 'TAB' }
+        }));
+      }
+
+      let defaultCategory = await tx.medicineCategory.findFirst();
+      if (!defaultCategory) {
+        defaultCategory = await tx.medicineCategory.create({
+          data: { name: 'General Medicines' }
+        });
+      }
+
+      let createdCount = 0;
+
+      for (const item of dto.items) {
+        const name = (item.medicineName || item.name || '').trim();
+        if (!name) continue;
+
+        let medicine = await tx.medicine.findFirst({
+          where: {
+            OR: [
+              { name: { equals: name, mode: 'insensitive' } },
+              item.sku ? { sku: item.sku } : { id: '__none__' }
+            ]
+          }
+        });
+
+        const purchasePrice = Number(item.purchasePrice) || 0;
+        const sellingPrice = Number(item.sellingPrice) || Number(item.mrp) || 0;
+        const mrp = Number(item.mrp) || sellingPrice || 0;
+        const qty = Number(item.qty) || 0;
+
+        if (!medicine) {
+          medicine = await tx.medicine.create({
+            data: {
+              name,
+              sku: item.sku || `SKU-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`,
+              categoryId: defaultCategory.id,
+              baseUnitId: defaultUnit.id,
+              defaultPurchasePrice: purchasePrice,
+              defaultSellingPrice: sellingPrice,
+              mrp,
+              taxPercent: Number(item.taxPercent) || 12,
+              isActive: true,
+            },
+          });
+        }
+
+        const batchNumber = (item.batchNumber || `OPN-${Date.now().toString(36).toUpperCase()}`).trim();
+        let expiryDate: Date;
+        if (item.expiryDate) {
+          const parsed = new Date(item.expiryDate);
+          expiryDate = isNaN(parsed.getTime()) ? new Date(Date.now() + 365 * 24 * 3600 * 1000) : parsed;
+        } else {
+          expiryDate = new Date(Date.now() + 365 * 24 * 3600 * 1000);
+        }
+
+        let batch = await tx.batch.findUnique({
+          where: {
+            medicineId_branchId_batchNumber: {
+              medicineId: medicine.id,
+              branchId,
+              batchNumber,
+            },
+          },
+        });
+
+        if (batch) {
+          await tx.batch.update({
+            where: { id: batch.id },
+            data: {
+              currentQty: { increment: qty },
+              purchasePrice: purchasePrice || batch.purchasePrice,
+              sellingPrice: sellingPrice || batch.sellingPrice,
+              mrp: mrp || batch.mrp,
+            },
+          });
+        } else {
+          batch = await tx.batch.create({
+            data: {
+              medicineId: medicine.id,
+              branchId,
+              batchNumber,
+              mfgDate: new Date(),
+              expiryDate,
+              purchasePrice,
+              sellingPrice,
+              mrp,
+              taxPercent: Number(item.taxPercent) || 12,
+              initialQty: qty,
+              currentQty: qty,
+              status: 'ACTIVE',
+            },
+          });
+        }
+
+        if (qty > 0) {
+          await tx.stockMovement.create({
+            data: {
+              branchId,
+              medicineId: medicine.id,
+              batchId: batch.id,
+              qty,
+              direction: MovementDirection.IN,
+              type: StockMovementType.OPENING_STOCK,
+              reason: 'Opening stock import / migration',
+              userId,
+            }
+          });
+        }
+
+        createdCount++;
+      }
+
+      return { success: true, createdCount };
+    });
+  }
 }
