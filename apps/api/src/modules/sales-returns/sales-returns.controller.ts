@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -35,5 +37,22 @@ export class SalesReturnsController {
     @CurrentUser('id') userId: string
   ) {
     return this.salesReturnsService.create(dto, userId);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('sale.return')
+  @Auditable('edit_sales_return', 'SalesReturn')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: any
+  ) {
+    return this.salesReturnsService.updateSalesReturn(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('sale.return')
+  @Auditable('delete_sales_return', 'SalesReturn')
+  async remove(@Param('id') id: string) {
+    return this.salesReturnsService.deleteSalesReturn(id);
   }
 }

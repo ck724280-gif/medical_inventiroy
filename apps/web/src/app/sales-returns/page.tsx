@@ -9,6 +9,12 @@ import {
   ArrowDownLeft,
   X,
   FileSpreadsheet,
+  Edit,
+  Trash2,
+  Save,
+  Calendar,
+  CreditCard,
+  FileText,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
@@ -20,13 +26,21 @@ import { formatDate, formatCurrency } from '@medical-inventory/shared-utils';
 
 export default function SalesReturnsPage() {
   const queryClient = useQueryClient();
-  const { selectedBranchId } = useAuthStore();
+  const { selectedBranchId, isSuperAdmin } = useAuthStore();
   const [showModal, setShowModal] = useState(false);
   const [invoiceLookup, setInvoiceLookup] = useState('');
   const [loadedInvoice, setLoadedInvoice] = useState<any | null>(null);
   const [returnItems, setReturnItems] = useState<any[]>([]);
 
-  const { data: returnsData, isLoading } = useQuery({
+  // Edit State
+  const [editingReturn, setEditingReturn] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    refundMode: 'CASH',
+    notes: '',
+    createdAt: '',
+  });
+
+  const { data: returnsData, isLoading, refetch } = useQuery({
     queryKey: ['sales-returns-list', selectedBranchId],
     queryFn: async () => {
       const res = await apiClient.get('/sales-returns', {
@@ -88,11 +102,52 @@ export default function SalesReturnsPage() {
       setLoadedInvoice(null);
       setReturnItems([]);
       setInvoiceLookup('');
+      refetch();
     },
     onError: (err: any) => {
       alert(err.response?.data?.message || err.message || 'Failed to process return');
     },
   });
+
+  const startEdit = (ret: any) => {
+    setEditingReturn(ret);
+    const localDate = new Date(ret.createdAt);
+    const tzOffset = localDate.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(localDate.getTime() - tzOffset).toISOString().slice(0, 16);
+
+    setEditForm({
+      refundMode: ret.refundMode || 'CASH',
+      notes: ret.notes || '',
+      createdAt: localISOTime,
+    });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiClient.patch(`/sales-returns/${editingReturn.id}`, editForm);
+      setEditingReturn(null);
+      refetch();
+      alert('Return record updated successfully.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update return record.');
+    }
+  };
+
+  const handleDeleteReturn = async (id: string, returnNum: string) => {
+    if (!confirm(`Warning: Are you sure you want to delete/cancel Sales Return ${returnNum}?\n\nThis will reverse the batch stock quantities (deduct returned stock) and adjust customer balance credits. This action is irreversible.`)) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/sales-returns/${id}`);
+      refetch();
+      alert('Return record deleted and stock reversed successfully.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete return record.');
+    }
+  };
+
+  const isUserSuperAdmin = isSuperAdmin();
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
@@ -131,18 +186,19 @@ export default function SalesReturnsPage() {
                     <th className="py-3 px-4">Customer</th>
                     <th className="py-3 px-4 text-right">Refund Amount</th>
                     <th className="py-3 px-4 text-center">Status</th>
+                    <th className="py-3 px-4 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                      <td colSpan={7} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         Loading returns...
                       </td>
                     </tr>
                   ) : returns.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                      <td colSpan={7} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         No returns processed yet.
                       </td>
                     </tr>
@@ -161,6 +217,28 @@ export default function SalesReturnsPage() {
                             {r.status}
                           </span>
                         </td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            {isUserSuperAdmin && (
+                              <>
+                                <button
+                                  onClick={() => startEdit(r)}
+                                  title="Edit Return Record"
+                                  className="p-1.5 bg-amber-50 dark:bg-slate-800 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-slate-700 rounded-lg transition"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteReturn(r.id, r.returnNumber)}
+                                  title="Delete/Cancel Return"
+                                  className="p-1.5 bg-red-50 dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-slate-700 rounded-lg transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -173,10 +251,10 @@ export default function SalesReturnsPage() {
         {/* Process Return Modal */}
         {showModal && (
           <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 text-xs">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <h3 className="font-bold text-sm text-slate-900">Process Sales Return</h3>
-                <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-600">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full p-6 space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Process Sales Return</h3>
+                <button onClick={() => setShowModal(false)} className="p-1 text-slate-400 hover:text-slate-650">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -188,7 +266,7 @@ export default function SalesReturnsPage() {
                   placeholder="Enter Invoice Number (e.g. INV-000125)..."
                   value={invoiceLookup}
                   onChange={(e) => setInvoiceLookup(e.target.value)}
-                  className="flex-1 px-3 py-2 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-sky-500"
+                  className="flex-1 px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                 />
                 <button
                   type="button"
@@ -201,26 +279,26 @@ export default function SalesReturnsPage() {
 
               {loadedInvoice && (
                 <div className="space-y-3 pt-2">
-                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <p className="font-semibold text-slate-800">
+                  <div className="bg-slate-50 dark:bg-[#090d16] p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">
                       Invoice: {loadedInvoice.invoiceNumber} | Total: ₹{Number(loadedInvoice.totalAmount || 0).toFixed(2)}
                     </p>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-slate-550 dark:text-slate-400">
                       Customer: {loadedInvoice.customer?.name || 'Walk-in'} | Date: {formatDate(loadedInvoice.createdAt)}
                     </p>
                   </div>
 
-                  <div className="space-y-2">
-                    <label className="font-bold text-slate-700 block">Select Items to Return:</label>
+                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block">Select Items to Return:</label>
                     {returnItems.map((item, idx) => (
-                      <div key={idx} className="p-3 bg-white border border-slate-200 rounded-xl grid grid-cols-12 gap-2 items-center">
+                      <div key={idx} className="p-3 bg-white dark:bg-[#0d1322] border border-slate-200 dark:border-slate-800 rounded-xl grid grid-cols-12 gap-2 items-center">
                         <div className="col-span-4">
-                          <p className="font-bold text-slate-900 truncate">{item.name}</p>
-                          <p className="text-[10px] text-slate-500">Batch: {item.batchNumber} (Sold: {item.soldQty})</p>
+                          <p className="font-bold text-slate-900 dark:text-white truncate">{item.name}</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">Batch: {item.batchNumber} (Sold: {item.soldQty})</p>
                         </div>
 
                         <div className="col-span-2">
-                          <label className="text-[10px] text-slate-400 block">Return Qty</label>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Return Qty</label>
                           <input
                             type="number" onFocus={(e) => e.target.select()}
                             min="0"
@@ -231,12 +309,12 @@ export default function SalesReturnsPage() {
                               updated[idx].returnQty = parseInt(e.target.value) || 0;
                               setReturnItems(updated);
                             }}
-                            className="w-full px-2 py-1 border border-slate-300 rounded-lg text-center font-mono font-bold"
+                            className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-350 dark:border-slate-850 rounded-lg text-center font-mono font-bold text-slate-900 dark:text-white"
                           />
                         </div>
 
                         <div className="col-span-3">
-                          <label className="text-[10px] text-slate-400 block">Condition</label>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Condition</label>
                           <select
                             value={item.condition}
                             onChange={(e) => {
@@ -244,7 +322,7 @@ export default function SalesReturnsPage() {
                               updated[idx].condition = e.target.value;
                               setReturnItems(updated);
                             }}
-                            className="w-full px-2 py-1 border border-slate-300 rounded-lg text-[11px]"
+                            className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-350 dark:border-slate-850 rounded-lg text-[11px] text-slate-900 dark:text-white"
                           >
                             <option value={ReturnCondition.RESALABLE}>Resalable</option>
                             <option value={ReturnCondition.DAMAGED}>Damaged</option>
@@ -253,7 +331,7 @@ export default function SalesReturnsPage() {
                         </div>
 
                         <div className="col-span-3">
-                          <label className="text-[10px] text-slate-400 block">Reason</label>
+                          <label className="text-[10px] text-slate-400 block mb-0.5">Reason</label>
                           <input
                             type="text"
                             value={item.reason}
@@ -262,18 +340,18 @@ export default function SalesReturnsPage() {
                               updated[idx].reason = e.target.value;
                               setReturnItems(updated);
                             }}
-                            className="w-full px-2 py-1 border border-slate-300 rounded-lg text-[11px]"
+                            className="w-full px-2 py-1 bg-slate-50 dark:bg-slate-950 border border-slate-350 dark:border-slate-850 rounded-lg text-[11px] text-slate-900 dark:text-white"
                           />
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="pt-3 flex justify-end gap-2 border-t border-slate-200">
+                  <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
                     <button
                       type="button"
                       onClick={() => setShowModal(false)}
-                      className="px-4 py-2 border border-slate-300 rounded-xl font-semibold text-slate-600"
+                      className="px-4 py-2 border border-slate-300 dark:border-slate-800 rounded-xl font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900"
                     >
                       Cancel
                     </button>
@@ -288,6 +366,91 @@ export default function SalesReturnsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Edit Return Modal */}
+        {editingReturn && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] max-w-md w-full p-6 space-y-4 shadow-2xl text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
+                  <Edit className="w-5 h-5" />
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                    Edit Return Record {editingReturn.returnNumber}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setEditingReturn(null)}
+                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                {/* Date Selection */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" /> Return Date &amp; Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={editForm.createdAt}
+                    onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono transition"
+                  />
+                </div>
+
+                {/* Refund Mode Selection */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                    <CreditCard className="w-3.5 h-3.5" /> Refund Mode
+                  </label>
+                  <select
+                    value={editForm.refundMode}
+                    onChange={(e) => setEditForm({ ...editForm, refundMode: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 transition"
+                  >
+                    <option value="CASH">CASH</option>
+                    <option value="UPI">UPI</option>
+                    <option value="CARD">CARD</option>
+                    <option value="CREDIT">CREDIT NOTE / LEDGER BAL</option>
+                  </select>
+                </div>
+
+                {/* Notes/Remarks */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" /> Remarks / Reason
+                  </label>
+                  <textarea
+                    placeholder="Add return audit remarks..."
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    rows={3}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 transition resize-none"
+                  />
+                </div>
+
+                {/* Confirm actions */}
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingReturn(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg flex items-center gap-1.5 transition"
+                  >
+                    <Save className="w-4 h-4" /> Save Changes
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

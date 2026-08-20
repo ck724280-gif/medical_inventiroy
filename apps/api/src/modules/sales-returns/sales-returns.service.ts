@@ -9,6 +9,7 @@ import {
   StockMovementType,
   MovementDirection,
   PaymentMode,
+  SaleStatus,
 } from '@medical-inventory/shared-types';
 import { formatReturnNumber } from '@medical-inventory/shared-utils';
 
@@ -222,5 +223,132 @@ export class SalesReturnsService {
 
       return salesReturn;
     });
+  }
+
+  async deleteSalesReturn(id: string) {
+    const returnRecord = await this.prisma.salesReturn.findUnique({
+      where: { id },
+      include: {
+        items: true,
+      },
+    });
+
+    if (!returnRecord) {
+      throw new NotFoundException(`Sales return with ID ${id} not found`);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Reverse Batch quantity adjustments
+      for (const item of returnRecord.items) {
+        if (item.condition === ReturnCondition.RESALABLE) {
+          await tx.batch.update({
+            where: { id: item.batchId },
+            data: { currentQty: { decrement: item.returnQty } },
+          });
+        } else if (item.condition === ReturnCondition.DAMAGED) {
+          await tx.batch.update({
+            where: { id: item.batchId },
+            data: { damagedQty: { decrement: item.returnQty } },
+          });
+        } else if (item.condition === ReturnCondition.EXPIRED) {
+          await tx.batch.update({
+            where: { id: item.batchId },
+            data: { expiredQty: { decrement: item.returnQty } },
+          });
+        }
+
+        // Also add a correction movement log
+        await tx.stockMovement.create({
+          data: {
+            branchId: returnRecord.branchId,
+            medicineId: item.medicineId,
+            batchId: item.batchId,
+            qty: item.returnQty,
+            direction: MovementDirection.OUT,
+            type: StockMovementType.ADJUSTMENT,
+            userId: returnRecord.createdByUserId,
+            reason: `Sales Return #${returnRecord.returnNumber} cancelled. Restored.`,
+          },
+        });
+      }
+
+      // 2. Reverse Customer ledger adjustments if credit refund was applied
+      if (returnRecord.customerId && returnRecord.refundMode === PaymentMode.CREDIT) {
+        await tx.customer.update({
+          where: { id: returnRecord.customerId },
+          data: {
+            currentBalance: {
+              increment: Number(returnRecord.refundAmount),
+            },
+          },
+        });
+      }
+
+      // 3. Update original Sales Invoice status back to PAID or COMPLETED
+      await tx.salesInvoice.update({
+        where: { id: returnRecord.salesInvoiceId },
+        data: { status: SaleStatus.PAID },
+      });
+
+      // 4. Delete stock movements
+      await tx.stockMovement.deleteMany({
+        where: { referenceType: 'SalesReturn', referenceId: id },
+      });
+
+      // 5. Delete sales return items
+      await tx.salesReturnItem.deleteMany({
+        where: { salesReturnId: id },
+      });
+
+      // 6. Delete sales return
+      await tx.salesReturn.delete({
+        where: { id },
+      });
+    });
+
+    return { success: true, message: `Sales Return #${returnRecord.returnNumber} successfully cancelled/deleted.` };
+  }
+
+  async updateSalesReturn(id: string, dto: any) {
+    const returnRecord = await this.prisma.salesReturn.findUnique({
+      where: { id },
+    });
+
+    if (!returnRecord) {
+      throw new NotFoundException(`Sales return with ID ${id} not found`);
+    }
+
+    const updateData: any = {};
+    if (dto.notes !== undefined) updateData.notes = dto.notes;
+    if (dto.createdAt !== undefined) updateData.createdAt = new Date(dto.createdAt);
+    if (dto.refundMode !== undefined) updateData.refundMode = dto.refundMode;
+
+    await this.prisma.$transaction(async (tx) => {
+      // If refund mode changed to/from CREDIT, adjust customer balance
+      if (dto.refundMode !== undefined && dto.refundMode !== returnRecord.refundMode) {
+        if (returnRecord.customerId) {
+          if (dto.refundMode === PaymentMode.CREDIT) {
+            // New is credit: decrement customer balance (give back refund)
+            await tx.customer.update({
+              where: { id: returnRecord.customerId },
+              data: { currentBalance: { decrement: Number(returnRecord.refundAmount) } },
+            });
+          } else if (returnRecord.refundMode === PaymentMode.CREDIT) {
+            // Old was credit, new is not: reverse the credit decrement (increment balance)
+            await tx.customer.update({
+              where: { id: returnRecord.customerId },
+              data: { currentBalance: { increment: Number(returnRecord.refundAmount) } },
+            });
+          }
+        }
+      }
+
+      await tx.salesReturn.update({
+        where: { id },
+        data: updateData,
+      });
+    });
+
+    return this.findOne(id);
   }
 }
