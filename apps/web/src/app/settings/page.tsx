@@ -124,31 +124,31 @@ export default function SettingsPage() {
   });
 
   return (
-    <div className="flex h-screen bg-obsidian-950 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
-        <main className="p-6 max-w-7xl mx-auto w-full space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">System & Store Settings</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">System &amp; Store Settings</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Configure legal pharmacy licenses, white-label branding, thermal printer formats, and backups.
               </p>
             </div>
 
             {savedBanner && (
-              <div className="px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-1.5 animate-fade-in">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <div className="px-3.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 animate-fade-in">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 Settings saved successfully!
               </div>
             )}
           </div>
 
           {/* Settings Tabs */}
-          <div className="flex border-b border-slate-200 gap-2">
+          <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 overflow-x-auto">
             {[
               { id: 'business', label: 'Business Profile & Tax', icon: Building2 },
               { id: 'branding', label: 'White-Label Branding', icon: Palette },
@@ -162,10 +162,10 @@ export default function SettingsPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 ${
+                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 whitespace-nowrap ${
                     isActive
-                      ? 'bg-white text-sky-600 border-sky-600 shadow-sm'
-                      : 'text-slate-500 border-transparent hover:text-slate-800'
+                      ? 'bg-white dark:bg-[#0f172a] text-sky-600 dark:text-sky-400 border-sky-600 dark:border-sky-400 shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -177,7 +177,7 @@ export default function SettingsPage() {
 
           {/* TAB 1: Business Profile Form */}
           {activeTab === 'business' && businessData && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 max-w-3xl">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl p-6 max-w-3xl">
               <h3 className="font-bold text-sm text-slate-800 mb-4">Pharmacy Registration & Legal Info</h3>
               <form
                 onSubmit={(e: any) => {

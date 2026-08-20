@@ -7,12 +7,13 @@ import {
   AlertTriangle,
   Clock,
   ArrowUpDown,
-  Plus,
   Search,
-  Filter,
   CheckCircle2,
   XCircle,
   X,
+  Lock,
+  ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
@@ -24,7 +25,9 @@ import { formatDate, formatCurrency } from '@medical-inventory/shared-utils';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
-  const { selectedBranchId } = useAuthStore();
+  const { selectedBranchId, isSuperAdmin } = useAuthStore();
+  const canManage = isSuperAdmin();
+
   const [activeTab, setActiveTab] = useState<'batches' | 'expiry' | 'reorder' | 'movements'>('batches');
   const [search, setSearch] = useState('');
   const [adjustmentModal, setAdjustmentModal] = useState<any | null>(null);
@@ -92,10 +95,17 @@ export default function InventoryPage() {
       queryClient.invalidateQueries({ queryKey: ['inventory-movements'] });
       setAdjustmentModal(null);
     },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to adjust stock.');
+    },
   });
 
   const handleApplyAdjustment = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canManage) {
+      alert('Only Super Admin can adjust stock levels.');
+      return;
+    }
     if (!adjustmentModal || !selectedBranchId) return;
 
     adjustMutation.mutate({
@@ -115,26 +125,38 @@ export default function InventoryPage() {
   ];
 
   return (
-    <div className="flex h-screen bg-obsidian-950 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
-        <main className="p-6 max-w-7xl mx-auto w-full space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
+          {/* Header */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                Batch & Inventory Management
-              </h2>
-              <p className="text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
+                  Batch &amp; Inventory Management
+                </h2>
+                {canManage ? (
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-semibold flex items-center gap-1">
+                    <ShieldCheck className="w-3 h-3" /> Super Admin Access
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-mono text-[10px] font-medium flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> Read Only
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 FEFO-prioritized batch stock, expiry tracking, reorder points, and stock movements ledger.
               </p>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex border-b border-slate-200 gap-2">
+          <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2 overflow-x-auto">
             {[
               { id: 'batches', label: 'All Active Batches (FEFO)', icon: Boxes },
               { id: 'expiry', label: 'Expiry Dashboard', icon: Clock },
@@ -147,10 +169,10 @@ export default function InventoryPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 ${
+                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 whitespace-nowrap ${
                     isActive
-                      ? 'bg-white text-sky-600 border-sky-600 shadow-sm'
-                      : 'text-slate-500 border-transparent hover:text-slate-800'
+                      ? 'bg-white dark:bg-[#0f172a] text-sky-600 dark:text-sky-400 border-sky-600 dark:border-sky-400 shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -162,10 +184,10 @@ export default function InventoryPage() {
 
           {/* TAB 1: Batches Table */}
           {activeTab === 'batches' && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                  <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
                     <tr>
                       <th className="py-3 px-4">Medicine / SKU</th>
                       <th className="py-3 px-4 font-mono">Batch No</th>
@@ -177,57 +199,66 @@ export default function InventoryPage() {
                       <th className="py-3 px-4 text-center">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                     {batchesLoading ? (
                       <tr>
-                        <td colSpan={8} className="py-12 text-center text-slate-400">
+                        <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
                           Loading batch stock...
                         </td>
                       </tr>
                     ) : batches.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-12 text-center text-slate-400">
+                        <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
                           No active batches found in this branch.
                         </td>
                       </tr>
                     ) : (
                       batches.map((b: any) => (
-                        <tr key={b.id} className="hover:bg-slate-50 transition">
+                        <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                           <td className="py-3 px-4">
-                            <p className="font-bold text-slate-900">{b.medicine?.name}</p>
-                            <p className="text-[10px] text-slate-400 font-mono">{b.medicine?.sku}</p>
+                            <p className="font-bold text-slate-900 dark:text-white">{b.medicine?.name}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{b.medicine?.sku}</p>
                           </td>
-                          <td className="py-3 px-4 font-mono font-bold text-sky-800">{b.batchNumber}</td>
-                          <td className="py-3 px-4 font-mono text-slate-600">{formatDate(b.expiryDate)}</td>
-                          <td className="py-3 px-4 text-center font-mono font-bold text-slate-900">
-                            {b.currentQty} {b.medicine?.baseUnit?.abbreviation}
+                          <td className="py-3 px-4 font-mono font-bold text-sky-600 dark:text-sky-400">{b.batchNumber}</td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300 font-medium">
+                            {formatDate(b.expiryDate, 'dd-MM-yyyy')}
                           </td>
-                          <td className="py-3 px-4 text-right font-mono text-slate-600">
-                            {formatCurrency(b.purchasePrice)}
+                          <td className="py-3 px-4 text-center font-bold font-mono text-slate-900 dark:text-white">
+                            {b.currentQty} {b.medicine?.baseUnit?.abbreviation || 'PCS'}
                           </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
-                            {formatCurrency(b.sellingPrice)}
+                          <td className="py-3 px-4 text-right font-mono text-slate-600 dark:text-slate-400">
+                            {formatCurrency(b.purchaseRate || 0)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                            {formatCurrency(b.sellingPrice || 0)}
                           </td>
                           <td className="py-3 px-4 text-center">
                             <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                                 b.status === BatchStatus.ACTIVE
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : b.status === BatchStatus.EXPIRED
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-amber-100 text-amber-800'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                  : 'bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300'
                               }`}
                             >
                               {b.status}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-center">
-                            <button
-                              onClick={() => setAdjustmentModal(b)}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg text-[10px] transition"
-                            >
-                              Adjust Stock
-                            </button>
+                            {canManage ? (
+                              <button
+                                onClick={() => {
+                                  setAdjustmentModal(b);
+                                  setAdjustmentQty(b.currentQty);
+                                }}
+                                className="px-2.5 py-1 text-[11px] font-semibold text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-slate-800 rounded-lg transition"
+                              >
+                                Adjust Stock
+                              </button>
+                            ) : (
+                              <span className="text-slate-400 dark:text-slate-600 p-1" title="Super Admin restricted">
+                                <Lock className="w-3.5 h-3.5 opacity-50 mx-auto" />
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -239,221 +270,222 @@ export default function InventoryPage() {
           )}
 
           {/* TAB 2: Expiry Dashboard */}
-          {activeTab === 'expiry' && expiryData && (
-            <div className="grid grid-cols-3 gap-6">
-              {/* Expired */}
-              <div className="bg-white p-5 rounded-2xl border border-red-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-red-700 uppercase tracking-wide">Already Expired</span>
-                  <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-                </div>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {(Array.isArray(expiryData.expired) ? expiryData.expired : []).map((b: any) => (
-                    <div key={b.id} className="p-3 bg-red-50/50 rounded-xl border border-red-100 text-xs">
-                      <p className="font-bold text-slate-900">{b.medicine?.name}</p>
-                      <div className="flex justify-between font-mono text-[10px] text-slate-500 mt-1">
-                        <span>B: {b.batchNumber}</span>
-                        <span className="text-red-600 font-bold">{b.currentQty} units</span>
-                      </div>
+          {activeTab === 'expiry' && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-5 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-950/50 flex items-center justify-center text-red-600 dark:text-red-400">
+                      <XCircle className="w-5 h-5" />
                     </div>
-                  ))}
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Already Expired</p>
+                      <h3 className="text-2xl font-bold text-red-600 dark:text-red-400">
+                        {expiryData?.expiredCount || 0} Batches
+                      </h3>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Expiring in 30 days */}
-              <div className="bg-white p-5 rounded-2xl border border-amber-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-amber-700 uppercase tracking-wide">Expiring in 30 Days</span>
-                </div>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {(Array.isArray(expiryData.expiringIn30Days) ? expiryData.expiringIn30Days : []).map((b: any) => (
-                    <div key={b.id} className="p-3 bg-amber-50/50 rounded-xl border border-amber-100 text-xs">
-                      <p className="font-bold text-slate-900">{b.medicine?.name}</p>
-                      <div className="flex justify-between font-mono text-[10px] text-slate-500 mt-1">
-                        <span>B: {b.batchNumber}</span>
-                        <span className="text-amber-700 font-bold">{b.currentQty} units</span>
-                      </div>
+                <div className="p-5 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/50 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="w-5 h-5" />
                     </div>
-                  ))}
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Expiring in 30 Days</p>
+                      <h3 className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                        {expiryData?.expiring30DaysCount || 0} Batches
+                      </h3>
+                    </div>
+                  </div>
                 </div>
-              </div>
 
-              {/* Expiring in 90 days */}
-              <div className="bg-white p-5 rounded-2xl border border-sky-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-sky-700 uppercase tracking-wide">Expiring in 90 Days</span>
-                </div>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {(Array.isArray(expiryData.expiringIn90Days) ? expiryData.expiringIn90Days : []).map((b: any) => (
-                    <div key={b.id} className="p-3 bg-sky-50/50 rounded-xl border border-sky-100 text-xs">
-                      <p className="font-bold text-slate-900">{b.medicine?.name}</p>
-                      <div className="flex justify-between font-mono text-[10px] text-slate-500 mt-1">
-                        <span>B: {b.batchNumber}</span>
-                        <span className="text-sky-700 font-bold">{b.currentQty} units</span>
-                      </div>
+                <div className="p-5 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-sky-100 dark:bg-sky-950/50 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                      <Clock className="w-5 h-5" />
                     </div>
-                  ))}
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Expiring in 90 Days</p>
+                      <h3 className="text-2xl font-bold text-sky-600 dark:text-sky-400">
+                        {expiryData?.expiring90DaysCount || 0} Batches
+                      </h3>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
           {/* TAB 3: Reorder Suggestions */}
-          {activeTab === 'reorder' && reorderData && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-4">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="py-2.5 px-3">Medicine</th>
-                    <th className="py-2.5 px-3 text-center">Current Stock</th>
-                    <th className="py-2.5 px-3 text-center">Reorder Level</th>
-                    <th className="py-2.5 px-3 text-center">Suggested Reorder Qty</th>
-                    <th className="py-2.5 px-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {reorderList.map((item: any) => (
-                    <tr key={item.id} className="hover:bg-slate-50">
-                      <td className="py-3 px-3">
-                        <p className="font-bold text-slate-900">{item.name}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">{item.sku}</p>
-                      </td>
-                      <td className="py-3 px-3 text-center font-bold font-mono">
-                        {item.currentStock} {item.baseUnit?.abbreviation}
-                      </td>
-                      <td className="py-3 px-3 text-center font-mono">{item.reorderLevel}</td>
-                      <td className="py-3 px-3 text-center font-bold font-mono text-sky-700 bg-sky-50/50">
-                        +{item.suggestedReorderQty} {item.baseUnit?.abbreviation}
-                      </td>
-                      <td className="py-3 px-3">
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            item.currentStock === 0 ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'
-                          }`}
-                        >
-                          {item.currentStock === 0 ? 'Out of Stock' : 'Low Stock'}
-                        </span>
-                      </td>
+          {activeTab === 'reorder' && (
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-900 dark:text-white">
+                Low Stock &amp; Suggested Reorder Points
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs min-w-[600px]">
+                  <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase">
+                    <tr>
+                      <th className="py-3 px-4">Medicine</th>
+                      <th className="py-3 px-4 text-center">Current Total Stock</th>
+                      <th className="py-3 px-4 text-center">Min Threshold</th>
+                      <th className="py-3 px-4 text-center">Suggested PO Qty</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {reorderList.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-slate-400 dark:text-slate-500">
+                          All medicine stock levels are sufficient.
+                        </td>
+                      </tr>
+                    ) : (
+                      reorderList.map((item: any, idx: number) => (
+                        <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{item.name}</td>
+                          <td className="py-3 px-4 text-center font-mono font-bold text-red-600 dark:text-red-400">
+                            {item.totalStock}
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono text-slate-500 dark:text-slate-400">
+                            {item.minStock || 10}
+                          </td>
+                          <td className="py-3 px-4 text-center font-mono font-bold text-sky-600 dark:text-sky-400">
+                            {Math.max((item.minStock || 10) * 2 - item.totalStock, 10)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
-          {/* TAB 4: Movement Ledger */}
+          {/* TAB 4: Stock Movements Ledger */}
           {activeTab === 'movements' && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="py-3 px-4">Date & Time</th>
-                    <th className="py-3 px-4">Medicine</th>
-                    <th className="py-3 px-4">Batch</th>
-                    <th className="py-3 px-4 text-center">Type</th>
-                    <th className="py-3 px-4 text-center">Direction</th>
-                    <th className="py-3 px-4 text-right">Quantity</th>
-                    <th className="py-3 px-4">User</th>
-                    <th className="py-3 px-4">Reason</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {movements.map((m: any) => (
-                    <tr key={m.id} className="hover:bg-slate-50">
-                      <td className="py-2.5 px-4 font-mono text-slate-500">{formatDate(m.createdAt)}</td>
-                      <td className="py-2.5 px-4 font-bold text-slate-900">{m.medicine?.name}</td>
-                      <td className="py-2.5 px-4 font-mono">{m.batch?.batchNumber}</td>
-                      <td className="py-2.5 px-4 text-center">
-                        <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-mono text-[10px] font-semibold">
-                          {m.type}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-center font-bold">
-                        <span className={m.direction === 'IN' ? 'text-emerald-600' : 'text-red-600'}>
-                          {m.direction}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-4 text-right font-mono font-bold">{m.qty}</td>
-                      <td className="py-2.5 px-4 text-slate-600">
-                        {m.user?.firstName} {m.user?.lastName}
-                      </td>
-                      <td className="py-2.5 px-4 text-slate-500">{m.reason || '—'}</td>
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
+              <div className="p-4 border-b border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-900 dark:text-white">
+                Audit Trail &amp; Stock Movements Ledger
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                  <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase">
+                    <tr>
+                      <th className="py-3 px-4">Date &amp; Time</th>
+                      <th className="py-3 px-4">Medicine</th>
+                      <th className="py-3 px-4 font-mono">Batch</th>
+                      <th className="py-3 px-4 text-center">Type</th>
+                      <th className="py-3 px-4 text-right">Qty Change</th>
+                      <th className="py-3 px-4">Reason / Ref</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {movements.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-400 dark:text-slate-500">
+                          No stock movement history recorded yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      movements.map((m: any) => (
+                        <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="py-3 px-4 text-slate-500 dark:text-slate-400">
+                            {formatDate(m.createdAt, 'dd-MM-yy HH:mm')}
+                          </td>
+                          <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{m.medicine?.name}</td>
+                          <td className="py-3 px-4 font-mono text-sky-600 dark:text-sky-400">{m.batch?.batchNumber}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                              {m.movementType}
+                            </span>
+                          </td>
+                          <td
+                            className={`py-3 px-4 text-right font-mono font-bold ${
+                              m.qty > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                            }`}
+                          >
+                            {m.qty > 0 ? `+${m.qty}` : m.qty}
+                          </td>
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-400 truncate max-w-xs">
+                            {m.reason || m.referenceType || '—'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </main>
 
-        {/* Stock Adjustment Modal */}
-        {adjustmentModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-                <h3 className="font-bold text-sm text-slate-900">Adjust Batch Stock</h3>
-                <button onClick={() => setAdjustmentModal(null)} className="p-1 text-slate-400 hover:text-slate-600">
+        {/* Modal: Physical Stock Adjustment */}
+        {adjustmentModal && canManage && (
+          <div className="fixed inset-0 z-50 bg-black/60 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-700 max-w-md w-full p-6 space-y-4 text-xs shadow-2xl">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
+                  <Boxes className="w-5 h-5" />
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Adjust Physical Batch Stock</h3>
+                </div>
+                <button
+                  onClick={() => setAdjustmentModal(null)}
+                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg"
+                >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="text-xs space-y-2 bg-slate-50 p-3 rounded-xl">
-                <p>
-                  <span className="font-semibold text-slate-700">Medicine:</span> {adjustmentModal.medicine?.name}
-                </p>
-                <p>
-                  <span className="font-semibold text-slate-700">Batch:</span> {adjustmentModal.batchNumber}
-                </p>
-                <p>
-                  <span className="font-semibold text-slate-700">Current Stock:</span> {adjustmentModal.currentQty}
-                </p>
-              </div>
-
-              <form onSubmit={handleApplyAdjustment} className="space-y-3 text-xs">
+              <form onSubmit={handleApplyAdjustment} className="space-y-4">
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Adjustment Quantity (+ to add, - to subtract)
+                  <p className="font-bold text-slate-900 dark:text-white">{adjustmentModal.medicine?.name}</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                    Batch: {adjustmentModal.batchNumber} | Current Stock: {adjustmentModal.currentQty}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    New Physical Count Qty *
                   </label>
                   <input
                     required
                     type="number"
                     value={adjustmentQty}
                     onChange={(e) => setAdjustmentQty(parseInt(e.target.value) || 0)}
-                    placeholder="-5 or +10"
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl font-mono focus:outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">
-                    New total will be: {adjustmentModal.currentQty + Number(adjustmentQty)}
-                  </p>
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Adjustment Reason</label>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Reason</label>
                   <select
                     value={adjustmentReason}
                     onChange={(e) => setAdjustmentReason(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:outline-none focus:border-sky-500"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                   >
                     {Object.values(AdjustmentReason).map((r) => (
                       <option key={r} value={r}>
-                        {r}
+                        {r.replace(/_/g, ' ')}
                       </option>
                     ))}
                   </select>
                 </div>
 
-                <div className="pt-3 flex justify-end gap-2">
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
                   <button
                     type="button"
                     onClick={() => setAdjustmentModal(null)}
-                    className="px-4 py-2 border border-slate-300 rounded-xl font-semibold text-slate-600 hover:bg-slate-50"
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    disabled={adjustMutation.isPending || adjustmentQty === 0}
-                    className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl shadow transition disabled:opacity-50"
+                    disabled={adjustMutation.isPending}
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition"
                   >
                     {adjustMutation.isPending ? 'Saving...' : 'Confirm Adjustment'}
                   </button>

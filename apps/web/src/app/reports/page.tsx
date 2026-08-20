@@ -124,42 +124,42 @@ export default function ReportsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-obsidian-950 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
-        <main className="p-6 max-w-7xl mx-auto w-full space-y-6">
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
           {/* Header & Date Filters */}
-          <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Reports & Legal Analytics</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Reports &amp; Legal Analytics</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 GST Returns (GSTR-1, GSTR-3B), HSN Summaries, and Schedule H / H1 Drug Registers.
               </p>
             </div>
 
-            <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm text-xs">
-              <Calendar className="w-4 h-4 text-slate-400" />
+            <div className="flex items-center gap-2 bg-white dark:bg-[#0f172a] p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl text-xs">
+              <Calendar className="w-4 h-4 text-slate-400 dark:text-slate-500" />
               <input
                 type="date"
                 value={dateRange.startDate}
                 onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-                className="border border-slate-200 rounded-lg px-2 py-1 focus:outline-none"
+                className="bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-2 py-1 focus:outline-none"
               />
               <span className="text-slate-400">to</span>
               <input
                 type="date"
                 value={dateRange.endDate}
                 onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-                className="border border-slate-200 rounded-lg px-2 py-1 focus:outline-none"
+                className="bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-2 py-1 focus:outline-none"
               />
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex flex-wrap border-b border-slate-200 gap-2">
+          <div className="flex flex-wrap border-b border-slate-200 dark:border-slate-800 gap-2">
             {[
               { id: 'financials', label: 'P&L Summary', icon: TrendingUp },
               { id: 'sales', label: 'Sales Ledger', icon: Receipt },
@@ -177,8 +177,8 @@ export default function ReportsPage() {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 ${
                     isActive
-                      ? 'bg-white text-sky-600 border-sky-600 shadow-sm'
-                      : 'text-slate-500 border-transparent hover:text-slate-800'
+                      ? 'bg-white dark:bg-[#0f172a] text-sky-600 dark:text-sky-400 border-sky-600 dark:border-sky-400 shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -191,28 +191,28 @@ export default function ReportsPage() {
           {/* TAB: Financials */}
           {activeTab === 'financials' && financialData && (
             <div className="space-y-4">
-              <div className="grid grid-cols-4 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                  <span className="text-xs text-slate-500 font-medium">Gross Revenue</span>
-                  <h3 className="text-xl font-bold font-mono text-slate-900 mt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Gross Revenue</span>
+                  <h3 className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">
                     {formatCurrency(financialData.totalRevenue)}
                   </h3>
                 </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                  <span className="text-xs text-slate-500 font-medium">Cost of Goods Sold (COGS)</span>
-                  <h3 className="text-xl font-bold font-mono text-slate-900 mt-1">
+                <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Cost of Goods Sold (COGS)</span>
+                  <h3 className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">
                     {formatCurrency(financialData.cogs)}
                   </h3>
                 </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                  <span className="text-xs text-slate-500 font-medium">Gross Profit</span>
-                  <h3 className="text-xl font-bold font-mono text-emerald-700 mt-1">
+                <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Gross Profit</span>
+                  <h3 className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
                     {formatCurrency(financialData.grossProfit)}
                   </h3>
                 </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                  <span className="text-xs text-slate-500 font-medium">Net Profit Estimate</span>
-                  <h3 className="text-xl font-bold font-mono text-sky-700 mt-1">
+                <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Net Profit Estimate</span>
+                  <h3 className="text-xl font-bold font-mono text-sky-600 dark:text-sky-400 mt-1">
                     {formatCurrency(financialData.netProfitEstimate)}
                   </h3>
                 </div>
@@ -222,10 +222,10 @@ export default function ReportsPage() {
 
           {/* TAB: Sales */}
           {activeTab === 'sales' && salesReportData && (
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden p-5 space-y-4">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+                <table className="w-full text-left text-xs min-w-[600px]">
+                  <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase">
                     <tr>
                       <th className="py-2.5 px-3">Invoice #</th>
                       <th className="py-2.5 px-3">Date</th>
@@ -234,14 +234,14 @@ export default function ReportsPage() {
                       <th className="py-2.5 px-3 text-right">Total Amount</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                     {(Array.isArray(salesReportData.sales) ? salesReportData.sales : []).map((s: any) => (
-                      <tr key={s.id} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-mono font-bold text-sky-800">{s.invoiceNumber}</td>
-                        <td className="py-2.5 px-3 text-slate-500 font-mono">{formatDate(s.createdAt)}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-800">{s.customer?.name || 'Walk-in'}</td>
-                        <td className="py-2.5 px-3 text-right font-mono">₹{Number(s.taxAmount || 0).toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                      <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                        <td className="py-2.5 px-3 font-mono font-bold text-sky-600 dark:text-sky-400">{s.invoiceNumber}</td>
+                        <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono">{formatDate(s.createdAt)}</td>
+                        <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">{s.customer?.name || 'Walk-in'}</td>
+                        <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">₹{Number(s.taxAmount || 0).toFixed(2)}</td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
                           {formatCurrency(s.totalAmount || 0)}
                         </td>
                       </tr>

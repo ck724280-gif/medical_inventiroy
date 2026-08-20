@@ -196,17 +196,17 @@ function PurchasesContent() {
   };
 
   return (
-    <div className="flex h-screen bg-obsidian-950 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
-        <main className="p-6 max-w-7xl mx-auto w-full space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Purchase Invoices & Inward Stock</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Purchase Invoices &amp; Inward Stock</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Manage supplier inward shipments, batch tracking, barcode shelf label printing, and payments.
               </p>
             </div>
@@ -231,7 +231,7 @@ function PurchasesContent() {
                 ]);
                 setShowCreateModal(true);
               }}
-              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-sky-600/20 transition cursor-pointer"
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               New Purchase Entry
@@ -239,9 +239,9 @@ function PurchasesContent() {
           </div>
 
           {/* Search Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-sm dark:shadow-xl flex items-center gap-3">
             <div className="flex-1 relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                 <Search className="w-4 h-4" />
               </div>
               <input
@@ -249,16 +249,16 @@ function PurchasesContent() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by Purchase Invoice # or Supplier..."
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-sky-500 focus:bg-white transition"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
               />
             </div>
           </div>
 
           {/* Purchases Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Invoice #</th>
                     <th className="py-3 px-4">Date</th>
@@ -268,42 +268,42 @@ function PurchasesContent() {
                     <th className="py-3 px-4 text-center">Labels / Pay</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         Loading purchase entries...
                       </td>
                     </tr>
                   ) : purchases.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         No purchase bills recorded.
                       </td>
                     </tr>
                   ) : (
                     purchases.map((p: any) => (
-                      <tr key={p.id} className="hover:bg-slate-50 transition">
-                        <td className="py-3 px-4 font-bold font-mono text-slate-900">{p.invoiceNumber}</td>
-                        <td className="py-3 px-4 text-slate-600">{formatDate(p.createdAt)}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-800">{p.supplier?.name || '—'}</td>
+                      <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                        <td className="py-3 px-4 font-bold font-mono text-sky-600 dark:text-sky-400">{p.invoiceNumber}</td>
+                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono">{formatDate(p.createdAt)}</td>
+                        <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">{p.supplier?.name || '—'}</td>
                         <td className="py-3 px-4">
                           <span
-                            className={`px-2 py-0.5 rounded-md font-medium text-[10px] inline-flex items-center gap-1 ${
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 ${
                               p.status === 'CONFIRMED' || p.status === 'APPROVED'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                             }`}
                           >
                             {p.status === 'CONFIRMED' ? (
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                             ) : (
-                              <Clock className="w-3 h-3 text-amber-600" />
+                              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
                             )}
                             {p.status}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
                           {formatCurrency(p.totalAmount || 0)}
                         </td>
                         <td className="py-3 px-4 text-center">
@@ -311,7 +311,7 @@ function PurchasesContent() {
                             <button
                               onClick={() => setBarcodeModal(p)}
                               title="Print 40x20mm Barcode Shelf Labels"
-                              className="px-2 py-1 bg-sky-50 text-sky-700 hover:bg-sky-100 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-sky-200 transition"
+                              className="px-2 py-1 bg-sky-50 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-sky-200 dark:border-slate-700 transition"
                             >
                               <Barcode className="w-3.5 h-3.5" />
                               Labels
@@ -321,7 +321,7 @@ function PurchasesContent() {
                                 setPaymentModal(p);
                                 setPaymentAmount(p.totalAmount || 0);
                               }}
-                              className="px-2 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-emerald-200 transition"
+                              className="px-2 py-1 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-emerald-200 dark:border-slate-700 transition"
                             >
                               <CreditCard className="w-3.5 h-3.5" />
                               Pay

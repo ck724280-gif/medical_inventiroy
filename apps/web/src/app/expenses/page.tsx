@@ -68,24 +68,24 @@ export default function ExpensesPage() {
   });
 
   return (
-    <div className="flex h-screen bg-obsidian-950 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
-        <main className="p-6 max-w-7xl mx-auto w-full space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">Business Expenses</h2>
-              <p className="text-xs text-slate-500">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Business Expenses</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Track operational costs including store rent, utility bills, staff salaries, and maintenance.
               </p>
             </div>
 
             <button
               onClick={() => setShowModal(true)}
-              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-sky-600/20 transition cursor-pointer"
+              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               Add Expense
@@ -93,11 +93,11 @@ export default function ExpensesPage() {
           </div>
 
           {/* Category Filter Bar */}
-          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3">
+          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-sm dark:shadow-xl flex items-center gap-3">
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-sky-500"
+              className="px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500"
             >
               <option value="">All Categories</option>
               {Object.values(ExpenseCategory).map((cat) => (
@@ -109,10 +109,10 @@ export default function ExpensesPage() {
           </div>
 
           {/* Expenses Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
+              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Category</th>
@@ -122,34 +122,32 @@ export default function ExpensesPage() {
                     <th className="py-3 px-4 text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         Loading expenses...
                       </td>
                     </tr>
                   ) : expenses.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
-                        No expenses logged for this branch.
+                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                        No expenses recorded.
                       </td>
                     </tr>
                   ) : (
                     expenses.map((exp: any) => (
-                      <tr key={exp.id} className="hover:bg-slate-50">
-                        <td className="py-3 px-4 font-mono text-slate-500">{formatDate(exp.date)}</td>
+                      <tr key={exp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono">{formatDate(exp.date)}</td>
                         <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded bg-slate-100 font-mono text-[10px] font-semibold text-slate-800">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                             {exp.category}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-slate-600 font-medium">{exp.paymentMethod}</td>
-                        <td className="py-3 px-4 text-slate-600">
-                          {exp.createdByUser?.firstName} {exp.createdByUser?.lastName}
-                        </td>
-                        <td className="py-3 px-4 text-slate-500">{exp.notes || '—'}</td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-red-600">
+                        <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300">{exp.paymentMode}</td>
+                        <td className="py-3 px-4 text-slate-800 dark:text-slate-200">{exp.user?.firstName || 'Staff'}</td>
+                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400 max-w-xs truncate">{exp.notes || '—'}</td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-red-600 dark:text-red-400">
                           {formatCurrency(exp.amount || 0)}
                         </td>
                       </tr>

@@ -3,14 +3,37 @@
 @tailwind utilities;
 
 /* ============================================================
-   PREMIUM NIGHT MODE & DARK MODE SYSTEM
-   Deep Charcoal Midnight • Hospital & Pharmacy ERP Standard
+   DUAL THEME DESIGN SYSTEM (LIGHT MODE & DARK MODE)
    ============================================================ */
+
+/* ☀️ LIGHT MODE VARIABLES */
 :root {
+  --bg-base: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f1f5f9;
+  --bg-input: #ffffff;
+
+  --color-primary: #0284c7;
+  --color-primary-hover: #0369a1;
+  --color-emerald: #059669;
+  --color-indigo: #4f46e5;
+
+  --border-subtle: #e2e8f0;
+  --border-card: #e2e8f0;
+  --border-active: #0284c7;
+
+  --text-main: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+}
+
+/* 🌙 DARK MODE VARIABLES */
+.dark {
   --bg-base: #090d16;
   --bg-surface: #0f172a;
   --bg-elevated: #1e293b;
-  --bg-input: #0d1322;
+  --bg-input: #090d16;
 
   --color-primary: #38bdf8;
   --color-primary-hover: #0ea5e9;
@@ -37,32 +60,43 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Custom Clean Scrollbars */
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #090d16;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #cbd5e1;
   border-radius: 6px;
 }
 
+.dark ::-webkit-scrollbar-thumb {
+  background: #334155;
+}
+
 ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
   background: #475569;
 }
 
-/* Clean Dark Mode Cards */
+/* Adaptive Theme Cards */
 .night-card {
-  background: #0f172a;
-  border: 1px solid #1e293b;
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-card);
   border-radius: 1rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .night-card-hover {
@@ -70,23 +104,28 @@ body {
 }
 
 .night-card-hover:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.dark .night-card-hover:hover {
   border-color: #334155;
   background: #131d33;
 }
 
 /* Inputs & Form Controls */
 .night-input {
-  background-color: #090d16;
-  border: 1px solid #1e293b;
-  color: #f8fafc;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-card);
+  color: var(--text-main);
   border-radius: 0.75rem;
-  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, background-color 0.2s ease;
 }
 
 .night-input:focus {
   outline: none;
-  border-color: #38bdf8;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.15);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
 
 /* Primary Button */
@@ -112,9 +151,22 @@ body {
   background-color: #047857;
 }
 
-/* Responsive Touch Target Helper */
-@media (max-width: 768px) {
-  .touch-target {
-    min-height: 44px;
+/* POS Thermal Receipt Print Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #thermal-receipt-print-area, #thermal-receipt-print-area * {
+    visibility: visible;
+  }
+  #thermal-receipt-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: #ffffff !important;
+    color: #000000 !important;
   }
 }

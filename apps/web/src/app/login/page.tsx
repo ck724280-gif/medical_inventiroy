@@ -46,19 +46,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-obsidian-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden text-slate-100">
-      {/* ── Ambient Glowing Aurora Orbs ───────────────────────── */}
+    <div className="min-h-screen bg-slate-50 dark:bg-[#090d16] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
+      {/* ── Ambient Background Glow ───────────────────────── */}
       <div
-        className="absolute -top-32 -left-32 w-96 h-96 rounded-full blur-[100px] pointer-events-none animate-aurora"
-        style={{ background: 'rgba(6, 182, 212, 0.18)' }}
+        className="absolute -top-32 -left-32 w-96 h-96 rounded-full blur-[100px] pointer-events-none opacity-30 dark:opacity-20"
+        style={{ background: 'rgba(56, 189, 248, 0.4)' }}
       />
       <div
-        className="absolute -bottom-32 -right-32 w-[28rem] h-[28rem] rounded-full blur-[120px] pointer-events-none animate-aurora"
-        style={{ background: 'rgba(8, 145, 178, 0.15)', animationDelay: '-4s' }}
-      />
-      <div
-        className="absolute top-1/3 left-1/2 -translate-x-1/2 w-80 h-80 rounded-full blur-[120px] pointer-events-none"
-        style={{ background: 'rgba(15, 32, 64, 0.3)' }}
+        className="absolute -bottom-32 -right-32 w-[28rem] h-[28rem] rounded-full blur-[120px] pointer-events-none opacity-30 dark:opacity-20"
+        style={{ background: 'rgba(14, 165, 233, 0.3)' }}
       />
 
       <motion.div
@@ -69,34 +65,22 @@ export default function LoginPage() {
       >
         {/* Brand Header */}
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl text-white font-bold text-2xl mb-4 relative animate-pulse-ring"
-            style={{
-              background: 'linear-gradient(135deg, #0891b2, #06b6d4)',
-              boxShadow: '0 0 24px rgba(6, 182, 212, 0.45)',
-            }}
+          <div
+            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl text-white font-bold text-2xl mb-4 relative shadow-lg bg-sky-600"
           >
             +
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight glow-text-cyan">
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             {storeName}
           </h2>
-          <p className="mt-1 text-xs sm:text-sm text-cyan-300/70 font-mono">
-            Medical Inventory &amp; Pharmacy POS System
+          <p className="mt-1 text-xs sm:text-sm text-sky-600 dark:text-sky-400 font-mono font-semibold">
+            Medical ERP &amp; Pharmacy POS System
           </p>
         </div>
 
-        {/* Login Glassmorphism Box */}
+        {/* Login Box */}
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div
-            className="py-8 px-6 sm:px-10 rounded-2xl relative"
-            style={{
-              background: 'rgba(10, 22, 40, 0.70)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
-              border: '1px solid rgba(6, 182, 212, 0.18)',
-              boxShadow: '0 20px 50px rgba(0, 0, 0, 0.7), 0 0 20px rgba(6, 182, 212, 0.1)',
-            }}
-          >
+          <div className="py-8 px-6 sm:px-10 rounded-2xl relative bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-2xl">
             {errorMessage && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
