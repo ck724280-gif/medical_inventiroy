@@ -594,8 +594,6 @@ export class SalesService {
                 medicineId: item.medicineId,
                 batchId: item.batchId,
                 qty: item.qty,
-                selectedQuantity: item.selectedQuantity,
-                conversionRatio: item.conversionRatio,
                 unitId: item.unitId || null,
                 rate: item.rate,
                 mrp: item.mrp,
