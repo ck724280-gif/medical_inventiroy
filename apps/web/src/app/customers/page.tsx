@@ -408,7 +408,7 @@ export default function CustomersPage() {
                   <div>
                     <label className="block font-semibold text-slate-300 mb-1">Credit Limit (₹)</label>
                     <input
-                      type="number"
+                      type="number" onFocus={(e) => e.target.select()}
                       value={formData.creditLimit || ''}
                       onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) || 0 })}
                       className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
@@ -500,7 +500,7 @@ export default function CustomersPage() {
                     <div>
                       <label className="block text-[10px] text-slate-400 mb-1">Fixed Custom Price (₹)</label>
                       <input
-                        type="number"
+                        type="number" onFocus={(e) => e.target.select()}
                         step="0.01"
                         placeholder="e.g. 180"
                         value={newSpecialPrice.customPrice}
@@ -512,7 +512,7 @@ export default function CustomersPage() {
                     <div>
                       <label className="block text-[10px] text-slate-400 mb-1">Discount (%)</label>
                       <input
-                        type="number"
+                        type="number" onFocus={(e) => e.target.select()}
                         placeholder="e.g. 10"
                         value={newSpecialPrice.discountPercent}
                         onChange={(e) => setNewSpecialPrice({ ...newSpecialPrice, discountPercent: e.target.value })}

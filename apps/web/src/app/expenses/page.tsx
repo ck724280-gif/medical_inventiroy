@@ -196,7 +196,7 @@ export default function ExpensesPage() {
                   <label className="block font-semibold text-slate-700 mb-1">Amount (₹) *</label>
                   <input
                     required
-                    type="number"
+                    type="number" onFocus={(e) => e.target.select()}
                     step="0.01"
                     value={formData.amount}
                     onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}

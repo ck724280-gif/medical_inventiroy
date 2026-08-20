@@ -452,7 +452,7 @@ export default function InventoryPage() {
                   </label>
                   <input
                     required
-                    type="number"
+                    type="number" onFocus={(e) => e.target.select()}
                     value={adjustmentQty}
                     onChange={(e) => setAdjustmentQty(parseInt(e.target.value) || 0)}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"

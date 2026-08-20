@@ -631,7 +631,7 @@ function PurchasesContent() {
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Payment Amount (₹)</label>
                 <input
-                  type="number"
+                  type="number" onFocus={(e) => e.target.select()}
                   step="0.01"
                   value={paymentAmount}
                   onChange={(e) => setPaymentAmount(parseFloat(e.target.value) || 0)}

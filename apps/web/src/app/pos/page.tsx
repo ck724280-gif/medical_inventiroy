@@ -1076,7 +1076,7 @@ export default function PosPage() {
                   <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-600 dark:text-slate-400 font-medium">Cash Tendered:</span>
                     <input
-                      type="number"
+                      type="number" onFocus={(e) => e.target.select()}
                       value={cart.receivedCash || ''}
                       onChange={(e) => cart.setReceivedCash(parseFloat(e.target.value) || 0)}
                       className="w-24 px-2 py-1 text-right font-mono font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-slate-900 dark:text-white text-xs"
@@ -1246,7 +1246,7 @@ export default function PosPage() {
                       </label>
                       <input
                         required
-                        type="number"
+                        type="number" onFocus={(e) => e.target.select()}
                         step="0.01"
                         placeholder="Counted cash amount"
                         value={closingCashInput}
@@ -1283,7 +1283,7 @@ export default function PosPage() {
                     </label>
                     <input
                       required
-                      type="number"
+                      type="number" onFocus={(e) => e.target.select()}
                       step="0.01"
                       value={openingCashInput}
                       onChange={(e) => setOpeningCashInput(e.target.value)}
@@ -1543,7 +1543,7 @@ export default function PosPage() {
                       Credit Limit (₹)
                     </label>
                     <input
-                      type="number"
+                      type="number" onFocus={(e) => e.target.select()}
                       placeholder="0"
                       value={newCustomer.creditLimit || ''}
                       onChange={(e) => setNewCustomer({ ...newCustomer, creditLimit: parseFloat(e.target.value) || 0 })}
@@ -1662,7 +1662,7 @@ export default function PosPage() {
                             <div className="flex items-center gap-1">
                               <span className="text-[10px] text-slate-400">Qty:</span>
                               <input
-                                type="number"
+                                type="number" onFocus={(e) => e.target.select()}
                                 min="0"
                                 max={it.qty}
                                 value={state.returnQty}
@@ -1766,7 +1766,7 @@ export default function PosPage() {
                     <label className="block text-[11px] font-semibold text-slate-300 mb-1">Patient Age *</label>
                     <input
                       required
-                      type="number"
+                      type="number" onFocus={(e) => e.target.select()}
                       min="1"
                       value={prescriptionForm.patientAge}
                       onChange={(e) => setPrescriptionForm({ ...prescriptionForm, patientAge: parseInt(e.target.value) || 30 })}

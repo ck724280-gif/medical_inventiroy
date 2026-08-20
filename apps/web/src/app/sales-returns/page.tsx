@@ -222,7 +222,7 @@ export default function SalesReturnsPage() {
                         <div className="col-span-2">
                           <label className="text-[10px] text-slate-400 block">Return Qty</label>
                           <input
-                            type="number"
+                            type="number" onFocus={(e) => e.target.select()}
                             min="0"
                             max={item.soldQty}
                             value={item.returnQty}
