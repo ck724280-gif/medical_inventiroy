@@ -192,7 +192,7 @@ export default function MedicinesPage() {
   };
 
   return (
-    <div className="flex h-screen bg-[#090d16] text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
@@ -203,18 +203,18 @@ export default function MedicinesPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-white tracking-tight">Medicine Master</h2>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Medicine Master</h2>
                 {canManage ? (
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-semibold flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-mono text-[10px] font-semibold flex items-center gap-1">
                     <ShieldCheck className="w-3 h-3" /> Super Admin Access
                   </span>
                 ) : (
-                  <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-400 font-mono text-[10px] font-medium flex items-center gap-1">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-mono text-[10px] font-medium flex items-center gap-1">
                     <Lock className="w-3 h-3" /> Read Only (Staff)
                   </span>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Manage pharmacy product master, unit conversions, and drug schedules.
               </p>
             </div>
@@ -231,9 +231,9 @@ export default function MedicinesPage() {
           </div>
 
           {/* Filters Bar */}
-          <div className="p-3.5 rounded-2xl border border-slate-800 bg-[#0f172a] flex flex-wrap items-center gap-3">
+          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-sm dark:shadow-xl flex flex-wrap items-center gap-3">
             <div className="flex-1 min-w-[220px] relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
                 <Search className="w-4 h-4" />
               </div>
               <input
@@ -241,16 +241,16 @@ export default function MedicinesPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search Medicine name, Generic, SKU or Barcode..."
-                className="w-full pl-9 pr-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 transition"
+                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
               />
             </div>
 
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-400" />
+              <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500" />
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-xs font-medium text-slate-200 focus:outline-none focus:border-sky-400"
+                className="px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500"
               >
                 <option value="">All Categories</option>
                 {categories.map((cat: any) => (
@@ -263,10 +263,10 @@ export default function MedicinesPage() {
           </div>
 
           {/* Medicines Table */}
-          <div className="rounded-2xl border border-slate-800 bg-[#0f172a] overflow-hidden shadow-xl">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] overflow-hidden shadow-sm dark:shadow-xl">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[700px]">
-                <thead className="bg-[#0c1322] text-slate-400 font-semibold border-b border-slate-800 text-[10px] uppercase tracking-wider">
+                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Medicine / Brand</th>
                     <th className="py-3 px-4">Generic Molecule</th>
@@ -278,16 +278,16 @@ export default function MedicinesPage() {
                     <th className="py-3 px-4 text-center">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/60">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         Loading medicines catalogue...
                       </td>
                     </tr>
                   ) : medicines.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-500">
+                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         No medicines found.
                       </td>
                     </tr>
@@ -297,72 +297,70 @@ export default function MedicinesPage() {
                       const isControlled = schedule !== 'OTC';
 
                       return (
-                        <tr key={med.id} className="hover:bg-slate-800/40 transition">
+                        <tr key={med.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
                           <td className="py-3 px-4">
-                            <div className="font-bold text-white">{med.name}</div>
+                            <div className="font-bold text-slate-900 dark:text-white">{med.name}</div>
                             {med.brandName && (
-                              <div className="text-[10px] text-slate-400 font-medium">Brand: {med.brandName}</div>
+                              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Brand: {med.brandName}</div>
                             )}
-                            <div className="font-mono text-[10px] text-slate-500">SKU: {med.sku}</div>
+                            <div className="font-mono text-[10px] text-slate-400 dark:text-slate-500">SKU: {med.sku}</div>
                           </td>
-                          <td className="py-3 px-4 text-slate-300 max-w-xs truncate">
+                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300 max-w-xs truncate">
                             {med.genericName || med.composition || '—'}
                           </td>
                           <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 bg-slate-800 text-slate-300 rounded font-medium text-[10px]">
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-medium text-[10px]">
                               {med.dosageForm}
                             </span>
-                            <div className="text-[10px] text-slate-400 mt-0.5">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                               {med.baseUnit?.abbreviation || 'PCS'}
                             </div>
                           </td>
-                          <td className="py-3 px-4 font-mono text-[11px] text-sky-300">
+                          <td className="py-3 px-4 font-mono text-[11px] text-sky-600 dark:text-sky-400">
                             1 Box = {med.stripsPerBox || 10} Strips
-                            <br />
-                            1 Strip = {med.tabletsPerStrip || 10} Tabs
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                              1 Strip = {med.tabletsPerStrip || 10} Tabs
+                            </div>
                           </td>
                           <td className="py-3 px-4">
-                            {isControlled ? (
-                              <span className="px-2 py-0.5 bg-red-950 text-red-300 border border-red-800 rounded font-bold text-[10px] inline-flex items-center gap-1">
-                                <ShieldAlert className="w-3 h-3 text-red-400" />
-                                {schedule} (Rx)
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-800 rounded font-medium text-[10px]">
-                                OTC
-                              </span>
-                            )}
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                isControlled
+                                  ? 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-800'
+                                  : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                              }`}
+                            >
+                              {schedule}
+                            </span>
                           </td>
-                          <td className="py-3 px-4 text-right font-mono font-medium text-slate-400">
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700 dark:text-slate-300">
                             {formatCurrency(med.mrp || 0)}
                           </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-white">
+                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
                             {formatCurrency(med.defaultSellingPrice || 0)}
                           </td>
 
                           {/* Action Buttons: Super Admin Only */}
                           <td className="py-3 px-4 text-center">
                             {canManage ? (
-                              <div className="flex items-center justify-center gap-1.5">
+                              <div className="flex items-center justify-center gap-2">
                                 <button
                                   onClick={() => handleOpenEdit(med)}
                                   title="Edit Medicine"
-                                  className="p-1.5 text-slate-400 hover:text-sky-400 hover:bg-slate-800 rounded-lg transition"
+                                  className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => handleDelete(med)}
                                   title="Delete Medicine"
-                                  className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-800 rounded-lg transition"
+                                  className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             ) : (
-                              <span className="text-slate-600 flex items-center justify-center" title="Read-only (Super Admin restricted)">
-                                <Lock className="w-3.5 h-3.5 opacity-50" />
-                              </span>
+                              <span className="text-[10px] text-slate-400 italic">Locked</span>
                             )}
                           </td>
                         </tr>
