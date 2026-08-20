@@ -337,6 +337,10 @@ export class SalesService {
           const baseQty = cartItem.unitLevel
             ? convertToBaseUnits(rawQty, cartItem.unitLevel, stripsPerBox, tabletsPerStrip)
             : Math.round(rawQty);
+          
+          let multiplier = 1;
+          if (cartItem.unitLevel === 'STRIP') multiplier = tabletsPerStrip;
+          if (cartItem.unitLevel === 'BOX') multiplier = stripsPerBox * tabletsPerStrip;
 
           if (baseQty <= 0) {
             throw new BadRequestException(
@@ -346,6 +350,9 @@ export class SalesService {
 
           // Rate resolution & Party Pricing
           let itemRate = cartItem.rate;
+          if (itemRate !== undefined && itemRate !== null && multiplier > 1) {
+             itemRate = Number((itemRate / multiplier).toFixed(4));
+          }
           let itemDiscountPercent = itemDiscount;
 
           if (itemRate === undefined || itemRate === null) {
