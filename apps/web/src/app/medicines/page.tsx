@@ -44,6 +44,7 @@ export default function MedicinesPage() {
     baseUnitId: '',
     taxPercent: 12,
     mrp: 0,
+    defaultPurchasePrice: 0,
     defaultSellingPrice: 0,
     stripsPerBox: 10,
     tabletsPerStrip: 10,
@@ -151,6 +152,7 @@ export default function MedicinesPage() {
       baseUnitId: units[0]?.id || '',
       taxPercent: 12,
       mrp: 0,
+      defaultPurchasePrice: 0,
       defaultSellingPrice: 0,
       stripsPerBox: 10,
       tabletsPerStrip: 10,
@@ -177,6 +179,7 @@ export default function MedicinesPage() {
       baseUnitId: med.baseUnitId || '',
       taxPercent: med.taxPercent || 12,
       mrp: med.mrp || 0,
+      defaultPurchasePrice: med.defaultPurchasePrice || 0,
       defaultSellingPrice: med.defaultSellingPrice || 0,
       stripsPerBox: med.stripsPerBox || 10,
       tabletsPerStrip: med.tabletsPerStrip || 10,
@@ -503,9 +506,14 @@ export default function MedicinesPage() {
                     <label className="block font-semibold text-slate-300 mb-1">GST Tax Rate (%)</label>
                     <input
                       type="number"
-                      value={formData.taxPercent}
-                      onChange={(e) => setFormData({ ...formData, taxPercent: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-400"
+                      placeholder="0"
+                      value={formData.taxPercent === 0 ? '' : formData.taxPercent}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
+                        setFormData({ ...formData, taxPercent: val });
+                      }}
+                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
                     />
                   </div>
 
@@ -521,8 +529,13 @@ export default function MedicinesPage() {
                         <input
                           type="number"
                           min="1"
-                          value={formData.stripsPerBox}
-                          onChange={(e) => setFormData({ ...formData, stripsPerBox: parseInt(e.target.value) || 1 })}
+                          placeholder="1"
+                          value={formData.stripsPerBox === 0 ? '' : formData.stripsPerBox}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
+                            setFormData({ ...formData, stripsPerBox: val });
+                          }}
                           className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
                         />
                       </div>
@@ -531,8 +544,13 @@ export default function MedicinesPage() {
                         <input
                           type="number"
                           min="1"
-                          value={formData.tabletsPerStrip}
-                          onChange={(e) => setFormData({ ...formData, tabletsPerStrip: parseInt(e.target.value) || 1 })}
+                          placeholder="1"
+                          value={formData.tabletsPerStrip === 0 ? '' : formData.tabletsPerStrip}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
+                            setFormData({ ...formData, tabletsPerStrip: val });
+                          }}
                           className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
                         />
                       </div>
@@ -540,28 +558,48 @@ export default function MedicinesPage() {
                   </div>
 
                   {/* Pricing Fields */}
-                  <div>
-                    <label className="block font-semibold text-slate-300 mb-1">MRP (Maximum Retail Price) *</label>
-                    <input
-                      required
-                      type="number"
-                      step="0.01"
-                      value={formData.mrp}
-                      onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
-                    />
-                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 col-span-2">
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">MRP (Maximum Retail Price) *</label>
+                      <input
+                        required
+                        type="number"
+                        step="0.01"
+                        placeholder="0"
+                        value={formData.mrp === 0 ? '' : formData.mrp}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                      />
+                    </div>
 
-                  <div>
-                    <label className="block font-semibold text-slate-300 mb-1">Default Selling Price *</label>
-                    <input
-                      required
-                      type="number"
-                      step="0.01"
-                      value={formData.defaultSellingPrice}
-                      onChange={(e) => setFormData({ ...formData, defaultSellingPrice: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
-                    />
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">Default Purchase Price *</label>
+                      <input
+                        required
+                        type="number"
+                        step="0.01"
+                        placeholder="0"
+                        value={formData.defaultPurchasePrice === 0 ? '' : formData.defaultPurchasePrice}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setFormData({ ...formData, defaultPurchasePrice: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">Default Selling Price *</label>
+                      <input
+                        required
+                        type="number"
+                        step="0.01"
+                        placeholder="0"
+                        value={formData.defaultSellingPrice === 0 ? '' : formData.defaultSellingPrice}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => setFormData({ ...formData, defaultSellingPrice: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-2 bg-[#090d16] border border-slate-800 rounded-xl font-mono text-white focus:outline-none focus:border-sky-400"
+                      />
+                    </div>
                   </div>
 
                   {/* Schedule Selection */}
