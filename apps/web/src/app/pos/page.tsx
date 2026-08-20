@@ -25,11 +25,13 @@ import {
   Coins,
   FileText,
   ChevronDown,
+  Camera,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
 import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview';
+import { CameraBarcodeScanner } from '../../components/camera-barcode-scanner';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { useCartStore, BatchOption } from '../../stores/cart-store';
@@ -61,6 +63,7 @@ export default function PosPage() {
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [showSplitPaymentModal, setShowSplitPaymentModal] = useState(false);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
 
   // Split Payment Rows
   const [splitPaymentRows, setSplitPaymentRows] = useState<{ mode: PaymentMode; amount: number; ref?: string }[]>([
@@ -235,11 +238,7 @@ export default function PosPage() {
 
   // ── Handlers ───────────────────────────────────────────────
 
-  const handleBarcodeScan = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const code = barcodeInput.trim();
-    if (!code) return;
-
+  const handleDirectCodeScan = async (code: string) => {
     try {
       const res = await apiClient.get(`/pos/scan/${encodeURIComponent(code)}`, {
         params: { branchId: selectedBranchId },
@@ -273,13 +272,19 @@ export default function PosPage() {
           drugSchedule: scanData.medicine.drugSchedule,
           batches: scanData.batches,
         });
-
-        setBarcodeInput('');
-        barcodeRef.current?.focus();
       }
     } catch (err: any) {
       alert(err.response?.data?.message || 'Barcode not found or inactive.');
     }
+  };
+
+  const handleBarcodeScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const code = barcodeInput.trim();
+    if (!code) return;
+    await handleDirectCodeScan(code);
+    setBarcodeInput('');
+    barcodeRef.current?.focus();
   };
 
   const handleAddSearchResult = (med: any) => {
@@ -700,18 +705,29 @@ export default function PosPage() {
             {/* Top Scanning & Search Controls */}
             <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-2 sm:gap-3 bg-slate-50 dark:bg-[#0d1424] relative">
               {/* Barcode Quick Scan */}
-              <form onSubmit={handleBarcodeScan} className="w-full sm:w-2/5 relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                  <Barcode className="w-4 h-4" />
+              <form onSubmit={handleBarcodeScan} className="w-full sm:w-2/5 relative flex gap-2">
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
+                    <Barcode className="w-4 h-4" />
+                  </div>
+                  <input
+                    ref={barcodeRef}
+                    type="text"
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    placeholder="Scan Barcode / SKU (Enter)... [F1]"
+                    className="w-full pl-9 pr-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
+                  />
                 </div>
-                <input
-                  ref={barcodeRef}
-                  type="text"
-                  value={barcodeInput}
-                  onChange={(e) => setBarcodeInput(e.target.value)}
-                  placeholder="Scan Barcode / SKU (Enter)... [F1]"
-                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
-                />
+                <button
+                  type="button"
+                  onClick={() => setShowCameraScanner(true)}
+                  className="px-3 py-2 bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-950/60 rounded-xl flex items-center gap-1.5 transition text-xs font-semibold"
+                  title="Scan with Mobile Camera"
+                >
+                  <Camera className="w-4 h-4" />
+                  <span className="hidden sm:inline">Camera</span>
+                </button>
               </form>
 
               {/* Medicine Autocomplete Search */}
@@ -1816,6 +1832,17 @@ export default function PosPage() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Modal 8: Mobile Camera Barcode Scanner */}
+        {showCameraScanner && (
+          <CameraBarcodeScanner
+            onScanSuccess={handleDirectCodeScan}
+            onClose={() => {
+              setShowCameraScanner(false);
+              barcodeRef.current?.focus();
+            }}
+          />
         )}
       </div>
     </div>
