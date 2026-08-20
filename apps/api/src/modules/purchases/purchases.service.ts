@@ -123,12 +123,27 @@ export class PurchasesService {
    * When status is CONFIRMED, executes complete inventory receiving transaction.
    */
   async create(dto: CreatePurchaseDto, userId: string, isDraft = false) {
+    // 1. Resolve branchId if omitted
+    let branchId = dto.branchId;
+    if (!branchId) {
+      const defaultBranch =
+        (await this.prisma.branch.findFirst({ where: { isDefault: true } })) ||
+        (await this.prisma.branch.findFirst());
+      if (!defaultBranch) {
+        throw new BadRequestException('No branch configured in system.');
+      }
+      branchId = defaultBranch.id;
+    }
+
+    // 2. Generate invoiceNumber if omitted
+    const invoiceNumber = dto.invoiceNumber?.trim() || `PUR-${Date.now()}`;
+
     const existing = await this.prisma.purchaseInvoice.findUnique({
-      where: { invoiceNumber: dto.invoiceNumber },
+      where: { invoiceNumber },
     });
 
     if (existing) {
-      throw new ConflictException(`Invoice number '${dto.invoiceNumber}' already exists`);
+      throw new ConflictException(`Invoice number '${invoiceNumber}' already exists`);
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -162,9 +177,9 @@ export class PurchasesService {
 
       const purchase = await tx.purchaseInvoice.create({
         data: {
-          invoiceNumber: dto.invoiceNumber,
+          invoiceNumber,
           supplierId: dto.supplierId,
-          branchId: dto.branchId,
+          branchId,
           status,
           subtotal,
           discountAmount: totalDiscount,
@@ -201,7 +216,7 @@ export class PurchasesService {
             where: {
               medicineId_branchId_batchNumber: {
                 medicineId: item.medicineId,
-                branchId: dto.branchId,
+                branchId,
                 batchNumber: item.batchNumber,
               },
             },
@@ -225,7 +240,7 @@ export class PurchasesService {
             batch = await tx.batch.create({
               data: {
                 medicineId: item.medicineId,
-                branchId: dto.branchId,
+                branchId,
                 batchNumber: item.batchNumber,
                 mfgDate: item.mfgDate,
                 expiryDate: item.expiryDate,
@@ -251,7 +266,7 @@ export class PurchasesService {
           // Record immutable StockMovement (PURCHASE IN)
           await tx.stockMovement.create({
             data: {
-              branchId: dto.branchId,
+              branchId,
               medicineId: item.medicineId,
               batchId: batch.id,
               qty: item.qty,
@@ -542,4 +557,3 @@ export class PurchasesService {
     });
   }
 }
-

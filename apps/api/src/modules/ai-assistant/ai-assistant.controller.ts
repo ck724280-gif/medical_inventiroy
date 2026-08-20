@@ -6,12 +6,18 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { IsArray, IsOptional, IsString, IsNotEmpty } from 'class-validator';
 import { AiAssistantService } from './ai-assistant.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 export class ChatMessageDto {
+  @IsString()
+  @IsNotEmpty({ message: 'Message cannot be empty' })
   message: string;
+
+  @IsOptional()
+  @IsArray()
   history?: Array<{
     role: 'user' | 'model';
     parts: Array<{ text: string }>;
@@ -26,7 +32,7 @@ export class AiAssistantController {
   @Post('chat')
   @HttpCode(HttpStatus.OK)
   async chat(@Body() dto: ChatMessageDto, @CurrentUser() user: any) {
-    // Both Admin and Owner can use AI assistant
-    return this.aiService.processChat(dto.message, dto.history);
+    const message = dto?.message || (dto as any)?.prompt || (dto as any)?.text || '';
+    return this.aiService.processChat(message, dto?.history);
   }
 }

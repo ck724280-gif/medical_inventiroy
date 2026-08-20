@@ -281,7 +281,7 @@ export default function InventoryPage() {
                     <div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">Already Expired</p>
                       <h3 className="text-2xl font-bold text-red-600 dark:text-red-400">
-                        {expiryData?.expiredCount || 0} Batches
+                        {expiryData?.summary?.expiredCount ?? expiryData?.expiredCount ?? expiryData?.expired?.length ?? 0} Batches
                       </h3>
                     </div>
                   </div>
@@ -295,7 +295,7 @@ export default function InventoryPage() {
                     <div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">Expiring in 30 Days</p>
                       <h3 className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-                        {expiryData?.expiring30DaysCount || 0} Batches
+                        {expiryData?.summary?.expiring30Count ?? expiryData?.expiring30DaysCount ?? expiryData?.expiring30?.length ?? 0} Batches
                       </h3>
                     </div>
                   </div>
@@ -309,10 +309,82 @@ export default function InventoryPage() {
                     <div>
                       <p className="text-xs text-slate-500 dark:text-slate-400">Expiring in 90 Days</p>
                       <h3 className="text-2xl font-bold text-sky-600 dark:text-sky-400">
-                        {expiryData?.expiring90DaysCount || 0} Batches
+                        {expiryData?.summary?.expiring90Count ?? expiryData?.expiring90DaysCount ?? expiryData?.expiring90?.length ?? 0} Batches
                       </h3>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Expired / Near Expiry Batches Action Table */}
+              <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
+                <div className="p-4 border-b border-slate-200 dark:border-slate-800 font-bold text-xs text-slate-900 dark:text-white flex items-center justify-between">
+                  <span>Expired &amp; Near-Expiry Batches List</span>
+                  <span className="text-[11px] text-slate-500 font-normal">Action items for quarantine or return</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                    <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase">
+                      <tr>
+                        <th className="py-3 px-4">Medicine</th>
+                        <th className="py-3 px-4 font-mono">Batch No</th>
+                        <th className="py-3 px-4">Expiry Date</th>
+                        <th className="py-3 px-4 text-center">Current Stock</th>
+                        <th className="py-3 px-4 text-right">Value (₹)</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {(!expiryData?.expired || expiryData.expired.length === 0) &&
+                      (!expiryData?.expiring30 || expiryData.expiring30.length === 0) ? (
+                        <tr>
+                          <td colSpan={7} className="py-8 text-center text-slate-400 dark:text-slate-500">
+                            No expired or near-expiry batches in inventory.
+                          </td>
+                        </tr>
+                      ) : (
+                        [...(expiryData?.expired || []), ...(expiryData?.expiring30 || [])].map((b: any) => {
+                          const isExp = new Date(b.expiryDate) < new Date();
+                          return (
+                            <tr key={b.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                              <td className="py-3 px-4 font-bold text-slate-900 dark:text-white">{b.medicine?.name}</td>
+                              <td className="py-3 px-4 font-mono text-sky-600 dark:text-sky-400">{b.batchNumber}</td>
+                              <td className="py-3 px-4 font-mono">{formatDate(b.expiryDate)}</td>
+                              <td className="py-3 px-4 text-center font-mono font-bold">{b.currentQty}</td>
+                              <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                                {formatCurrency(b.currentQty * b.purchasePrice)}
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <span
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    isExp
+                                      ? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400 border border-red-200 dark:border-red-800'
+                                      : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border border-amber-200 dark:border-amber-800'
+                                  }`}
+                                >
+                                  {isExp ? 'EXPIRED' : 'EXPIRING SOON'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                {canManage && (
+                                  <button
+                                    onClick={() => {
+                                      setAdjustmentModal(b);
+                                      setAdjustmentQty(b.currentQty);
+                                    }}
+                                    className="px-2.5 py-1 text-[11px] font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg transition border border-red-200 dark:border-red-900"
+                                  >
+                                    Quarantine / Adjust
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

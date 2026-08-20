@@ -62,13 +62,13 @@ export class CreatePurchaseDto {
   @IsNotEmpty({ message: 'Supplier ID is required' })
   supplierId: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Branch ID is required' })
-  branchId: string;
+  branchId?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Invoice number is required' })
-  invoiceNumber: string;
+  invoiceNumber?: string;
 
   @IsArray()
   @ValidateNested({ each: true })
