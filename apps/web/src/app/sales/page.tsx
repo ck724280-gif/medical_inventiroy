@@ -8,6 +8,14 @@ import {
   Printer,
   FileDown,
   MessageCircle,
+  Edit,
+  Trash2,
+  X,
+  Save,
+  Calendar,
+  CreditCard,
+  User,
+  FileText,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
@@ -17,11 +25,21 @@ import { formatDate, formatCurrency, generateWhatsAppInvoiceUrl } from '@medical
 import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview';
 
 export default function SalesPage() {
-  const { selectedBranchId } = useAuthStore();
+  const { selectedBranchId, isSuperAdmin } = useAuthStore();
   const [search, setSearch] = useState('');
   const [activeReceipt, setActiveReceipt] = useState<any | null>(null);
 
-  const { data: salesData, isLoading } = useQuery({
+  // Edit State
+  const [editingInvoice, setEditingInvoice] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({
+    customerId: '',
+    paymentStatus: 'PAID',
+    paymentMode: 'CASH',
+    createdAt: '',
+    notes: '',
+  });
+
+  const { data: salesData, isLoading, refetch } = useQuery({
     queryKey: ['sales-list', selectedBranchId, search],
     queryFn: async () => {
       const res = await apiClient.get('/sales', {
@@ -35,7 +53,17 @@ export default function SalesPage() {
     },
   });
 
+  // Fetch customers for assignment in edit modal
+  const { data: customersData } = useQuery({
+    queryKey: ['customers-list-all'],
+    queryFn: async () => {
+      const res = await apiClient.get('/customers');
+      return Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.customers || []);
+    },
+  });
+
   const sales = Array.isArray(salesData) ? salesData : [];
+  const customers = Array.isArray(customersData) ? customersData : [];
 
   const handlePrintThermal = async (id: string) => {
     try {
@@ -47,7 +75,7 @@ export default function SalesPage() {
   };
 
   const handleDownloadPdf = (id: string) => {
-    window.open(`${process.env.NEXT_PUBLIC_API_URL || 'https://medical-inventory-y445.onrender.com'}/sales/${id}/pdf`, '_blank');
+    window.open(`${process.env.NEXT_PUBLIC_API_URL || 'https://medical-inventiroy.onrender.com'}/sales/${id}/pdf`, '_blank');
   };
 
   const handleWhatsAppShare = (sale: any) => {
@@ -56,6 +84,49 @@ export default function SalesPage() {
     const url = generateWhatsAppInvoiceUrl(phone, sale.invoiceNumber, sale.totalAmount);
     window.open(url, '_blank');
   };
+
+  const startEdit = (sale: any) => {
+    setEditingInvoice(sale);
+    // Format timestamp for datetime-local input (yyyy-MM-ddThh:mm)
+    const localDate = new Date(sale.createdAt);
+    const tzOffset = localDate.getTimezoneOffset() * 60000;
+    const localISOTime = new Date(localDate.getTime() - tzOffset).toISOString().slice(0, 16);
+
+    setEditForm({
+      customerId: sale.customerId || '',
+      paymentStatus: sale.paymentStatus || 'PAID',
+      paymentMode: sale.payments?.[0]?.paymentMode || 'CASH',
+      createdAt: localISOTime,
+      notes: sale.notes || '',
+    });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await apiClient.patch(`/sales/${editingInvoice.id}`, editForm);
+      setEditingInvoice(null);
+      refetch();
+      alert('Invoice details updated successfully.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update invoice details.');
+    }
+  };
+
+  const handleDeleteInvoice = async (id: string, invoiceNum: string) => {
+    if (!confirm(`Warning: Are you sure you want to delete invoice ${invoiceNum}?\n\nThis will restore the inventory stock of all medicines in this invoice and reverse customer credit balances. This action is irreversible.`)) {
+      return;
+    }
+    try {
+      await apiClient.delete(`/sales/${id}`);
+      refetch();
+      alert('Invoice deleted successfully and stock restored.');
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to delete invoice.');
+    }
+  };
+
+  const isUserSuperAdmin = isSuperAdmin();
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
@@ -141,7 +212,11 @@ export default function SalesPage() {
                           {formatCurrency(sale.totalAmount || 0)}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            sale.paymentStatus === 'PAID'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                          }`}>
                             {sale.paymentStatus}
                           </span>
                         </td>
@@ -168,6 +243,24 @@ export default function SalesPage() {
                             >
                               <FileDown className="w-3.5 h-3.5" />
                             </button>
+                            {isUserSuperAdmin && (
+                              <>
+                                <button
+                                  onClick={() => startEdit(sale)}
+                                  title="Edit Invoice"
+                                  className="p-1.5 bg-amber-50 dark:bg-slate-800 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-slate-700 rounded-lg transition"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteInvoice(sale.id, sale.invoiceNumber)}
+                                  title="Delete Invoice"
+                                  className="p-1.5 bg-red-50 dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-slate-700 rounded-lg transition"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -185,6 +278,125 @@ export default function SalesPage() {
             data={activeReceipt}
             onClose={() => setActiveReceipt(null)}
           />
+        )}
+
+        {/* Edit Invoice Modal */}
+        {editingInvoice && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] max-w-md w-full p-6 space-y-4 shadow-2xl text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
+                  <Edit className="w-5 h-5" />
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                    Edit Invoice {editingInvoice.invoiceNumber}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setEditingInvoice(null)}
+                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                {/* Date Selection */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5" /> Invoice Date &amp; Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={editForm.createdAt}
+                    onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono transition"
+                  />
+                </div>
+
+                {/* Customer Assignment */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                    <User className="w-3.5 h-3.5" /> Assign Customer
+                  </label>
+                  <select
+                    value={editForm.customerId}
+                    onChange={(e) => setEditForm({ ...editForm, customerId: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 transition"
+                  >
+                    <option value="">Walk-in Customer (General)</option>
+                    {customers.map((cust: any) => (
+                      <option key={cust.id} value={cust.id}>
+                        {cust.name} ({cust.mobile || 'No Mobile'})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status and Mode */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                      <CreditCard className="w-3.5 h-3.5" /> Status
+                    </label>
+                    <select
+                      value={editForm.paymentStatus}
+                      onChange={(e) => setEditForm({ ...editForm, paymentStatus: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 transition"
+                    >
+                      <option value="PAID">PAID</option>
+                      <option value="UNPAID">UNPAID</option>
+                      <option value="PARTIAL">PARTIAL</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                      <CreditCard className="w-3.5 h-3.5" /> Payment Method
+                    </label>
+                    <select
+                      value={editForm.paymentMode}
+                      onChange={(e) => setEditForm({ ...editForm, paymentMode: e.target.value })}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 transition"
+                    >
+                      <option value="CASH">CASH</option>
+                      <option value="UPI">UPI</option>
+                      <option value="CARD">CARD</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Notes/Remarks */}
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1.5 flex items-center gap-1">
+                    <FileText className="w-3.5 h-3.5" /> Internal Notes / Remarks
+                  </label>
+                  <textarea
+                    placeholder="Add billing comments or audit reasons..."
+                    value={editForm.notes}
+                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                    rows={2}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 transition resize-none"
+                  />
+                </div>
+
+                {/* Confirm actions */}
+                <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setEditingInvoice(null)}
+                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg flex items-center gap-1.5 transition"
+                  >
+                    <Save className="w-4 h-4" /> Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Param,
   Body,
   Query,
@@ -46,5 +48,22 @@ export class SalesController {
     @CurrentUser('id') userId: string
   ) {
     return this.salesService.checkout(dto, userId);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('sale.edit')
+  @Auditable('edit_sale', 'SalesInvoice')
+  async update(
+    @Param('id') id: string,
+    @Body() dto: any
+  ) {
+    return this.salesService.updateSalesInvoice(id, dto);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('sale.delete')
+  @Auditable('delete_sale', 'SalesInvoice')
+  async remove(@Param('id') id: string) {
+    return this.salesService.deleteSalesInvoice(id);
   }
 }

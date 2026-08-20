@@ -754,4 +754,151 @@ export class SalesService {
       isReprint: Boolean(isReprint || sale.isReprint),
     };
   }
+
+  async deleteSalesInvoice(id: string) {
+    const sale = await this.prisma.salesInvoice.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        payments: true,
+      },
+    });
+
+    if (!sale) {
+      throw new NotFoundException(`Sales invoice with ID ${id} not found`);
+    }
+
+    // Perform inside a database transaction to ensure atomicity
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Reverse Inventory stock changes
+      for (const item of sale.items) {
+        if (item.batchId) {
+          // Add quantity back to the original batch
+          await tx.batch.update({
+            where: { id: item.batchId },
+            data: {
+              currentQty: {
+                increment: item.qty,
+              },
+            },
+          });
+        }
+
+        // Also record a stock movement log for this reversal/deletion
+        await tx.stockMovement.create({
+          data: {
+            medicineId: item.medicineId,
+            batchId: item.batchId,
+            branchId: sale.branchId,
+            type: StockMovementType.ADJUSTMENT,
+            direction: MovementDirection.IN,
+            quantity: item.qty,
+            reason: `Sales Invoice ${sale.invoiceNumber} deleted/cancelled. Stock restored.`,
+          },
+        });
+      }
+
+      // 2. Reverse Customer credit/balance changes (if customerId is present)
+      if (sale.customerId) {
+        // Calculate credit amount (total amount unpaid / outstanding customer balance)
+        let unpaidAmount = 0;
+        const totalPaid = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+        unpaidAmount = Number(sale.totalAmount) - totalPaid;
+
+        if (unpaidAmount > 0) {
+          // Decrement the customer's outstanding balance
+          await tx.customer.update({
+            where: { id: sale.customerId },
+            data: {
+              currentBalance: {
+                decrement: unpaidAmount,
+              },
+            },
+          });
+        }
+      }
+
+      // 3. Delete payments
+      await tx.salesPayment.deleteMany({
+        where: { invoiceId: id },
+      });
+
+      // 4. Delete items
+      await tx.salesItem.deleteMany({
+        where: { invoiceId: id },
+      });
+
+      // 5. Delete prescription record (if any)
+      await tx.prescriptionRecord.deleteMany({
+        where: { invoiceId: id },
+      });
+
+      // 6. Delete invoice
+      await tx.salesInvoice.delete({
+        where: { id },
+      });
+    });
+
+    return { success: true, message: `Invoice ${sale.invoiceNumber} successfully deleted and stock restored.` };
+  }
+
+  async updateSalesInvoice(id: string, dto: any) {
+    const sale = await this.prisma.salesInvoice.findUnique({
+      where: { id },
+      include: {
+        payments: true,
+      },
+    });
+
+    if (!sale) {
+      throw new NotFoundException(`Sales invoice with ID ${id} not found`);
+    }
+
+    const updateData: any = {};
+    if (dto.notes !== undefined) updateData.notes = dto.notes;
+    if (dto.createdAt !== undefined) updateData.createdAt = new Date(dto.createdAt);
+    if (dto.paymentStatus !== undefined) updateData.paymentStatus = dto.paymentStatus;
+    if (dto.customerId !== undefined) updateData.customerId = dto.customerId;
+
+    await this.prisma.$transaction(async (tx) => {
+      // If customer is changing and there's an outstanding balance, adjust ledger
+      if (dto.customerId !== undefined && dto.customerId !== sale.customerId) {
+        const totalPaid = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const unpaidAmount = Number(sale.totalAmount) - totalPaid;
+
+        if (unpaidAmount > 0) {
+          // Remove from old customer balance (if existed)
+          if (sale.customerId) {
+            await tx.customer.update({
+              where: { id: sale.customerId },
+              data: { currentBalance: { decrement: unpaidAmount } },
+            });
+          }
+          // Add to new customer balance (if changing to a valid customer)
+          if (dto.customerId) {
+            await tx.customer.update({
+              where: { id: dto.customerId },
+              data: { currentBalance: { increment: unpaidAmount } },
+            });
+          }
+        }
+      }
+
+      // If payment mode is changing, update the payment records mode
+      if (dto.paymentMode !== undefined) {
+        await tx.salesPayment.updateMany({
+          where: { invoiceId: id },
+          data: { paymentMode: dto.paymentMode },
+        });
+      }
+
+      // Finally update the sales invoice
+      await tx.salesInvoice.update({
+        where: { id },
+        data: updateData,
+      });
+    });
+
+    return this.findOne(id);
+  }
 }
