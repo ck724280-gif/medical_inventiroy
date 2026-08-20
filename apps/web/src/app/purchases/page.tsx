@@ -22,6 +22,8 @@ import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
 import { PaymentMode } from '@medical-inventory/shared-types';
+// @ts-ignore
+import ReactBarcode from 'react-barcode';
 
 function PurchasesContent() {
   const queryClient = useQueryClient();
@@ -636,21 +638,19 @@ function PurchasesContent() {
               </div>
             </div>
           </div>
-        )}
-
-        {barcodeModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 print:p-0 print:bg-white print:static">
-            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-xl w-full p-6 space-y-4 text-xs print:shadow-none print:border-none print:w-full">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 print:hidden">
+        )}        {barcodeModal && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 print:p-0 print:bg-white print:static print-modal-container">
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-xl w-full p-6 space-y-4 text-xs print:shadow-none print:border-none print:w-full">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 print:hidden">
                 <div className="flex items-center gap-2">
-                  <Barcode className="w-5 h-5 text-sky-600" />
-                  <h3 className="font-bold text-sm text-slate-900">
+                  <Barcode className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
                     Print Thermal Shelf Barcode Labels (40mm x 20mm)
                   </h3>
                 </div>
                 <button
                   onClick={() => setBarcodeModal(null)}
-                  className="p-1 text-slate-400 hover:text-slate-600"
+                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 transition"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -658,37 +658,98 @@ function PurchasesContent() {
 
               <div
                 ref={labelPrintRef}
-                className="space-y-3 max-h-96 overflow-y-auto p-3 bg-slate-50 rounded-xl border border-slate-200 print:p-0 print:border-none print:bg-white"
+                className="space-y-3 max-h-96 overflow-y-auto p-3 bg-slate-50 dark:bg-[#090d16] rounded-xl border border-slate-200 dark:border-slate-800 print:p-0 print:border-none print:bg-white"
               >
-                <p className="text-[11px] text-slate-500 print:hidden">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 print:hidden">
                   Preview of standard 40x20mm thermal shelf labels for received batches:
                 </p>
-                <div className="grid grid-cols-2 gap-3 print:grid-cols-1 print:gap-1">
+
+                {/* Print Stylesheet Overrides */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                  @media print {
+                    body * {
+                      visibility: hidden !important;
+                    }
+                    #label-print-area, #label-print-area * {
+                      visibility: visible !important;
+                    }
+                    #label-print-area {
+                      position: absolute !important;
+                      left: 0 !important;
+                      top: 0 !important;
+                      width: 100% !important;
+                      background: white !important;
+                      color: black !important;
+                      padding: 0 !important;
+                      margin: 0 !important;
+                    }
+                    .print-label-card {
+                      background: white !important;
+                      color: black !important;
+                      border: 1px solid #000000 !important;
+                      border-radius: 6px !important;
+                      padding: 10px !important;
+                      margin: 4px !important;
+                      width: 200px !important;
+                      height: 95px !important;
+                      display: inline-flex !important;
+                      flex-direction: column !important;
+                      align-items: center !important;
+                      justify-content: center !important;
+                      float: left !important;
+                      page-break-inside: avoid !important;
+                      box-sizing: border-box !important;
+                    }
+                    .print-label-card * {
+                      color: #000000 !important;
+                      background: transparent !important;
+                    }
+                  }
+                `}} />
+
+                <div id="label-print-area" className="grid grid-cols-2 gap-3 print:block">
                   {(barcodeModal?.items || []).map((item: any, idx: number) => {
                     const medicine =
                       medicines.find((m: any) => m.id === item.medicineId) || item.medicine;
-                    const barcode = medicine?.barcodes?.[0]?.barcodeValue || medicine?.sku || 'N/A';
+                    const barcode = medicine?.barcodes?.[0]?.barcodeValue || medicine?.barcode || medicine?.sku || 'N/A';
                     return (
                       <div
                         key={idx}
-                        className="p-3 bg-white border border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center text-center print:border print:border-black print:p-2 print:m-1"
+                        className="p-3 bg-white dark:bg-[#0f172a] border border-dashed border-slate-300 dark:border-slate-800 rounded-lg flex flex-col items-center justify-center text-center print-label-card"
                         style={{ minHeight: '120px' }}
                       >
-                        <span className="font-bold text-[11px] text-slate-900 truncate w-full">
+                        <span className="font-bold text-[11px] text-slate-900 dark:text-white truncate w-full">
                           {medicine?.name || 'MEDICINE'}
                         </span>
-                        <div className="flex items-center justify-between w-full text-[9px] text-slate-500 mt-0.5">
+                        <div className="flex items-center justify-between w-full text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
                           <span>B: {item.batchNumber}</span>
                           <span>
                             EXP: {item.expiryDate ? formatDate(item.expiryDate, 'MM/yy') : '-'}
                           </span>
                         </div>
-                        <div className="font-mono text-base font-black tracking-widest my-1 text-slate-900">
-                          *{barcode}*
+                        
+                        {/* Graphical Barcode component instead of Monospace Text */}
+                        <div className="my-1 flex items-center justify-center overflow-hidden bg-white p-0.5 rounded">
+                          {barcode !== 'N/A' ? (
+                            <ReactBarcode
+                              value={barcode}
+                              width={1.2}
+                              height={32}
+                              fontSize={8}
+                              margin={0}
+                              displayValue={false}
+                            />
+                          ) : (
+                            <span className="text-[9px] text-slate-400">NO BARCODE</span>
+                          )}
                         </div>
-                        <div className="flex items-center justify-between w-full text-[10px] font-bold text-slate-900">
+
+                        <div className="font-mono text-[9px] font-bold text-slate-900 dark:text-white">
+                          {barcode}
+                        </div>
+                        <div className="flex items-center justify-between w-full text-[10px] font-bold text-slate-900 dark:text-white mt-1">
                           <span>MRP: {formatCurrency(item.mrp || 0)}</span>
-                          <span className="text-emerald-700 font-extrabold">
+                          <span className="text-emerald-700 dark:text-emerald-400 font-extrabold">
                             OUR: {formatCurrency(item.sellingPrice || item.mrp || 0)}
                           </span>
                         </div>
@@ -698,18 +759,18 @@ function PurchasesContent() {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-200 print:hidden">
+              <div className="flex justify-end gap-3 pt-2 border-t border-slate-200 dark:border-slate-800 print:hidden">
                 <button
                   type="button"
                   onClick={() => setBarcodeModal(null)}
-                  className="px-4 py-2 border border-slate-300 rounded-xl font-semibold text-slate-600 hover:bg-slate-50"
+                  className="px-4 py-2 border border-slate-300 dark:border-slate-850 rounded-xl font-semibold text-slate-650 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
                 >
                   Close
                 </button>
                 <button
                   type="button"
                   onClick={handlePrintLabels}
-                  className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl flex items-center gap-2 shadow"
+                  className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl flex items-center gap-2 shadow transition"
                 >
                   <Printer className="w-4 h-4" />
                   Print 40x20mm Labels
