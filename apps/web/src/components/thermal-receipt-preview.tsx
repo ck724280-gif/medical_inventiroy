@@ -120,19 +120,19 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
             <div className="flex items-center bg-slate-800 p-1 rounded-lg">
               <button
                 onClick={() => setLayout('A4')}
-                className={\`px-3 py-1 text-xs font-semibold rounded-md transition \${layout === 'A4' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:text-white'}\`}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition ${layout === 'A4' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:text-white'}`}
               >
                 A4 Document
               </button>
               <button
                 onClick={() => setLayout('80MM')}
-                className={\`px-3 py-1 text-xs font-semibold rounded-md transition \${layout === '80MM' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:text-white'}\`}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition ${layout === '80MM' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:text-white'}`}
               >
                 80mm Thermal
               </button>
               <button
                 onClick={() => setLayout('58MM')}
-                className={\`px-3 py-1 text-xs font-semibold rounded-md transition \${layout === '58MM' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:text-white'}\`}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition ${layout === '58MM' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:text-white'}`}
               >
                 58mm Thermal
               </button>
@@ -270,7 +270,7 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
           ) : (
             <div
               ref={receiptRef}
-              className={\`\${layout === '80MM' ? 'w-[320px]' : 'w-[260px]'} bg-white p-4 shadow-lg border border-slate-300 text-black\`}
+              className={`${layout === '80MM' ? 'w-[320px]' : 'w-[260px]'} bg-white p-4 shadow-lg border border-slate-300 text-black`}
               style={{ fontFamily: '"Courier New", Courier, monospace', fontSize: '11px', lineHeight: '1.25' }}
             >
               {/* Thermal Render Logic (from existing component) */}
@@ -325,9 +325,9 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
                       <td className="py-1">
                         <div className="font-bold">{item.name}</div>
                         <div className="text-[9px] text-gray-600">
-                          {item.batch || item.batchNumber ? \`B:\${item.batch || item.batchNumber}\` : ''}
-                          {item.expiry || item.expiryDate ? \` E:\${item.expiry || item.expiryDate}\` : ''}
-                          {item.mrp ? \` MRP:₹\${item.mrp}\` : ''}
+                          {item.batch || item.batchNumber ? `B:${item.batch || item.batchNumber}` : ''}
+                          {item.expiry || item.expiryDate ? ` E:${item.expiry || item.expiryDate}` : ''}
+                          {item.mrp ? ` MRP:₹${item.mrp}` : ''}
                         </div>
                       </td>
                       <td className="py-1 text-center align-top">{item.qty} {item.unit || ''}</td>
