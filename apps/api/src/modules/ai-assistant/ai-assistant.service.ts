@@ -210,7 +210,17 @@ ${JSON.stringify(contextData, null, 2)}
       q.includes('backup') ||
       q.includes('branch') ||
       q.includes('cashier') ||
-      q.includes('add')
+      q.includes('add') ||
+      q.includes('pos') ||
+      q.includes('bill') ||
+      q.includes('sale') ||
+      q.includes('purchase') ||
+      q.includes('inward') ||
+      q.includes('return') ||
+      q.includes('report') ||
+      q.includes('guide') ||
+      q.includes('function') ||
+      q.includes('kaam')
     ) {
       toolsUsed.push('getErpGuide');
       context.erpGuide = this.getErpGuide(query);
@@ -508,7 +518,7 @@ ${JSON.stringify(contextData, null, 2)}
     const q = query.toLowerCase();
     if (q.includes('thermal') || q.includes('receipt') || q.includes('print')) {
       return {
-        topic: 'Thermal & Invoice Printing',
+        topic: 'Thermal & Invoice Printing Setup',
         instructions: [
           'Go to Settings > Thermal Receipt Setup.',
           'Choose your printer roll format: 80mm Standard POS, 58mm Mini Roll, A4 Full Page, or A5 Half Page Invoice.',
@@ -530,7 +540,7 @@ ${JSON.stringify(contextData, null, 2)}
     }
     if (q.includes('backup') || q.includes('drive')) {
       return {
-        topic: 'Database Backup & Google Drive',
+        topic: 'Database Backup & Google Drive Cloud Sync',
         instructions: [
           'Go to Settings > Database Backup & Google Drive.',
           'Click "Create Manual Backup" to immediately generate a compressed database snapshot.',
@@ -539,8 +549,74 @@ ${JSON.stringify(contextData, null, 2)}
         ],
       };
     }
+    if (
+      q.includes('pos') ||
+      q.includes('bill') ||
+      q.includes('sale') ||
+      q.includes('counter') ||
+      q.includes('checkout') ||
+      q.includes('discount')
+    ) {
+      return {
+        topic: 'POS Billing, Barcode Scanning & Checkout',
+        instructions: [
+          'Go to the POS Counter page.',
+          'Use a USB Barcode Scanner to scan medicine pack barcode, or search by Brand/Generic Name in the search box.',
+          'The system automatically loads the earliest expiring batch using FEFO (First-Expiry-First-Out) rule to avoid stock wastage.',
+          'You can add items, apply item-level discounts, change quantity, and select custom batches.',
+          'During checkout, choose the Payment Method (Cash, UPI, Card, or Credit/Outstanding for registered customers).',
+          'Click "Generate Bill & Print Receipt" to print the thermal slip and automatically deduct inventory stock.',
+        ],
+      };
+    }
+    if (
+      q.includes('purchase') ||
+      q.includes('inward') ||
+      q.includes('distributor') ||
+      q.includes('label') ||
+      q.includes('cost')
+    ) {
+      return {
+        topic: 'Purchase Bills Inward & Barcode Label Generation',
+        instructions: [
+          'Go to Purchases > Invoices & Inward Stock.',
+          'Click "New Purchase Inward (Stock In)" button.',
+          'Select the Supplier Agency, enter Supplier Invoice Number (blank for auto-generate), and add medicine line items.',
+          'For each medicine, enter its unique Batch Number, Expiry Date, Quantity, Purchase Price, and MRP.',
+          'Click "Confirm & Update Stock" to instantly add batches into inventory and record the supplier outstanding balance.',
+          'After confirming, click the "Labels" button to preview and print 40x20mm thermal barcode shelf labels for the received medicines.',
+        ],
+      };
+    }
+    if (q.includes('return') || q.includes('customer return') || q.includes('supplier return')) {
+      return {
+        topic: 'Sales Returns & Purchase Returns Reconciliations',
+        instructions: [
+          'For Patients (Sales Returns): Go to Sales > Sales Invoices, search the original bill, click "Return Items", select returned quantity (restricted to total sold), and confirm. Restocked quantity is automatically added back to the original batch.',
+          'For Suppliers (Purchase Returns): Go to Purchases > Return to Supplier, select the supplier, specify the expired or damaged batch, enter returned quantity, and click "Process Return". The supplier payable ledger is automatically adjusted.',
+        ],
+      };
+    }
+    if (
+      q.includes('report') ||
+      q.includes('gst') ||
+      q.includes('excel') ||
+      q.includes('pdf') ||
+      q.includes('profit') ||
+      q.includes('tax')
+    ) {
+      return {
+        topic: 'Business Reports & Excel/PDF Exports',
+        instructions: [
+          'Go to the Reports page.',
+          'Select your desired report from the tabs: Sales Register, GSTR-1 Tax Summary, Profit & Loss Statement, or Purchase Book.',
+          'Choose the Date Range (Today, Last 7 Days, Month, or Custom dates) and select a Branch if needed.',
+          'Click "Export to Excel" or "Download PDF" to get accounting-ready clean document downloads.',
+        ],
+      };
+    }
     return {
-      topic: 'General ERP Operations',
+      topic: 'General ERP Operations Guide',
       instructions: [
         'POS Counter: Fast billing with barcode scanner support, FEFO batch selection, and multiple payment methods.',
         'Purchases: Inward bills entry with automatic batch creation and supplier ledger updates.',
