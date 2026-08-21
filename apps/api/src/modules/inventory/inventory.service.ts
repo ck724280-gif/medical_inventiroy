@@ -418,6 +418,49 @@ export class InventoryService {
     });
   }
 
+  private parseFlexibleExpiryDate(dateStr?: any): Date {
+    if (!dateStr) return new Date(Date.now() + 365 * 24 * 3600 * 1000);
+    if (dateStr instanceof Date) {
+      return isNaN(dateStr.getTime()) ? new Date(Date.now() + 365 * 24 * 3600 * 1000) : dateStr;
+    }
+    const str = String(dateStr).trim();
+    if (!str) return new Date(Date.now() + 365 * 24 * 3600 * 1000);
+
+    // Format: MM/YYYY or MM-YYYY
+    if (/^\d{1,2}[\/\-]\d{4}$/.test(str)) {
+      const parts = str.split(/[\/\-]/);
+      const month = parseInt(parts[0], 10);
+      const year = parseInt(parts[1], 10);
+      const d = new Date(year, month, 0);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // Format: MM/YY or MM-YY
+    if (/^\d{1,2}[\/\-]\d{2}$/.test(str)) {
+      const parts = str.split(/[\/\-]/);
+      const month = parseInt(parts[0], 10);
+      const year = 2000 + parseInt(parts[1], 10);
+      const d = new Date(year, month, 0);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // Format: DD/MM/YYYY or DD-MM-YYYY
+    if (/^\d{1,2}[\/\-]\d{1,2}[\/\-]\d{4}$/.test(str)) {
+      const parts = str.split(/[\/\-]/);
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) return d;
+    }
+
+    // Standard ISO parse
+    const parsed = new Date(str);
+    if (!isNaN(parsed.getTime())) return parsed;
+
+    return new Date(Date.now() + 365 * 24 * 3600 * 1000);
+  }
+
   async importOpeningStock(dto: { branchId?: string; items: any[] }, userId?: string) {
     if (!dto.items || !Array.isArray(dto.items) || dto.items.length === 0) {
       throw new BadRequestException('No items provided for opening stock migration');
@@ -467,6 +510,9 @@ export class InventoryService {
         const sellingPrice = Number(item.sellingPrice) || Number(item.mrp) || 0;
         const mrp = Number(item.mrp) || sellingPrice || 0;
         const qty = Number(item.qty) || 0;
+        const hsnCode = item.hsnCode || item.hsn || null;
+        const rackLocation = item.rackLocation || item.location || null;
+        const taxPercent = Number(item.taxPercent) || 12;
 
         if (!medicine) {
           medicine = await tx.medicine.create({
@@ -478,20 +524,15 @@ export class InventoryService {
               defaultPurchasePrice: purchasePrice,
               defaultSellingPrice: sellingPrice,
               mrp,
-              taxPercent: Number(item.taxPercent) || 12,
+              hsnCode,
+              taxPercent,
               isActive: true,
             },
           });
         }
 
         const batchNumber = (item.batchNumber || `OPN-${Date.now().toString(36).toUpperCase()}`).trim();
-        let expiryDate: Date;
-        if (item.expiryDate) {
-          const parsed = new Date(item.expiryDate);
-          expiryDate = isNaN(parsed.getTime()) ? new Date(Date.now() + 365 * 24 * 3600 * 1000) : parsed;
-        } else {
-          expiryDate = new Date(Date.now() + 365 * 24 * 3600 * 1000);
-        }
+        const expiryDate = this.parseFlexibleExpiryDate(item.expiryDate);
 
         let batch = await tx.batch.findUnique({
           where: {
@@ -524,7 +565,7 @@ export class InventoryService {
               purchasePrice,
               sellingPrice,
               mrp,
-              taxPercent: Number(item.taxPercent) || 12,
+              taxPercent,
               initialQty: qty,
               currentQty: qty,
               status: 'ACTIVE',
@@ -552,5 +593,34 @@ export class InventoryService {
 
       return { success: true, createdCount };
     });
+  }
+
+  async getRecentOpeningStock(branchId?: string) {
+    const movements = await this.prisma.stockMovement.findMany({
+      where: {
+        type: StockMovementType.OPENING_STOCK,
+        ...(branchId ? { branchId } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      include: {
+        medicine: { select: { id: true, name: true, sku: true } },
+        batch: { select: { id: true, batchNumber: true, expiryDate: true, mrp: true, purchasePrice: true } },
+        user: { select: { id: true, firstName: true, lastName: true } },
+      },
+    });
+
+    return movements.map((m) => ({
+      id: m.id,
+      medicineName: m.medicine?.name || 'Medicine',
+      sku: m.medicine?.sku || '—',
+      batchNumber: m.batch?.batchNumber || '—',
+      expiryDate: m.batch?.expiryDate,
+      qty: m.qty,
+      purchasePrice: m.batch?.purchasePrice || 0,
+      mrp: m.batch?.mrp || 0,
+      createdAt: m.createdAt,
+      userName: `${m.user?.firstName || 'Staff'} ${m.user?.lastName || ''}`.trim(),
+    }));
   }
 }

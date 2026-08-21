@@ -63,6 +63,12 @@ export class InventoryController {
     return this.inventoryService.receiveTransfer(id, userId);
   }
 
+  @Get('opening-stock/recent')
+  @RequirePermissions('inventory.view')
+  async getRecentOpeningStock(@Query('branchId') branchId?: string) {
+    return this.inventoryService.getRecentOpeningStock(branchId);
+  }
+
   @Post('opening-stock')
   @RequirePermissions('inventory.adjust')
   @Auditable('import_opening_stock', 'Inventory')
