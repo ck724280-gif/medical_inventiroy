@@ -12,6 +12,12 @@ import {
   FileText,
   ShieldAlert,
   Download,
+  Loader2,
+  RefreshCw,
+  IndianRupee,
+  Percent,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
@@ -30,8 +36,37 @@ export default function ReportsPage() {
     endDate: new Date().toISOString().split('T')[0],
   });
 
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  // Date Presets Helper
+  const setPreset = (preset: 'today' | 'week' | 'month' | 'lastMonth' | 'fy') => {
+    const today = new Date();
+    const endStr = today.toISOString().split('T')[0];
+
+    if (preset === 'today') {
+      setDateRange({ startDate: endStr, endDate: endStr });
+    } else if (preset === 'week') {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 7);
+      setDateRange({ startDate: d.toISOString().split('T')[0], endDate: endStr });
+    } else if (preset === 'month') {
+      const start = new Date(today.getFullYear(), today.getMonth(), 1);
+      setDateRange({ startDate: start.toISOString().split('T')[0], endDate: endStr });
+    } else if (preset === 'lastMonth') {
+      const start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const end = new Date(today.getFullYear(), today.getMonth(), 0);
+      setDateRange({ startDate: start.toISOString().split('T')[0], endDate: end.toISOString().split('T')[0] });
+    } else if (preset === 'fy') {
+      const currentYear = today.getFullYear();
+      const isPostApril = today.getMonth() >= 3;
+      const startYear = isPostApril ? currentYear : currentYear - 1;
+      const start = new Date(startYear, 3, 1);
+      setDateRange({ startDate: start.toISOString().split('T')[0], endDate: endStr });
+    }
+  };
+
   // Financial Summary Query
-  const { data: financialData } = useQuery({
+  const { data: financialData, isLoading: loadingFinancials, refetch: refetchFinancials } = useQuery({
     queryKey: ['financial-report', selectedBranchId, dateRange],
     queryFn: async () => {
       const res = await apiClient.get('/reports/financial-summary', {
@@ -43,7 +78,7 @@ export default function ReportsPage() {
   });
 
   // Sales Report Query
-  const { data: salesReportData } = useQuery({
+  const { data: salesReportData, isLoading: loadingSales } = useQuery({
     queryKey: ['sales-report', selectedBranchId, dateRange],
     queryFn: async () => {
       const res = await apiClient.get('/reports/sales', {
@@ -55,10 +90,10 @@ export default function ReportsPage() {
   });
 
   // Inventory Valuation Query
-  const { data: inventoryValuation } = useQuery({
+  const { data: inventoryValuation, isLoading: loadingInventory } = useQuery({
     queryKey: ['inventory-valuation', selectedBranchId],
     queryFn: async () => {
-      const res = await apiClient.get('/reports/inventory-valuation', {
+      const res = await apiClient.get('/reports/inventory', {
         params: { branchId: selectedBranchId || undefined },
       });
       return res.data?.data || res.data;
@@ -66,8 +101,8 @@ export default function ReportsPage() {
     enabled: activeTab === 'inventory',
   });
 
-  // GSTR-1 Query (R5)
-  const { data: gstr1Data } = useQuery({
+  // GSTR-1 Query
+  const { data: gstr1Data, isLoading: loadingGstr1 } = useQuery({
     queryKey: ['gstr1-report', selectedBranchId, dateRange],
     queryFn: async () => {
       const res = await apiClient.get('/reports/gstr1', {
@@ -78,8 +113,8 @@ export default function ReportsPage() {
     enabled: activeTab === 'gstr1',
   });
 
-  // GSTR-3B Query (R5)
-  const { data: gstr3bData } = useQuery({
+  // GSTR-3B Query
+  const { data: gstr3bData, isLoading: loadingGstr3b } = useQuery({
     queryKey: ['gstr3b-report', selectedBranchId, dateRange],
     queryFn: async () => {
       const res = await apiClient.get('/reports/gstr3b', {
@@ -90,8 +125,8 @@ export default function ReportsPage() {
     enabled: activeTab === 'gstr3b',
   });
 
-  // HSN Summary Query (R5)
-  const { data: hsnData } = useQuery({
+  // HSN Summary Query
+  const { data: hsnData, isLoading: loadingHsn } = useQuery({
     queryKey: ['hsn-report', selectedBranchId, dateRange],
     queryFn: async () => {
       const res = await apiClient.get('/reports/hsn-summary', {
@@ -102,11 +137,11 @@ export default function ReportsPage() {
     enabled: activeTab === 'hsn',
   });
 
-  // Schedule H Register Query (R7)
-  const { data: scheduleHData } = useQuery({
+  // Schedule H Register Query
+  const { data: scheduleHData, isLoading: loadingScheduleH } = useQuery({
     queryKey: ['schedule-h-report', selectedBranchId, dateRange],
     queryFn: async () => {
-      const res = await apiClient.get('/reports/schedule-h-register', {
+      const res = await apiClient.get('/reports/schedule-h', {
         params: { branchId: selectedBranchId || undefined, ...dateRange },
       });
       return res.data?.data || res.data;
@@ -114,13 +149,29 @@ export default function ReportsPage() {
     enabled: activeTab === 'schedule-h',
   });
 
-  const handleExportExcel = (type: string) => {
-    const query = new URLSearchParams({
-      branchId: selectedBranchId || '',
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
-    }).toString();
-    window.open(`${apiClient.defaults.baseURL}/reports/${type}/excel?${query}`, '_blank');
+  const handleExportExcel = async (type: string, filename: string) => {
+    try {
+      setDownloading(type);
+      const res = await apiClient.get(`/reports/${type}/export/excel`, {
+        params: {
+          branchId: selectedBranchId || undefined,
+          startDate: dateRange.startDate || undefined,
+          endDate: dateRange.endDate || undefined,
+        },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (e: any) {
+      alert('Failed to export Excel report. Please try again.');
+    } finally {
+      setDownloading(null);
+    }
   };
 
   return (
@@ -134,32 +185,72 @@ export default function ReportsPage() {
           {/* Header & Date Filters */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Reports &amp; Legal Analytics</h2>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                Reports &amp; Legal Analytics
+              </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                GST Returns (GSTR-1, GSTR-3B), HSN Summaries, and Schedule H / H1 Drug Registers.
+                Financial P&amp;L, GST Returns (GSTR-1, GSTR-3B), HSN Summaries, and Schedule H / H1 Drug Registers.
               </p>
             </div>
 
-            <div className="flex items-center gap-2 bg-white dark:bg-[#0f172a] p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl text-xs">
-              <Calendar className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-              <input
-                type="date"
-                value={dateRange.startDate}
-                onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-                className="bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-2 py-1 focus:outline-none"
-              />
-              <span className="text-slate-400">to</span>
-              <input
-                type="date"
-                value={dateRange.endDate}
-                onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-                className="bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-2 py-1 focus:outline-none"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Quick Presets */}
+              <div className="flex items-center gap-1 bg-white dark:bg-[#0f172a] p-1 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] shadow-sm">
+                <button
+                  onClick={() => setPreset('today')}
+                  className="px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 font-medium transition"
+                >
+                  Today
+                </button>
+                <button
+                  onClick={() => setPreset('week')}
+                  className="px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 font-medium transition"
+                >
+                  7D
+                </button>
+                <button
+                  onClick={() => setPreset('month')}
+                  className="px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 font-medium transition"
+                >
+                  This Month
+                </button>
+                <button
+                  onClick={() => setPreset('lastMonth')}
+                  className="px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-300 font-medium transition"
+                >
+                  Last Month
+                </button>
+                <button
+                  onClick={() => setPreset('fy')}
+                  className="px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-sky-600 dark:text-sky-400 font-semibold transition"
+                >
+                  FY
+                </button>
+              </div>
+
+              {/* Date Pickers */}
+              <div className="flex items-center gap-2 bg-white dark:bg-[#0f172a] p-1.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm text-xs">
+                <Calendar className="w-4 h-4 text-slate-400 dark:text-slate-500" />
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+                  className="bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-2 py-1 focus:outline-none text-xs"
+                />
+                <span className="text-slate-400 text-xs">to</span>
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+                  className="bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-white rounded-lg px-2 py-1 focus:outline-none text-xs"
+                />
+              </div>
             </div>
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex flex-wrap border-b border-slate-200 dark:border-slate-800 gap-2">
+          <div className="flex flex-wrap border-b border-slate-200 dark:border-slate-800 gap-1.5">
             {[
               { id: 'financials', label: 'P&L Summary', icon: TrendingUp },
               { id: 'sales', label: 'Sales Ledger', icon: Receipt },
@@ -175,7 +266,7 @@ export default function ReportsPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 ${
+                  className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 ${
                     isActive
                       ? 'bg-white dark:bg-[#0f172a] text-sky-600 dark:text-sky-400 border-sky-600 dark:border-sky-400 shadow-sm'
                       : 'text-slate-500 dark:text-slate-400 border-transparent hover:text-slate-900 dark:hover:text-white'
@@ -188,310 +279,631 @@ export default function ReportsPage() {
             })}
           </div>
 
-          {/* TAB: Financials */}
-          {activeTab === 'financials' && financialData && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Gross Revenue</span>
-                  <h3 className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">
-                    {formatCurrency(financialData.totalRevenue)}
-                  </h3>
+          {/* TAB 1: Financials P&L */}
+          {activeTab === 'financials' && (
+            <div className="space-y-5">
+              {loadingFinancials ? (
+                <div className="py-16 text-center text-slate-400 dark:text-slate-500 flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin" /> Calculating P&amp;L Financial metrics...
                 </div>
-                <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Cost of Goods Sold (COGS)</span>
-                  <h3 className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">
-                    {formatCurrency(financialData.cogs)}
-                  </h3>
-                </div>
-                <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Gross Profit</span>
-                  <h3 className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-                    {formatCurrency(financialData.grossProfit)}
-                  </h3>
-                </div>
-                <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Net Profit Estimate</span>
-                  <h3 className="text-xl font-bold font-mono text-sky-600 dark:text-sky-400 mt-1">
-                    {formatCurrency(financialData.netProfitEstimate)}
-                  </h3>
-                </div>
-              </div>
+              ) : financialData ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Gross Revenue</span>
+                      <h3 className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">
+                        {formatCurrency(financialData.totalRevenue || financialData.grossSales || 0)}
+                      </h3>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        From {financialData.totalInvoices || 0} completed invoices
+                      </p>
+                    </div>
+
+                    <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Cost of Goods Sold (COGS)</span>
+                      <h3 className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">
+                        {formatCurrency(financialData.cogs || 0)}
+                      </h3>
+                      <p className="text-[10px] text-slate-400 mt-1">Direct inventory purchase cost</p>
+                    </div>
+
+                    <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Operating Expenses</span>
+                      <h3 className="text-xl font-bold font-mono text-red-600 dark:text-red-400 mt-1">
+                        {formatCurrency(financialData.totalExpenses || 0)}
+                      </h3>
+                      <p className="text-[10px] text-slate-400 mt-1">Rent, electricity, salary, etc.</p>
+                    </div>
+
+                    <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Net Profit Estimate</span>
+                      <h3 className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
+                        {formatCurrency(financialData.netProfitEstimate || 0)}
+                      </h3>
+                      <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1 font-mono">
+                        Margin: {financialData.profitMargin || 0}%
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Summary Breakdown Card */}
+                  <div className="p-5 bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                      Detailed P&amp;L Financial Breakdown
+                    </h4>
+                    <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                      <div className="flex justify-between py-2">
+                        <span className="text-slate-600 dark:text-slate-400">Gross Sales Revenue (+)</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          {formatCurrency(financialData.grossSales || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-slate-600 dark:text-slate-400">Sales Returns / Refunds (-)</span>
+                        <span className="font-mono font-bold text-amber-600 dark:text-amber-400">
+                          {formatCurrency(financialData.totalReturns || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-slate-600 dark:text-slate-400">Net Sales Revenue</span>
+                        <span className="font-mono font-bold text-sky-600 dark:text-sky-400">
+                          {formatCurrency(financialData.netRevenue || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-slate-600 dark:text-slate-400">Cost of Goods Sold (COGS) (-)</span>
+                        <span className="font-mono font-bold text-red-600 dark:text-red-400">
+                          {formatCurrency(financialData.cogs || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-slate-600 dark:text-slate-400">Gross Margin Profit</span>
+                        <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(financialData.grossProfit || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2">
+                        <span className="text-slate-600 dark:text-slate-400">Operational Expenses Payouts (-)</span>
+                        <span className="font-mono font-bold text-red-600 dark:text-red-400">
+                          {formatCurrency(financialData.totalExpenses || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-2.5 bg-slate-50 dark:bg-slate-900/50 px-2 rounded-lg font-bold">
+                        <span className="text-slate-900 dark:text-white">Net Business Profit</span>
+                        <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(financialData.netProfitEstimate || 0)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : null}
             </div>
           )}
 
-          {/* TAB: Sales */}
-          {activeTab === 'sales' && salesReportData && (
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden p-5 space-y-4">
+          {/* TAB 2: Sales Ledger */}
+          {activeTab === 'sales' && (
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Sales Invoices Ledger</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Total Invoices: {salesReportData?.summary?.totalInvoices || 0} | Total Value:{' '}
+                    <b className="font-mono text-sky-600 dark:text-sky-400">
+                      {formatCurrency(salesReportData?.summary?.totalSalesAmount || 0)}
+                    </b>
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleExportExcel('sales', 'sales-report.xlsx')}
+                  disabled={downloading === 'sales'}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
+                >
+                  {downloading === 'sales' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Export Sales Excel (.xlsx)
+                </button>
+              </div>
+
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs min-w-[600px]">
+                <table className="w-full text-left text-xs min-w-[650px]">
                   <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase">
                     <tr>
                       <th className="py-2.5 px-3">Invoice #</th>
                       <th className="py-2.5 px-3">Date</th>
                       <th className="py-2.5 px-3">Customer</th>
+                      <th className="py-2.5 px-3 text-right">Subtotal</th>
                       <th className="py-2.5 px-3 text-right">Tax (₹)</th>
+                      <th className="py-2.5 px-3 text-right">Discount</th>
                       <th className="py-2.5 px-3 text-right">Total Amount</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {(Array.isArray(salesReportData.sales) ? salesReportData.sales : []).map((s: any) => (
-                      <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="py-2.5 px-3 font-mono font-bold text-sky-600 dark:text-sky-400">{s.invoiceNumber}</td>
-                        <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono">{formatDate(s.createdAt)}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">{s.customer?.name || 'Walk-in'}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">₹{Number(s.taxAmount || 0).toFixed(2)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
-                          {formatCurrency(s.totalAmount || 0)}
+                    {loadingSales ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          Loading sales ledger...
                         </td>
                       </tr>
-                    ))}
+                    ) : (salesReportData?.sales || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          No sales recorded in this date range.
+                        </td>
+                      </tr>
+                    ) : (
+                      salesReportData.sales.map((s: any) => (
+                        <tr key={s.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="py-2.5 px-3 font-mono font-bold text-sky-600 dark:text-sky-400">{s.invoiceNumber}</td>
+                          <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400 font-mono">{formatDate(s.createdAt)}</td>
+                          <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">{s.customer?.name || 'Walk-in'}</td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatCurrency(s.subtotal)}</td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatCurrency(s.taxAmount)}</td>
+                          <td className="py-2.5 px-3 text-right font-mono text-amber-600">{formatCurrency(s.discountAmount)}</td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                            {formatCurrency(s.totalAmount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
-          {/* TAB: GSTR-1 (R5) */}
-          {activeTab === 'gstr1' && gstr1Data && (
-            <div className="space-y-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          {/* TAB 3: Inventory Valuation */}
+          {activeTab === 'inventory' && (
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800">GSTR-1 Outward Supplies Summary</h3>
-                  <div className="flex gap-4 mt-2 text-xs">
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Live Inventory Valuation</h3>
+                  <div className="flex flex-wrap gap-4 mt-1 text-xs">
                     <div>
-                      <span className="text-slate-500">B2B Sales: </span>
-                      <span className="font-bold font-mono text-slate-900">{formatCurrency(gstr1Data.summary?.b2bTotal || 0)}</span>
+                      <span className="text-slate-500 dark:text-slate-400">Total Items: </span>
+                      <span className="font-bold font-mono text-slate-900 dark:text-white">
+                        {inventoryValuation?.summary?.totalMedicines || 0}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-slate-500">B2C Retail: </span>
-                      <span className="font-bold font-mono text-slate-900">{formatCurrency(gstr1Data.summary?.b2cTotal || 0)}</span>
+                      <span className="text-slate-500 dark:text-slate-400">Purchase Value: </span>
+                      <span className="font-bold font-mono text-sky-600 dark:text-sky-400">
+                        {formatCurrency(inventoryValuation?.summary?.totalPurchaseValuation || 0)}
+                      </span>
                     </div>
                     <div>
-                      <span className="text-slate-500">Total Tax Liability: </span>
-                      <span className="font-bold font-mono text-sky-700">{formatCurrency(gstr1Data.summary?.totalTax || 0)}</span>
+                      <span className="text-slate-500 dark:text-slate-400">MRP Retail Value: </span>
+                      <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(inventoryValuation?.summary?.totalMrpValuation || 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Potential Gross Profit: </span>
+                      <span className="font-bold font-mono text-indigo-600 dark:text-indigo-400">
+                        {formatCurrency(inventoryValuation?.summary?.potentialProfit || 0)}
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 <button
-                  onClick={() => handleExportExcel('gstr1')}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow"
+                  onClick={() => handleExportExcel('inventory', 'inventory-valuation.xlsx')}
+                  disabled={downloading === 'inventory'}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
                 >
-                  <Download className="w-4 h-4" />
+                  {downloading === 'inventory' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Download Inventory Excel (.xlsx)
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[750px]">
+                  <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase">
+                    <tr>
+                      <th className="py-2.5 px-3">Medicine Name</th>
+                      <th className="py-2.5 px-3">Category</th>
+                      <th className="py-2.5 px-3 text-center">Stock Qty</th>
+                      <th className="py-2.5 px-3 text-right">Purchase Cost (₹)</th>
+                      <th className="py-2.5 px-3 text-right">MRP Retail (₹)</th>
+                      <th className="py-2.5 px-3 text-right">Margin Value</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                    {loadingInventory ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-slate-400">
+                          Valuating stock across batches...
+                        </td>
+                      </tr>
+                    ) : (inventoryValuation?.items || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="py-12 text-center text-slate-400">
+                          No active stock found in inventory.
+                        </td>
+                      </tr>
+                    ) : (
+                      inventoryValuation.items.map((item: any) => (
+                        <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                          <td className="py-2.5 px-3">
+                            <div className="font-bold text-slate-900 dark:text-white">{item.name}</div>
+                            {item.genericName && (
+                              <div className="text-[10px] text-slate-400">{item.genericName}</div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{item.category}</td>
+                          <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-900 dark:text-white">
+                            {item.stock} {item.unit}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-700 dark:text-slate-300">
+                            {formatCurrency(item.purchaseValue)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(item.mrpValue)}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-sky-600 dark:text-sky-400">
+                            {formatCurrency(item.mrpValue - item.purchaseValue)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: GSTR-1 */}
+          {activeTab === 'gstr1' && (
+            <div className="space-y-4">
+              <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">GSTR-1 Outward Supplies Summary</h3>
+                  <div className="flex flex-wrap gap-4 mt-2 text-xs">
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">B2B Taxable: </span>
+                      <span className="font-bold font-mono text-slate-900 dark:text-white">
+                        {formatCurrency(gstr1Data?.summary?.totalB2bTaxable || 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">B2C Retail: </span>
+                      <span className="font-bold font-mono text-slate-900 dark:text-white">
+                        {formatCurrency(gstr1Data?.summary?.totalB2cTaxable || 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 dark:text-slate-400">Total Tax Liability: </span>
+                      <span className="font-bold font-mono text-sky-600 dark:text-sky-400">
+                        {formatCurrency(gstr1Data?.summary?.grandTotalTax || 0)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => handleExportExcel('gstr1', 'gstr1-report.xlsx')}
+                  disabled={downloading === 'gstr1'}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
+                >
+                  {downloading === 'gstr1' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Download GSTR-1 Excel (.xlsx)
                 </button>
               </div>
 
               {/* B2B Invoices Table */}
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-4">
-                <h4 className="font-bold text-xs text-slate-700 mb-3">B2B Invoices (With Customer GSTIN)</h4>
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3">GSTIN</th>
-                      <th className="py-2.5 px-3">Customer Name</th>
-                      <th className="py-2.5 px-3">Invoice #</th>
-                      <th className="py-2.5 px-3">Date</th>
-                      <th className="py-2.5 px-3 text-right">Taxable Value</th>
-                      <th className="py-2.5 px-3 text-right">IGST</th>
-                      <th className="py-2.5 px-3 text-right">CGST</th>
-                      <th className="py-2.5 px-3 text-right">SGST</th>
-                      <th className="py-2.5 px-3 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(Array.isArray(gstr1Data.b2b) ? gstr1Data.b2b : []).map((row: any, i: number) => (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="py-2 px-3 font-mono text-sky-800 font-bold">{row.gstin}</td>
-                        <td className="py-2 px-3">{row.customerName}</td>
-                        <td className="py-2 px-3 font-mono">{row.invoiceNumber}</td>
-                        <td className="py-2 px-3 font-mono">{formatDate(row.date)}</td>
-                        <td className="py-2 px-3 text-right font-mono">{formatCurrency(row.taxableValue)}</td>
-                        <td className="py-2 px-3 text-right font-mono">{formatCurrency(row.igst)}</td>
-                        <td className="py-2 px-3 text-right font-mono">{formatCurrency(row.cgst)}</td>
-                        <td className="py-2 px-3 text-right font-mono">{formatCurrency(row.sgst)}</td>
-                        <td className="py-2 px-3 text-right font-mono font-bold">{formatCurrency(row.totalAmount)}</td>
+              <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden p-4 space-y-3">
+                <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200">
+                  B2B Invoices (With Registered Customer GSTIN)
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[700px]">
+                    <thead className="bg-slate-50 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="py-2.5 px-3">GSTIN</th>
+                        <th className="py-2.5 px-3">Customer Name</th>
+                        <th className="py-2.5 px-3">Invoice #</th>
+                        <th className="py-2.5 px-3">Date</th>
+                        <th className="py-2.5 px-3 text-right">Taxable Value</th>
+                        <th className="py-2.5 px-3 text-right">CGST</th>
+                        <th className="py-2.5 px-3 text-right">SGST</th>
+                        <th className="py-2.5 px-3 text-right">Total</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {loadingGstr1 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            Loading GSTR-1 records...
+                          </td>
+                        </tr>
+                      ) : (gstr1Data?.b2b || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            No B2B registered sales found in this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        gstr1Data.b2b.map((row: any, i: number) => (
+                          <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                            <td className="py-2 px-3 font-mono text-sky-600 dark:text-sky-400 font-bold">{row.gstin}</td>
+                            <td className="py-2 px-3 text-slate-900 dark:text-white">{row.customerName}</td>
+                            <td className="py-2 px-3 font-mono text-slate-700 dark:text-slate-300">{row.invoiceNumber}</td>
+                            <td className="py-2 px-3 font-mono text-slate-500 dark:text-slate-400">{formatDate(row.date)}</td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-900 dark:text-white">
+                              {formatCurrency(row.taxableValue)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatCurrency(row.cgst)}</td>
+                            <td className="py-2 px-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatCurrency(row.sgst)}</td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                              {formatCurrency(row.invoiceValue)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
 
-          {/* TAB: GSTR-3B (R5) */}
-          {activeTab === 'gstr3b' && gstr3bData && (
+          {/* TAB 5: GSTR-3B */}
+          {activeTab === 'gstr3b' && (
             <div className="space-y-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800">GSTR-3B Monthly Return Summary</h3>
-                  <p className="text-xs text-slate-500">Output tax on outward supplies vs Input Tax Credit (ITC) on inward purchases.</p>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">GSTR-3B Monthly Return Summary</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Output tax on outward supplies vs Input Tax Credit (ITC) on inward purchases.
+                  </p>
                 </div>
                 <button
-                  onClick={() => handleExportExcel('gstr3b')}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow"
+                  onClick={() => handleExportExcel('gstr3b', 'gstr3b-report.xlsx')}
+                  disabled={downloading === 'gstr3b'}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
                 >
-                  <Download className="w-4 h-4" />
+                  {downloading === 'gstr3b' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Download GSTR-3B Excel (.xlsx)
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                  <h4 className="font-bold text-xs text-slate-700">3.1 Outward Taxable Supplies (Sales)</h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between py-1 border-b border-slate-100">
-                      <span>Total Taxable Value:</span>
-                      <span className="font-mono font-bold">{formatCurrency(gstr3bData.outwardSupplies?.taxableValue || 0)}</span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100">
-                      <span>CGST:</span>
-                      <span className="font-mono font-bold">{formatCurrency(gstr3bData.outwardSupplies?.cgst || 0)}</span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100">
-                      <span>SGST:</span>
-                      <span className="font-mono font-bold">{formatCurrency(gstr3bData.outwardSupplies?.sgst || 0)}</span>
+              {loadingGstr3b ? (
+                <div className="py-12 text-center text-slate-400">Compiling GSTR-3B return tables...</div>
+              ) : gstr3bData ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                    <h4 className="font-bold text-xs text-slate-900 dark:text-white">3.1 Outward Taxable Supplies (Sales)</h4>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500 dark:text-slate-400">Total Taxable Value:</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          {formatCurrency(gstr3bData.outwardSupplies?.taxableValue || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500 dark:text-slate-400">CGST (Central Tax):</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          {formatCurrency(gstr3bData.outwardSupplies?.cgst || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500 dark:text-slate-400">SGST (State Tax):</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          {formatCurrency(gstr3bData.outwardSupplies?.sgst || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 font-bold text-sky-600 dark:text-sky-400">
+                        <span>Total Output Tax:</span>
+                        <span className="font-mono">{formatCurrency(gstr3bData.outwardSupplies?.totalTax || 0)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-                  <h4 className="font-bold text-xs text-slate-700">4. Eligible Input Tax Credit (Purchases)</h4>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between py-1 border-b border-slate-100">
-                      <span>ITC Taxable Value:</span>
-                      <span className="font-mono font-bold">{formatCurrency(gstr3bData.eligibleItc?.taxableValue || 0)}</span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100">
-                      <span>ITC CGST:</span>
-                      <span className="font-mono font-bold">{formatCurrency(gstr3bData.eligibleItc?.cgst || 0)}</span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-slate-100">
-                      <span>ITC SGST:</span>
-                      <span className="font-mono font-bold">{formatCurrency(gstr3bData.eligibleItc?.sgst || 0)}</span>
+                  <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+                    <h4 className="font-bold text-xs text-slate-900 dark:text-white">4. Eligible Input Tax Credit (Purchases)</h4>
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500 dark:text-slate-400">ITC Taxable Value:</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          {formatCurrency(gstr3bData.eligibleItc?.taxableValue || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500 dark:text-slate-400">ITC CGST:</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          {formatCurrency(gstr3bData.eligibleItc?.cgst || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-slate-500 dark:text-slate-400">ITC SGST:</span>
+                        <span className="font-mono font-bold text-slate-900 dark:text-white">
+                          {formatCurrency(gstr3bData.eligibleItc?.sgst || 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 font-bold text-emerald-600 dark:text-emerald-400">
+                        <span>Net GST Payable:</span>
+                        <span className="font-mono">{formatCurrency(gstr3bData.netGstPayable?.totalNetPayable || 0)}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           )}
 
-          {/* TAB: HSN Summary (R5) */}
-          {activeTab === 'hsn' && hsnData && (
+          {/* TAB 6: HSN Summary */}
+          {activeTab === 'hsn' && (
             <div className="space-y-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800">HSN Code-wise Outward Tax Summary</h3>
-                  <p className="text-xs text-slate-500">Summary of medicine sales categorized by HSN codes and GST slab rates.</p>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">HSN Code-wise Outward Tax Summary</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Summary of medicine sales categorized by HSN codes and GST slab rates.
+                  </p>
                 </div>
                 <button
-                  onClick={() => handleExportExcel('hsn-summary')}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow"
+                  onClick={() => handleExportExcel('hsn-summary', 'hsn-summary.xlsx')}
+                  disabled={downloading === 'hsn-summary'}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
                 >
-                  <Download className="w-4 h-4" />
+                  {downloading === 'hsn-summary' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Download HSN Summary Excel (.xlsx)
                 </button>
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3">HSN Code</th>
-                      <th className="py-2.5 px-3">Description</th>
-                      <th className="py-2.5 px-3 text-center">UQC / Qty</th>
-                      <th className="py-2.5 px-3 text-right">Taxable Value</th>
-                      <th className="py-2.5 px-3 text-center">Tax Rate</th>
-                      <th className="py-2.5 px-3 text-right">CGST</th>
-                      <th className="py-2.5 px-3 text-right">SGST</th>
-                      <th className="py-2.5 px-3 text-right">Total Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(Array.isArray(hsnData.hsnSummary) ? hsnData.hsnSummary : []).map((row: any, i: number) => (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-mono font-bold text-sky-800">{row.hsnCode}</td>
-                        <td className="py-2.5 px-3 text-slate-700">{row.description}</td>
-                        <td className="py-2.5 px-3 text-center font-mono font-bold">{row.totalQuantity} {row.uqc}</td>
-                        <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(row.taxableValue)}</td>
-                        <td className="py-2.5 px-3 text-center font-mono">{row.taxRate}%</td>
-                        <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(row.cgst)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono">{formatCurrency(row.sgst)}</td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold">{formatCurrency(row.totalValue)}</td>
+              <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[700px]">
+                    <thead className="bg-slate-50 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="py-2.5 px-3">HSN Code</th>
+                        <th className="py-2.5 px-3">Description</th>
+                        <th className="py-2.5 px-3 text-center">Total Qty</th>
+                        <th className="py-2.5 px-3 text-right">Taxable Value</th>
+                        <th className="py-2.5 px-3 text-center">Tax Rate</th>
+                        <th className="py-2.5 px-3 text-right">CGST</th>
+                        <th className="py-2.5 px-3 text-right">SGST</th>
+                        <th className="py-2.5 px-3 text-right">Total Value</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {loadingHsn ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            Loading HSN breakdown...
+                          </td>
+                        </tr>
+                      ) : (hsnData?.items || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            No HSN data found for this period.
+                          </td>
+                        </tr>
+                      ) : (
+                        hsnData.items.map((row: any, i: number) => (
+                          <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                            <td className="py-2.5 px-3 font-mono font-bold text-sky-600 dark:text-sky-400">{row.hsnCode}</td>
+                            <td className="py-2.5 px-3 text-slate-900 dark:text-white">{row.description}</td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-900 dark:text-white">
+                              {row.totalQty}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-900 dark:text-white">
+                              {formatCurrency(row.taxableValue)}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono font-semibold text-slate-700 dark:text-slate-300">
+                              {row.taxPercent}%
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatCurrency(row.cgst)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatCurrency(row.sgst)}</td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-white">
+                              {formatCurrency(row.totalValue)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
 
-          {/* TAB: Schedule H / H1 Register (R7) */}
-          {activeTab === 'schedule-h' && scheduleHData && (
+          {/* TAB 7: Schedule H / H1 Register */}
+          {activeTab === 'schedule-h' && (
             <div className="space-y-4">
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+              <div className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-800 flex items-center gap-1.5">
-                    <ShieldAlert className="w-4 h-4 text-red-600" />
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <ShieldAlert className="w-4 h-4 text-red-600 dark:text-red-400" />
                     Schedule H / H1 / X Controlled Drug Inspection Register
                   </h3>
-                  <p className="text-xs text-slate-500">
-                    Statutory medical register with Doctor Details, Patient Info, Batch & Expiry records for drug inspectors.
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Statutory medical register with Doctor Details, Patient Info, Batch &amp; Expiry records for drug inspectors.
                   </p>
                 </div>
                 <button
-                  onClick={() => handleExportExcel('schedule-h')}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow"
+                  onClick={() => handleExportExcel('schedule-h', 'schedule-h-register.xlsx')}
+                  disabled={downloading === 'schedule-h'}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
                 >
-                  <Download className="w-4 h-4" />
+                  {downloading === 'schedule-h' ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Download className="w-4 h-4" />
+                  )}
                   Export Drug Register (.xlsx)
                 </button>
               </div>
 
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3">Date</th>
-                      <th className="py-2.5 px-3">Patient Name & Age</th>
-                      <th className="py-2.5 px-3">Doctor Name & Reg #</th>
-                      <th className="py-2.5 px-3">Drug Name</th>
-                      <th className="py-2.5 px-3">Schedule</th>
-                      <th className="py-2.5 px-3">Batch & Exp</th>
-                      <th className="py-2.5 px-3 text-center">Qty Dispensed</th>
-                      <th className="py-2.5 px-3 font-mono">Invoice #</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {(Array.isArray(scheduleHData.records) ? scheduleHData.records : []).map((rec: any, i: number) => (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-mono text-slate-500">{formatDate(rec.dispensedDate)}</td>
-                        <td className="py-2.5 px-3">
-                          <span className="font-bold text-slate-900 block">{rec.patientName}</span>
-                          <span className="text-[10px] text-slate-500">Age: {rec.patientAge} yrs</span>
-                        </td>
-                        <td className="py-2.5 px-3">
-                          <span className="font-semibold text-slate-800 block">{rec.doctorName}</span>
-                          <span className="text-[10px] font-mono text-sky-700">Reg: {rec.doctorRegNo}</span>
-                        </td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-900">{rec.drugName}</td>
-                        <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 bg-red-100 text-red-800 rounded font-bold text-[10px]">
-                            {rec.drugSchedule}
-                          </span>
-                        </td>
-                        <td className="py-2.5 px-3 font-mono text-[10px] text-slate-600">
-                          B:{rec.batchNumber} | Exp:{rec.expiryDate}
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-bold font-mono text-slate-900">
-                          {rec.quantityDispensed}
-                        </td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-sky-800">{rec.invoiceNumber}</td>
+              <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[800px]">
+                    <thead className="bg-slate-50 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800">
+                      <tr>
+                        <th className="py-2.5 px-3">Date</th>
+                        <th className="py-2.5 px-3">Patient Name &amp; Age</th>
+                        <th className="py-2.5 px-3">Doctor Name &amp; Reg #</th>
+                        <th className="py-2.5 px-3">Drug Dispensed</th>
+                        <th className="py-2.5 px-3">Schedule</th>
+                        <th className="py-2.5 px-3">Batch &amp; Expiry</th>
+                        <th className="py-2.5 px-3 text-center">Qty</th>
+                        <th className="py-2.5 px-3 font-mono">Invoice #</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                      {loadingScheduleH ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            Loading prescription records...
+                          </td>
+                        </tr>
+                      ) : (scheduleHData?.records || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-8 text-center text-slate-400">
+                            No Schedule H/H1 dispensed records found in this timeframe.
+                          </td>
+                        </tr>
+                      ) : (
+                        scheduleHData.records.map((rec: any, i: number) => (
+                          <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                            <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400">
+                              {formatDate(rec.dispensedAt)}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-bold text-slate-900 dark:text-white block">{rec.patientName}</span>
+                              <span className="text-[10px] text-slate-400">Age: {rec.patientAge || '—'} yrs</span>
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="font-semibold text-slate-800 dark:text-slate-200 block">{rec.doctorName}</span>
+                              <span className="text-[10px] font-mono text-sky-600 dark:text-sky-400">
+                                Reg: {rec.doctorRegNo || 'N/A'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-semibold text-slate-900 dark:text-white">
+                              {rec.items?.map((item: any) => item.medicineName).join(', ') || 'Controlled Drug'}
+                            </td>
+                            <td className="py-2.5 px-3">
+                              <span className="px-2 py-0.5 bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400 rounded font-bold text-[10px]">
+                                {rec.drugSchedule || 'SCHEDULE_H'}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 font-mono text-[10px] text-slate-600 dark:text-slate-400">
+                              {rec.items
+                                ?.map((item: any) => `B:${item.batchNumber} (Exp:${item.expiryDate ? formatDate(item.expiryDate) : 'N/A'})`)
+                                .join(' | ')}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-bold font-mono text-slate-900 dark:text-white">
+                              {rec.items?.reduce((sum: number, it: any) => sum + (it.qty || 0), 0) || 1}
+                            </td>
+                            <td className="py-2.5 px-3 font-mono font-bold text-sky-600 dark:text-sky-400">
+                              {rec.invoiceNumber}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -500,3 +912,4 @@ export default function ReportsPage() {
     </div>
   );
 }
+

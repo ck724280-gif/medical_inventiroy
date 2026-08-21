@@ -12,6 +12,16 @@ import { RequirePermissions } from '../../common/decorators/require-permissions.
 export class ReportsController {
   constructor(private reportsService: ReportsService) {}
 
+  @Get('financial-summary')
+  @RequirePermissions('report.view')
+  async getFinancialSummary(
+    @Query('branchId') branchId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string
+  ) {
+    return this.reportsService.getFinancialSummaryReport({ branchId, startDate, endDate });
+  }
+
   @Get('sales')
   @RequirePermissions('report.view')
   async getSalesReport(
@@ -20,6 +30,23 @@ export class ReportsController {
     @Query('endDate') endDate?: string
   ) {
     return this.reportsService.getSalesReport({ branchId, startDate, endDate });
+  }
+
+  @Get('sales/export/excel')
+  @RequirePermissions('report.export')
+  async exportSalesExcel(
+    @Query('branchId') branchId: string | undefined,
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Res() res: Response
+  ) {
+    const buffer = await this.reportsService.exportSalesExcel({ branchId, startDate, endDate });
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="sales-report.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Get('purchases')
@@ -76,6 +103,23 @@ export class ReportsController {
     return this.reportsService.getGstr3bReport({ branchId, startDate, endDate });
   }
 
+  @Get('gstr3b/export/excel')
+  @RequirePermissions('report.export')
+  async exportGstr3bExcel(
+    @Query('branchId') branchId: string | undefined,
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Res() res: Response
+  ) {
+    const buffer = await this.reportsService.exportGstr3bExcel({ branchId, startDate, endDate });
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="gstr3b-report.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
   @Get('hsn-summary')
   @RequirePermissions('report.view')
   async getHsnSummary(
@@ -84,6 +128,23 @@ export class ReportsController {
     @Query('endDate') endDate?: string
   ) {
     return this.reportsService.getHsnSummaryReport({ branchId, startDate, endDate });
+  }
+
+  @Get('hsn-summary/export/excel')
+  @RequirePermissions('report.export')
+  async exportHsnSummaryExcel(
+    @Query('branchId') branchId: string | undefined,
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Res() res: Response
+  ) {
+    const buffer = await this.reportsService.exportHsnSummaryExcel({ branchId, startDate, endDate });
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="hsn-summary.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Get('schedule-h')

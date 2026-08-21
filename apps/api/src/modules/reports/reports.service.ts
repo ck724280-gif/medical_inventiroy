@@ -509,6 +509,182 @@ export class ReportsService {
     return Buffer.from(await workbook.xlsx.writeBuffer());
   }
 
+  async getFinancialSummaryReport(query: {
+    branchId?: string;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const salesReport = await this.getSalesReport(query);
+    const purchaseReport = await this.getPurchaseReport(query);
+
+    // Operational expenses in the same timeframe
+    const expenseWhere: any = {};
+    if (query.branchId) expenseWhere.branchId = query.branchId;
+    if (query.startDate || query.endDate) {
+      expenseWhere.date = {};
+      if (query.startDate) expenseWhere.date.gte = new Date(query.startDate);
+      if (query.endDate) expenseWhere.date.lte = new Date(query.endDate);
+    }
+    const expenses = await this.prisma.expense.findMany({ where: expenseWhere });
+    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+    // Sales Returns
+    const returnWhere: any = {};
+    if (query.branchId) returnWhere.branchId = query.branchId;
+    if (query.startDate || query.endDate) {
+      returnWhere.createdAt = {};
+      if (query.startDate) returnWhere.createdAt.gte = new Date(query.startDate);
+      if (query.endDate) returnWhere.createdAt.lte = new Date(query.endDate);
+    }
+    const returns = await this.prisma.salesReturn.findMany({ where: returnWhere });
+    const totalReturnsAmount = returns.reduce((sum, r) => sum + Number(r.refundAmount || 0), 0);
+
+    const grossRevenue = salesReport.summary.totalSalesAmount;
+    const netRevenue = Math.max(0, grossRevenue - totalReturnsAmount);
+
+    // Approximate COGS from sales item batches purchasePrice
+    let cogs = 0;
+    for (const sale of salesReport.sales) {
+      for (const item of sale.items) {
+        const costPerUnit =
+          item.batch?.purchasePrice ||
+          (item.medicine as any)?.purchasePrice ||
+          (item.lineTotal / (item.qty || 1)) * 0.7;
+        cogs += item.qty * costPerUnit;
+      }
+    }
+
+    const grossProfit = Number((netRevenue - cogs).toFixed(2));
+    const netProfitEstimate = Number((grossProfit - totalExpenses).toFixed(2));
+    const profitMargin = netRevenue > 0 ? Number(((netProfitEstimate / netRevenue) * 100).toFixed(2)) : 0;
+
+    return {
+      totalRevenue: grossRevenue,
+      grossSales: grossRevenue,
+      totalReturns: totalReturnsAmount,
+      netRevenue,
+      cogs: Number(cogs.toFixed(2)),
+      grossProfit,
+      totalExpenses,
+      netProfitEstimate,
+      profitMargin,
+      totalInvoices: salesReport.summary.totalInvoices,
+      totalPurchases: purchaseReport.summary.totalPurchasesAmount,
+    };
+  }
+
+  async exportSalesExcel(query: any): Promise<Buffer> {
+    const report = await this.getSalesReport(query);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Sales Ledger');
+
+    worksheet.columns = [
+      { header: 'Invoice No', key: 'invoiceNumber', width: 18 },
+      { header: 'Date', key: 'date', width: 15 },
+      { header: 'Customer', key: 'customerName', width: 25 },
+      { header: 'Payment Method', key: 'paymentMethod', width: 15 },
+      { header: 'Subtotal (₹)', key: 'subtotal', width: 15 },
+      { header: 'Tax (₹)', key: 'taxAmount', width: 12 },
+      { header: 'Discount (₹)', key: 'discountAmount', width: 12 },
+      { header: 'Total (₹)', key: 'totalAmount', width: 18 },
+      { header: 'Status', key: 'status', width: 15 },
+    ];
+
+    report.sales.forEach((s) => {
+      worksheet.addRow({
+        invoiceNumber: s.invoiceNumber,
+        date: new Date(s.createdAt).toLocaleDateString(),
+        customerName: s.customer?.name || 'Walk-in',
+        paymentMethod: s.payments?.[0]?.paymentMode || 'CASH',
+        subtotal: Number(s.subtotal.toFixed(2)),
+        taxAmount: Number(s.taxAmount.toFixed(2)),
+        discountAmount: Number(s.discountAmount.toFixed(2)),
+        totalAmount: Number(s.totalAmount.toFixed(2)),
+        status: s.status,
+      });
+    });
+
+    return Buffer.from(await workbook.xlsx.writeBuffer());
+  }
+
+  async exportGstr3bExcel(query: any): Promise<Buffer> {
+    const report = await this.getGstr3bReport(query);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('GSTR-3B');
+
+    worksheet.columns = [
+      { header: 'Section', key: 'section', width: 35 },
+      { header: 'Taxable Value (₹)', key: 'taxableValue', width: 20 },
+      { header: 'CGST (₹)', key: 'cgst', width: 15 },
+      { header: 'SGST (₹)', key: 'sgst', width: 15 },
+      { header: 'IGST (₹)', key: 'igst', width: 15 },
+      { header: 'Total Tax (₹)', key: 'totalTax', width: 20 },
+    ];
+
+    worksheet.addRow({
+      section: '3.1 Outward Supplies (Sales)',
+      taxableValue: report.outwardSupplies.taxableValue,
+      cgst: report.outwardSupplies.cgst,
+      sgst: report.outwardSupplies.sgst,
+      igst: report.outwardSupplies.igst,
+      totalTax: report.outwardSupplies.totalTax,
+    });
+
+    worksheet.addRow({
+      section: '4. Eligible Input Tax Credit (Purchases)',
+      taxableValue: report.eligibleItc.taxableValue,
+      cgst: report.eligibleItc.cgst,
+      sgst: report.eligibleItc.sgst,
+      igst: report.eligibleItc.igst,
+      totalTax: report.eligibleItc.totalTax,
+    });
+
+    worksheet.addRow({
+      section: 'Net GST Payable to Government',
+      taxableValue: '—',
+      cgst: report.netGstPayable.cgst,
+      sgst: report.netGstPayable.sgst,
+      igst: report.netGstPayable.igst,
+      totalTax: report.netGstPayable.totalNetPayable,
+    });
+
+    return Buffer.from(await workbook.xlsx.writeBuffer());
+  }
+
+  async exportHsnSummaryExcel(query: any): Promise<Buffer> {
+    const report = await this.getHsnSummaryReport(query);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('HSN Summary');
+
+    worksheet.columns = [
+      { header: 'HSN Code', key: 'hsnCode', width: 15 },
+      { header: 'Description', key: 'description', width: 30 },
+      { header: 'Tax Rate (%)', key: 'taxPercent', width: 15 },
+      { header: 'Total Qty', key: 'totalQty', width: 12 },
+      { header: 'Taxable Value (₹)', key: 'taxableValue', width: 18 },
+      { header: 'CGST (₹)', key: 'cgst', width: 12 },
+      { header: 'SGST (₹)', key: 'sgst', width: 12 },
+      { header: 'Total Tax (₹)', key: 'totalTax', width: 15 },
+      { header: 'Total Value (₹)', key: 'totalValue', width: 18 },
+    ];
+
+    report.items.forEach((item) => {
+      worksheet.addRow({
+        hsnCode: item.hsnCode,
+        description: item.description,
+        taxPercent: `${item.taxPercent}%`,
+        totalQty: item.totalQty,
+        taxableValue: item.taxableValue,
+        cgst: item.cgst,
+        sgst: item.sgst,
+        totalTax: item.totalTax,
+        totalValue: item.totalValue,
+      });
+    });
+
+    return Buffer.from(await workbook.xlsx.writeBuffer());
+  }
+
   async exportInventoryExcel(branchId?: string): Promise<Buffer> {
     const report = await this.getInventoryValuationReport(branchId);
     const workbook = new ExcelJS.Workbook();
