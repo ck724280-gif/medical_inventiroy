@@ -269,7 +269,112 @@ function PurchasesContent() {
   };
 
   const handlePrintLabels = () => {
-    window.print();
+    const printArea = document.getElementById('label-print-area');
+    if (!printArea) {
+      window.print();
+      return;
+    }
+
+    // Create an isolated invisible print iframe to completely bypass app CSS/modals
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    const isThermal = barcodeLayout === 'THERMAL';
+    const isA4_24 = barcodeLayout === 'A4_24';
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Print Barcode Labels - ${barcodeLayout}</title>
+          <meta charset="utf-8" />
+          <style>
+            @page {
+              size: ${isThermal ? '50mm 25mm' : 'A4 portrait'};
+              margin: ${isThermal ? '1mm' : '5mm 4mm 5mm 4mm'};
+            }
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            body {
+              font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              background: #ffffff !important;
+              color: #000000 !important;
+              margin: 0;
+              padding: 0;
+            }
+            .print-grid {
+              display: grid !important;
+              grid-template-columns: ${isThermal ? '1fr' : 'repeat(3, 1fr)'} !important;
+              gap: ${isThermal ? '2mm' : isA4_24 ? '3.5mm' : '2mm'} !important;
+              width: 100% !important;
+            }
+            .print-label-card {
+              border: 1px solid #111111 !important;
+              border-radius: 4px !important;
+              padding: 4px 6px !important;
+              box-sizing: border-box !important;
+              height: ${isThermal ? '24mm' : isA4_24 ? '33mm' : '26mm'} !important;
+              max-height: ${isThermal ? '24mm' : isA4_24 ? '33mm' : '26mm'} !important;
+              display: flex !important;
+              flex-direction: column !important;
+              justify-content: space-between !important;
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              ${isThermal ? 'page-break-after: always; break-after: page;' : ''}
+              overflow: hidden !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+            }
+            .print-label-card * {
+              color: #000000 !important;
+              background: transparent !important;
+            }
+            svg {
+              max-width: 100% !important;
+              height: ${isThermal ? '18px' : isA4_24 ? '26px' : '20px'} !important;
+              display: block !important;
+              margin: 0 auto !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-grid">
+            ${printArea.innerHTML}
+          </div>
+        </body>
+      </html>
+    `;
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 2000);
+    }, 400);
   };
 
   const recordPaymentMutation = useMutation({
