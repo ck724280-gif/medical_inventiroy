@@ -28,7 +28,7 @@ import { cn } from '../lib/utils';
 export function Sidebar() {
   const pathname = usePathname();
   const { user, hasPermission } = useAuthStore();
-  const { name: storeName } = useBrandingStore();
+  const { name: storeName, logo: storeLogo } = useBrandingStore();
   const { isMobileSidebarOpen, closeMobileSidebar } = useUiStore();
 
   const navItems = [
@@ -57,8 +57,14 @@ export function Sidebar() {
       {/* ── Brand Header ─────────────────────────────────── */}
       <div className="h-16 flex items-center justify-between px-5 border-b border-slate-200 dark:border-slate-800 flex-shrink-0">
         <div className="flex items-center gap-3 overflow-hidden">
-          <div className="w-9 h-9 rounded-xl bg-sky-600 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-md">
-            +
+          <div className="w-10 h-10 rounded-xl bg-sky-600 dark:bg-sky-500/20 flex items-center justify-center text-white font-bold text-lg flex-shrink-0 shadow-sm overflow-hidden border border-sky-500/30">
+            {storeLogo ? (
+              <img src={storeLogo} alt={storeName} className="w-full h-full object-contain p-0.5 bg-white dark:bg-slate-900" />
+            ) : (
+              <span className="font-bold text-white text-base">
+                {storeName ? storeName.charAt(0).toUpperCase() : '+'}
+              </span>
+            )}
           </div>
           <div className="overflow-hidden">
             <h1 className="font-bold text-sm text-slate-900 dark:text-white truncate tracking-tight">

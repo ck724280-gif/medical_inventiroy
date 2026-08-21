@@ -25,6 +25,9 @@ import {
   UserPlus,
   Key,
   Shield,
+  Upload,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
@@ -444,138 +447,328 @@ export default function SettingsPage() {
             })}
           </div>
 
-          {/* TAB 1: Business Profile Form */}
+          {/* TAB 1: Business Profile & Tax Settings */}
           {activeTab === 'business' && businessData && (
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl p-6 max-w-3xl">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white mb-4">Pharmacy Registration &amp; Legal Info</h3>
+            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl p-6 max-w-4xl space-y-6">
+              <div>
+                <h3 className="font-bold text-base text-slate-900 dark:text-white">Pharmacy Profile &amp; Store Information</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Update your medical store name, branding logo, tax details (GSTIN), and drug inspector compliance licenses.
+                </p>
+              </div>
+
               <form
                 onSubmit={(e: any) => {
                   e.preventDefault();
                   const fd = new FormData(e.target);
                   saveBusinessMutation.mutate({
-                    legalName: fd.get('legalName'),
-                    tradeName: fd.get('tradeName'),
-                    gstin: fd.get('gstin'),
-                    drugLicenseNo: fd.get('drugLicenseNo'),
-                    foodSafetyLicense: fd.get('foodSafetyLicense'),
-                    contactEmail: fd.get('contactEmail'),
-                    contactPhone: fd.get('contactPhone'),
-                    addressLine1: fd.get('addressLine1'),
+                    name: fd.get('name'),
+                    logo: fd.get('logo') || null,
+                    description: fd.get('description'),
+                    phone: fd.get('phone'),
+                    altPhone: fd.get('altPhone'),
+                    email: fd.get('email'),
+                    website: fd.get('website'),
+                    address: fd.get('address'),
                     city: fd.get('city'),
                     state: fd.get('state'),
-                    pincode: fd.get('pincode'),
+                    country: fd.get('country') || 'India',
+                    pinZip: fd.get('pinZip'),
+                    gstNumber: fd.get('gstNumber'),
+                    pharmacyLicense: fd.get('pharmacyLicense'),
+                    currencySymbol: fd.get('currencySymbol') || '₹',
+                    dateFormat: fd.get('dateFormat') || 'DD-MM-YYYY',
+                    timezone: fd.get('timezone') || 'Asia/Kolkata',
                   });
                 }}
-                className="space-y-4 text-xs"
+                className="space-y-6 text-xs"
               >
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Legal Entity Name</label>
-                    <input
-                      name="legalName"
-                      defaultValue={businessData.legalName}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
+                {/* ── 1. Store Logo & Brand Icon ───────────────────── */}
+                <div className="p-4 bg-slate-50 dark:bg-[#090d16] rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-5">
+                  <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0 relative group">
+                    {businessData.logo ? (
+                      <img
+                        id="logo-preview-img"
+                        src={businessData.logo}
+                        alt="Store Logo"
+                        className="w-full h-full object-contain p-1"
+                      />
+                    ) : (
+                      <div id="logo-preview-img" className="text-2xl font-extrabold text-sky-600 dark:text-sky-400">
+                        {businessData.name ? businessData.name.charAt(0).toUpperCase() : '+'}
+                      </div>
+                    )}
                   </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Trade / Store Name</label>
+
+                  <div className="space-y-2 flex-1 min-w-[240px]">
+                    <span className="font-bold text-slate-800 dark:text-slate-200 block text-xs">
+                      Store Brand Logo
+                    </span>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Upload your medical store logo (PNG/JPG/SVG). This logo will appear on the Top-Left Sidebar, Header, POS screen, and Invoices.
+                    </p>
+
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <label className="px-3.5 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-semibold cursor-pointer shadow-sm transition text-xs flex items-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5" />
+                        Choose Logo Image
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              const base64 = event.target?.result as string;
+                              const input = document.getElementById('logo-url-input') as HTMLInputElement;
+                              if (input) input.value = base64;
+                              const preview = document.getElementById('logo-preview-img');
+                              if (preview) {
+                                if (preview.tagName === 'IMG') {
+                                  (preview as HTMLImageElement).src = base64;
+                                } else {
+                                  const newImg = document.createElement('img');
+                                  newImg.id = 'logo-preview-img';
+                                  newImg.src = base64;
+                                  newImg.className = 'w-full h-full object-contain p-1';
+                                  preview.parentNode?.replaceChild(newImg, preview);
+                                }
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          }}
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const input = document.getElementById('logo-url-input') as HTMLInputElement;
+                          if (input) input.value = '';
+                          const preview = document.getElementById('logo-preview-img');
+                          if (preview && preview.tagName === 'IMG') {
+                            const div = document.createElement('div');
+                            div.id = 'logo-preview-img';
+                            div.className = 'text-2xl font-extrabold text-sky-600 dark:text-sky-400';
+                            div.innerText = '+';
+                            preview.parentNode?.replaceChild(div, preview);
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-semibold transition text-xs flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        Remove Logo
+                      </button>
+                    </div>
+
                     <input
-                      name="tradeName"
-                      defaultValue={businessData.tradeName}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      id="logo-url-input"
+                      name="logo"
+                      type="hidden"
+                      defaultValue={businessData.logo || ''}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">GSTIN Number</label>
-                    <input
-                      name="gstin"
-                      defaultValue={businessData.gstin}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Drug License # (Form 20/21)</label>
-                    <input
-                      name="drugLicenseNo"
-                      defaultValue={businessData.drugLicenseNo}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">FSSAI / Food License</label>
-                    <input
-                      name="foodSafetyLicense"
-                      defaultValue={businessData.foodSafetyLicense}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
+                {/* ── 2. Pharmacy Basic Information ─────────────────── */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-sky-600" />
+                    Store &amp; Pharmacy Identity
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Pharmacy / Store Trade Name *
+                      </label>
+                      <input
+                        name="name"
+                        required
+                        defaultValue={businessData.name}
+                        placeholder="e.g. MedCare Pharmacy & Healthcare"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-medium focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Tagline / Store Description
+                      </label>
+                      <input
+                        name="description"
+                        defaultValue={businessData.description || ''}
+                        placeholder="e.g. 24x7 Authentic Medicines & Diagnostic Care"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Contact Email</label>
-                    <input
-                      name="contactEmail"
-                      defaultValue={businessData.contactEmail}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Store Phone / Mobile</label>
-                    <input
-                      name="contactPhone"
-                      defaultValue={businessData.contactPhone}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
+                {/* ── 3. Legal Licenses & Tax Information ──────────── */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    Tax (GSTIN) &amp; Drug Licenses Compliance
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        GSTIN Registration Number (15 Digits)
+                      </label>
+                      <input
+                        name="gstNumber"
+                        defaultValue={businessData.gstNumber || ''}
+                        placeholder="22AAAAA0000A1Z5"
+                        maxLength={15}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 uppercase"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Drug License # (Form 20B / Form 21B Retail D.L.)
+                      </label>
+                      <input
+                        name="pharmacyLicense"
+                        defaultValue={businessData.pharmacyLicense || ''}
+                        placeholder="DL-20B-12345 / DL-21B-12345"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Address Line</label>
-                  <input
-                    name="addressLine1"
-                    defaultValue={businessData.addressLine1}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                  />
+                {/* ── 4. Contact Details ─────────────────────────────── */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                    Contact &amp; Communication Channels
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Primary Phone / Mobile
+                      </label>
+                      <input
+                        name="phone"
+                        defaultValue={businessData.phone || ''}
+                        placeholder="+91 98765 43210"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Alternate / WhatsApp Phone
+                      </label>
+                      <input
+                        name="altPhone"
+                        defaultValue={businessData.altPhone || ''}
+                        placeholder="+91 98765 00000"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Official Contact Email
+                      </label>
+                      <input
+                        type="email"
+                        name="email"
+                        defaultValue={businessData.email || ''}
+                        placeholder="pharmacy@example.com"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Store Website / Web Link
+                      </label>
+                      <input
+                        name="website"
+                        defaultValue={businessData.website || ''}
+                        placeholder="https://www.medcarepharmacy.com"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                {/* ── 5. Physical Store Address ─────────────────────── */}
+                <div className="space-y-3">
+                  <h4 className="font-bold text-xs text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                    Physical Store Address
+                  </h4>
+
                   <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">City</label>
+                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                      Street Address / Building / Market
+                    </label>
                     <input
-                      name="city"
-                      defaultValue={businessData.city}
+                      name="address"
+                      defaultValue={businessData.address || ''}
+                      placeholder="Shop No. 4, Ground Floor, Medical Market, Main Road"
                       className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
                     />
                   </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">State</label>
-                    <input
-                      name="state"
-                      defaultValue={businessData.state}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">PIN Code</label>
-                    <input
-                      name="pincode"
-                      defaultValue={businessData.pincode}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">City</label>
+                      <input
+                        name="city"
+                        defaultValue={businessData.city || ''}
+                        placeholder="City"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">State</label>
+                      <input
+                        name="state"
+                        defaultValue={businessData.state || ''}
+                        placeholder="State"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">PIN / Postal Code</label>
+                      <input
+                        name="pinZip"
+                        defaultValue={businessData.pinZip || ''}
+                        placeholder="560001"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Currency Symbol</label>
+                      <input
+                        name="currencySymbol"
+                        defaultValue={businessData.currencySymbol || '₹'}
+                        placeholder="₹"
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-bold font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end">
+                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end">
                   <button
                     type="submit"
                     disabled={saveBusinessMutation.isPending}
-                    className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-semibold shadow transition cursor-pointer"
+                    className="px-6 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-bold shadow-md shadow-sky-600/20 transition cursor-pointer flex items-center gap-2 active:scale-95 disabled:opacity-50"
                   >
-                    Save Business Info
+                    {saveBusinessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    {saveBusinessMutation.isPending ? 'Saving...' : 'Save Business & Tax Info'}
                   </button>
                 </div>
               </form>

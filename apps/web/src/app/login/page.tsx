@@ -93,8 +93,14 @@ export default function LoginPage() {
       >
         {/* Brand Header */}
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl text-white font-bold text-2xl mb-4 relative shadow-lg shadow-sky-600/30 bg-sky-600">
-            +
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl text-white font-bold text-2xl mb-4 relative shadow-lg shadow-sky-600/30 bg-sky-600 dark:bg-sky-500/20 overflow-hidden border border-sky-500/30">
+            {useBrandingStore.getState().logo ? (
+              <img src={useBrandingStore.getState().logo!} alt="Logo" className="w-full h-full object-contain p-1 bg-white dark:bg-slate-900" />
+            ) : (
+              <span className="font-bold text-white text-2xl">
+                {storeName ? storeName.charAt(0).toUpperCase() : '+'}
+              </span>
+            )}
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
             {storeName || 'MedCare Pharmacy & Healthcare'}
