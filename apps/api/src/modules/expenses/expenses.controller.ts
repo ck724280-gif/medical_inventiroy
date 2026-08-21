@@ -29,6 +29,12 @@ export class ExpensesController {
     return this.expensesService.findOne(id);
   }
 
+  @Get(':id/voucher')
+  @RequirePermissions('expense.view')
+  async getExpenseVoucher(@Param('id') id: string) {
+    return this.expensesService.getExpenseVoucher(id);
+  }
+
   @Post()
   @RequirePermissions('expense.create')
   @Auditable('create_expense', 'Expense')
