@@ -70,6 +70,10 @@ export class CreatePurchaseDto {
   @IsString()
   invoiceNumber?: string;
 
+  @IsOptional()
+  @IsString()
+  purchaseOrderId?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => PurchaseItemDto)
@@ -78,6 +82,15 @@ export class CreatePurchaseDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  paidAmount?: number;
+
+  @IsOptional()
+  @IsEnum(PaymentMode)
+  paymentMode?: PaymentMode;
 }
 
 export class RecordPurchasePaymentDto {

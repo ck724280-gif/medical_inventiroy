@@ -91,7 +91,14 @@ export class PurchaseOrdersService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (query.status) where.status = query.status;
+    if (query.status === 'ACTIVE' || query.status === 'PENDING') {
+      where.status = { notIn: ['FULLY_RECEIVED', 'CANCELLED'] };
+    } else if (query.status === 'COMPLETED') {
+      where.status = 'FULLY_RECEIVED';
+    } else if (query.status && query.status !== 'ALL') {
+      where.status = query.status;
+    }
+
     if (query.supplierId) where.supplierId = query.supplierId;
     if (query.branchId) where.branchId = query.branchId;
     if (query.search) {
@@ -173,6 +180,12 @@ export class PurchaseOrdersService {
       throw new BadRequestException('Cannot convert a cancelled Purchase Order');
     }
 
+    // Auto mark Purchase Order as FULLY_RECEIVED so it clears from active orders
+    await this.prisma.purchaseOrder.update({
+      where: { id },
+      data: { status: 'FULLY_RECEIVED' },
+    });
+
     const defaultItems = po.items.map((item) => {
       const remainingQty = item.orderedQty - item.receivedQty;
       return {
@@ -207,10 +220,7 @@ export class PurchaseOrdersService {
   }
 
   async remove(id: string) {
-    const po = await this.findOne(id);
-    if (po.status === 'FULLY_RECEIVED') {
-      throw new BadRequestException('Cannot delete a fully received Purchase Order');
-    }
+    await this.findOne(id);
     return this.prisma.purchaseOrder.delete({
       where: { id },
     });

@@ -51,6 +51,10 @@ function PurchasesContent() {
     },
   ]);
 
+  const [purchaseOrderId, setPurchaseOrderId] = useState<string | null>(null);
+  const [initialPaidAmount, setInitialPaidAmount] = useState<number>(0);
+  const [initialPaymentMode, setInitialPaymentMode] = useState<PaymentMode>(PaymentMode.BANK_TRANSFER);
+
   const [paymentModal, setPaymentModal] = useState<any | null>(null);
   const [paymentAmount, setPaymentAmount] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<PaymentMode>(PaymentMode.BANK_TRANSFER);
@@ -67,6 +71,7 @@ function PurchasesContent() {
       if (poConvertData) {
         try {
           const parsed = JSON.parse(poConvertData);
+          setPurchaseOrderId(parsed.purchaseOrderId || parsed.id || null);
           setSupplierId(parsed.supplierId || '');
           setNotes(parsed.notes || '');
           if (Array.isArray(parsed.items) && parsed.items.length > 0) {
@@ -130,6 +135,9 @@ function PurchasesContent() {
         supplierId,
         branchId: selectedBranchId || undefined,
         invoiceNumber: invoiceNumber.trim() || undefined,
+        purchaseOrderId: purchaseOrderId || undefined,
+        paidAmount: Number(initialPaidAmount || 0),
+        paymentMode: initialPaymentMode,
         notes,
         items: items.map((item: any) => ({
           medicineId: item.medicineId,
@@ -152,7 +160,10 @@ function PurchasesContent() {
     },
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['purchases-list'] });
+      queryClient.invalidateQueries({ queryKey: ['purchase-orders-list'] });
       setShowCreateModal(false);
+      setPurchaseOrderId(null);
+      setInitialPaidAmount(0);
       const isEdit = Boolean(editingPurchase);
       setEditingPurchase(null);
       if (!isEdit && res?.data) {
@@ -646,6 +657,52 @@ function PurchasesContent() {
                     ))}
                   </div>
                 </div>
+
+                {/* Optional Initial / Advance Payment */}
+                {!editingPurchase && (
+                  <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
+                        <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                        Optional Initial / Advance Payment (₹)
+                      </span>
+                      <span className="text-[10px] text-slate-500">Leave 0 if full invoice is unpaid/credit</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Initial Paid Amount (₹)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={initialPaidAmount === 0 ? '' : initialPaidAmount}
+                          placeholder="0 (Unpaid / Full Credit)"
+                          onFocus={(e: any) => e.target.select()}
+                          onChange={(e) => setInitialPaidAmount(parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Payment Mode
+                        </label>
+                        <select
+                          value={initialPaymentMode}
+                          onChange={(e: any) => setInitialPaymentMode(e.target.value)}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 text-xs"
+                        >
+                          <option value={PaymentMode.BANK_TRANSFER}>Bank Transfer (NEFT/RTGS/IMPS)</option>
+                          <option value={PaymentMode.UPI}>UPI / QR</option>
+                          <option value={PaymentMode.CASH}>Cash</option>
+                          <option value={PaymentMode.CARD}>Card / POS</option>
+                          <option value={PaymentMode.CHEQUE}>Cheque</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
                   <button

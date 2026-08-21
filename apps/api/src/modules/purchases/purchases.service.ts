@@ -326,6 +326,38 @@ export class PurchasesService {
             currentBalance: { increment: grandTotal },
           },
         });
+
+        // If initial payment was made during creation, record it
+        if (dto.paidAmount && Number(dto.paidAmount) > 0) {
+          const initialPaid = Math.min(grandTotal, Number(dto.paidAmount));
+          await tx.purchasePayment.create({
+            data: {
+              purchaseInvoiceId: purchase.id,
+              supplierId: dto.supplierId,
+              amount: initialPaid,
+              paymentMode: (dto.paymentMode as any) || 'BANK_TRANSFER',
+              notes: 'Initial payment recorded during purchase inward',
+              createdByUserId: userId,
+            },
+          });
+
+          await tx.supplier.update({
+            where: { id: dto.supplierId },
+            data: {
+              currentBalance: { decrement: initialPaid },
+            },
+          });
+        }
+
+        // If converted from a Purchase Order, mark the Purchase Order as FULLY_RECEIVED
+        if (dto.purchaseOrderId) {
+          await tx.purchaseOrder.update({
+            where: { id: dto.purchaseOrderId },
+            data: { status: 'FULLY_RECEIVED' },
+          }).catch(() => {
+            // ignore if po was already completed or not found
+          });
+        }
       }
 
       return purchase;
