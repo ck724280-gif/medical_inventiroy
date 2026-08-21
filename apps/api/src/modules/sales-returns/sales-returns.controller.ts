@@ -29,6 +29,12 @@ export class SalesReturnsController {
     return this.salesReturnsService.findOne(id);
   }
 
+  @Get(':id/receipt')
+  @RequirePermissions('sale.return')
+  async getReceiptData(@Param('id') id: string) {
+    return this.salesReturnsService.getReturnReceiptData(id);
+  }
+
   @Post()
   @RequirePermissions('sale.return')
   @Auditable('create_sales_return', 'SalesReturn')
