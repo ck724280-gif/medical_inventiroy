@@ -74,9 +74,13 @@ export class SettingsService {
 
   async updateReceiptTemplate(dto: UpdateReceiptTemplateDto) {
     const defaultTemplate = await this.getReceiptTemplate();
+    const dataToUpdate: any = { ...dto };
+    if (dto.displayFields && typeof dto.displayFields === 'object') {
+      dataToUpdate.displayFields = JSON.stringify(dto.displayFields);
+    }
     return this.prisma.receiptTemplate.update({
       where: { id: defaultTemplate.id },
-      data: dto as any,
+      data: dataToUpdate,
     });
   }
 

@@ -33,6 +33,7 @@ import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
 import { apiClient } from '../../lib/api-client';
 import { useBrandingStore } from '../../stores/branding-store';
+import { PrintStudioCustomizer } from '../../components/print-studio-customizer';
 import { PaperWidth } from '@medical-inventory/shared-types';
 
 export default function SettingsPage() {
@@ -423,7 +424,7 @@ export default function SettingsPage() {
             {[
               { id: 'business', label: 'Business Profile & Tax', icon: Building2 },
               { id: 'branding', label: 'White-Label Branding', icon: Palette },
-              { id: 'receipt', label: 'Thermal Receipt Setup', icon: Printer },
+              { id: 'receipt', label: 'Thermal & Universal Print Setup (20 Layouts)', icon: Printer },
               { id: 'branches', label: 'Store Branches', icon: Building2 },
               { id: 'staff', label: 'Branch Staff & Roles', icon: Users },
               { id: 'backup', label: 'Database Backup & Google Drive', icon: Database },
@@ -863,108 +864,28 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* TAB 3: Thermal Receipt Setup */}
+          {/* TAB 3: Universal Thermal & Invoice Print Engine with 20 Layout Themes */}
           {activeTab === 'receipt' && receiptData && (
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl p-6 max-w-3xl space-y-4">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white">Thermal Receipt Customizer</h3>
-              <form
-                onSubmit={(e: any) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  saveReceiptMutation.mutate({
-                    paperWidth: fd.get('paperWidth'),
-                    showGstin: fd.get('showGstin') === 'on',
-                    showDrugLicense: fd.get('showDrugLicense') === 'on',
-                    showDoctorInfo: fd.get('showDoctorInfo') === 'on',
-                    showCustomerBalance: fd.get('showCustomerBalance') === 'on',
-                    headerText: fd.get('headerText'),
-                    footerText: fd.get('footerText'),
-                    termsAndConditions: fd.get('termsAndConditions'),
-                  });
-                }}
-                className="space-y-4 text-xs"
-              >
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Printer Roll Size</label>
-                  <select
-                    name="paperWidth"
-                    defaultValue={receiptData.paperWidth}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                  >
-                    <option value="WIDTH_80MM">80mm (Standard Desktop Thermal POS)</option>
-                    <option value="WIDTH_58MM">58mm (Handheld / Bluetooth Mobile POS)</option>
-                  </select>
+                  <h3 className="font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
+                    <Printer className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                    Universal Receipt &amp; Invoice Print Studio
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Customize bill layouts across 4 paper sizes (58mm, 80mm, A5, A4) with 20 professional themes and real-time simulator.
+                  </p>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 dark:bg-[#090d16] rounded-xl border border-slate-200 dark:border-slate-800">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
-                    <input
-                      type="checkbox"
-                      name="showGstin"
-                      defaultChecked={receiptData.showGstin}
-                      className="rounded text-sky-600"
-                    />
-                    <span>Print Store GSTIN</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
-                    <input
-                      type="checkbox"
-                      name="showDrugLicense"
-                      defaultChecked={receiptData.showDrugLicense}
-                      className="rounded text-sky-600"
-                    />
-                    <span>Print Drug License #</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
-                    <input
-                      type="checkbox"
-                      name="showDoctorInfo"
-                      defaultChecked={receiptData.showDoctorInfo}
-                      className="rounded text-sky-600"
-                    />
-                    <span>Print Prescribing Doctor / Rx Details</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-800 dark:text-slate-200">
-                    <input
-                      type="checkbox"
-                      name="showCustomerBalance"
-                      defaultChecked={receiptData.showCustomerBalance}
-                      className="rounded text-sky-600"
-                    />
-                    <span>Print Outstanding Customer Ledger Balance</span>
-                  </label>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Header Welcome Text</label>
-                  <input
-                    name="headerText"
-                    defaultValue={receiptData.headerText}
-                    placeholder="Welcome to MedCare Pharmacy"
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Footer Greeting / Return Policy</label>
-                  <textarea
-                    name="footerText"
-                    defaultValue={receiptData.footerText}
-                    rows={2}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={saveReceiptMutation.isPending}
-                    className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-semibold shadow transition cursor-pointer"
-                  >
-                    Save Template
-                  </button>
-                </div>
-              </form>
+              {/* Template Customizer Component */}
+              <PrintStudioCustomizer
+                initialData={receiptData}
+                businessData={businessData}
+                onSave={(payload) => saveReceiptMutation.mutate(payload)}
+                isSaving={saveReceiptMutation.isPending}
+              />
             </div>
           )}
 
