@@ -56,6 +56,9 @@ function PurchasesContent() {
   const [paymentMode, setPaymentMode] = useState<PaymentMode>(PaymentMode.BANK_TRANSFER);
 
   const [barcodeModal, setBarcodeModal] = useState<any | null>(null);
+  const [barcodeLayout, setBarcodeLayout] = useState<'A4_30' | 'A4_24' | 'THERMAL'>('A4_30');
+  const [barcodeQtyMode, setBarcodeQtyMode] = useState<'FILL_PAGE' | 'BATCH_QTY' | 'CUSTOM'>('FILL_PAGE');
+  const [customLabelCount, setCustomLabelCount] = useState<number>(30);
   const labelPrintRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -309,94 +312,126 @@ function PurchasesContent() {
 
           <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+              <table className="w-full text-left border-collapse text-xs min-w-[900px]">
                 <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-bold tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Invoice #</th>
                     <th className="py-3 px-4">Date</th>
                     <th className="py-3 px-4">Supplier Agency</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4 text-right">Total Amount</th>
+                    <th className="py-3 px-4">Inward Status</th>
+                    <th className="py-3 px-4 text-right">Total Bill</th>
+                    <th className="py-3 px-4 text-right">Paid Amount</th>
+                    <th className="py-3 px-4 text-right">Balance Due</th>
+                    <th className="py-3 px-4 text-center">Payment Status</th>
                     <th className="py-3 px-4 text-center">Actions / Labels</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                      <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         Loading purchase entries...
                       </td>
                     </tr>
                   ) : purchases.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                      <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500">
                         No purchase bills recorded.
                       </td>
                     </tr>
                   ) : (
-                    purchases.map((p: any) => (
-                      <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                        <td className="py-3 px-4 font-bold font-mono text-sky-600 dark:text-sky-400">{p.invoiceNumber}</td>
-                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono">{formatDate(p.createdAt)}</td>
-                        <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">{p.supplier?.name || '-'}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={'px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 ' + (
-                              p.status === 'CONFIRMED' || p.status === 'APPROVED'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                            )}
-                          >
-                            {p.status === 'CONFIRMED' ? (
-                              <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                    purchases.map((p: any) => {
+                      const totalAmount = Number(p.totalAmount || 0);
+                      const paidAmount = p.paidAmount !== undefined ? Number(p.paidAmount) : (p.payments ? p.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0);
+                      const balanceDue = p.balanceDue !== undefined ? Number(p.balanceDue) : Math.max(0, totalAmount - paidAmount);
+                      const isPaid = paidAmount >= totalAmount && totalAmount > 0;
+                      const isPartial = paidAmount > 0 && paidAmount < totalAmount;
+
+                      return (
+                        <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="py-3 px-4 font-bold font-mono text-sky-600 dark:text-sky-400">{p.invoiceNumber}</td>
+                          <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono">{formatDate(p.createdAt)}</td>
+                          <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">{p.supplier?.name || '-'}</td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={'px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 ' + (
+                                p.status === 'CONFIRMED' || p.status === 'APPROVED'
+                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
+                              )}
+                            >
+                              {p.status === 'CONFIRMED' ? (
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                              ) : (
+                                <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                              )}
+                              {p.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                            {formatCurrency(totalAmount)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                            {formatCurrency(paidAmount)}
+                          </td>
+                          <td className="py-3 px-4 text-right font-mono font-bold text-red-600 dark:text-red-400">
+                            {formatCurrency(balanceDue)}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            {isPaid ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                PAID (₹{paidAmount.toLocaleString('en-IN')})
+                              </span>
+                            ) : isPartial ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                                PARTIAL (Due: ₹{balanceDue.toLocaleString('en-IN')})
+                              </span>
                             ) : (
-                              <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
+                                UNPAID (Due: ₹{totalAmount.toLocaleString('en-IN')})
+                              </span>
                             )}
-                            {p.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                          {formatCurrency(p.totalAmount || 0)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => setBarcodeModal(p)}
-                              title="Print 40x20mm Barcode Shelf Labels"
-                              className="p-1.5 bg-sky-50 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-sky-200 dark:border-slate-700 transition"
-                            >
-                              <Barcode className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Labels</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setPaymentModal(p);
-                                setPaymentAmount(p.totalAmount || 0);
-                              }}
-                              title="Record Payment"
-                              className="p-1.5 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-emerald-200 dark:border-slate-700 transition"
-                            >
-                              <CreditCard className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Pay</span>
-                            </button>
-                            <button
-                              onClick={() => handleOpenEdit(p)}
-                              title="Edit Purchase"
-                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(p)}
-                              title="Delete Purchase"
-                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                onClick={() => setBarcodeModal(p)}
+                                title="Print A4 / Thermal Barcode Shelf Labels"
+                                className="p-1.5 bg-sky-50 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-sky-200 dark:border-slate-700 transition"
+                              >
+                                <Barcode className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Labels</span>
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setPaymentModal(p);
+                                  setPaymentAmount(balanceDue > 0 ? balanceDue : totalAmount);
+                                }}
+                                title="Record Payment"
+                                className="p-1.5 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-emerald-200 dark:border-slate-700 transition"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span className="hidden sm:inline">Pay</span>
+                              </button>
+                              <button
+                                onClick={() => handleOpenEdit(p)}
+                                title="Edit Purchase"
+                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(p)}
+                                title="Delete Purchase"
+                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -638,243 +673,384 @@ function PurchasesContent() {
               </div>
             </div>
           </div>
-        )}        {barcodeModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 print:p-0 print:bg-white print:static print-modal-container">
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-xl w-full p-6 space-y-4 text-xs print:shadow-none print:border-none print:w-full">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 print:hidden">
-                <div className="flex items-center gap-2">
-                  <Barcode className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                    Print Thermal Shelf Barcode Labels (40mm x 20mm)
-                  </h3>
+        )}        {barcodeModal && (() => {
+          const rawItems = barcodeModal?.items || [];
+          let printStickers: any[] = [];
+          if (barcodeQtyMode === 'BATCH_QTY') {
+            rawItems.forEach((item: any) => {
+              const count = Math.max(1, Number(item.qty || 1));
+              for (let k = 0; k < count; k++) {
+                printStickers.push(item);
+              }
+            });
+          } else if (barcodeQtyMode === 'FILL_PAGE') {
+            const targetCount = barcodeLayout === 'A4_24' ? 24 : 30;
+            if (rawItems.length > 0) {
+              for (let k = 0; k < targetCount; k++) {
+                printStickers.push(rawItems[k % rawItems.length]);
+              }
+            }
+          } else {
+            const targetCount = Math.max(1, Number(customLabelCount || 1));
+            if (rawItems.length > 0) {
+              for (let k = 0; k < targetCount; k++) {
+                printStickers.push(rawItems[k % rawItems.length]);
+              }
+            }
+          }
+
+          const gridClass =
+            barcodeLayout === 'A4_30'
+              ? 'print-grid-a4-30 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5'
+              : barcodeLayout === 'A4_24'
+              ? 'print-grid-a4-24 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5'
+              : 'print-grid-thermal grid grid-cols-1 gap-2';
+
+          return (
+            <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 print:p-0 print:bg-white print:static print-modal-container">
+              <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-4xl w-full p-6 space-y-4 text-xs print:shadow-none print:border-none print:w-full print:max-w-none print:p-0">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 print:hidden">
+                  <div className="flex items-center gap-2">
+                    <Barcode className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                        Barcode Shelf Labels Generator &amp; A4 Print Engine
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Invoice #{barcodeModal.invoiceNumber} | Received {rawItems.length} Batch item(s)
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setBarcodeModal(null)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 transition"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setBarcodeModal(null)}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 transition"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
 
-              <div
-                ref={labelPrintRef}
-                className="space-y-3 max-h-96 overflow-y-auto p-3 bg-slate-50 dark:bg-[#090d16] rounded-xl border border-slate-200 dark:border-slate-800 print:p-0 print:border-none print:bg-white"
-              >
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 print:hidden">
-                  Preview of standard 40x20mm thermal shelf labels for received batches:
-                </p>
-
-                {/* Print Stylesheet Overrides */}
-                <style dangerouslySetInnerHTML={{ __html: `
-                  @media print {
-                    body * {
-                      visibility: hidden !important;
-                    }
-                    #label-print-area, #label-print-area * {
-                      visibility: visible !important;
-                    }
-                    #label-print-area {
-                      position: absolute !important;
-                      left: 0 !important;
-                      top: 0 !important;
-                      width: 100% !important;
-                      background: white !important;
-                      color: black !important;
-                      padding: 0 !important;
-                      margin: 0 !important;
-                    }
-                    .print-label-card {
-                      background: white !important;
-                      color: black !important;
-                      border: 1px solid #000000 !important;
-                      border-radius: 6px !important;
-                      padding: 10px !important;
-                      margin: 4px !important;
-                      width: 200px !important;
-                      height: 95px !important;
-                      display: inline-flex !important;
-                      flex-direction: column !important;
-                      align-items: center !important;
-                      justify-content: center !important;
-                      float: left !important;
-                      page-break-inside: avoid !important;
-                      box-sizing: border-box !important;
-                    }
-                    .print-label-card * {
-                      color: #000000 !important;
-                      background: transparent !important;
-                    }
-                  }
-                `}} />
-
-                <div id="label-print-area" className="grid grid-cols-2 gap-3 print:block">
-                  {(barcodeModal?.items || []).map((item: any, idx: number) => {
-                    const medicine =
-                      medicines.find((m: any) => m.id === item.medicineId) || item.medicine;
-                    const barcode = medicine?.barcodes?.[0]?.barcodeValue || medicine?.barcode || medicine?.sku || 'N/A';
-                    return (
-                      <div
-                        key={idx}
-                        className="p-3 bg-white dark:bg-[#0f172a] border border-dashed border-slate-300 dark:border-slate-800 rounded-lg flex flex-col items-center justify-center text-center print-label-card"
-                        style={{ minHeight: '120px' }}
+                {/* Print Customization Controls (Hidden in Print) */}
+                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 print:hidden">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        1. Sheet Format / Printer Type
+                      </label>
+                      <select
+                        value={barcodeLayout}
+                        onChange={(e: any) => setBarcodeLayout(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-medium"
                       >
-                        <span className="font-bold text-[11px] text-slate-900 dark:text-white truncate w-full">
-                          {medicine?.name || 'MEDICINE'}
-                        </span>
-                        <div className="flex items-center justify-between w-full text-[9px] text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
-                          <span>B: {item.batchNumber}</span>
-                          <span>
-                            EXP: {item.expiryDate ? formatDate(item.expiryDate, 'MM/yy') : '-'}
-                          </span>
-                        </div>
-                        
-                        {/* Graphical Barcode component instead of Monospace Text */}
-                        <div className="my-1 flex items-center justify-center overflow-hidden bg-white p-0.5 rounded">
-                          {barcode !== 'N/A' ? (
-                            <ReactBarcode
-                              value={barcode}
-                              width={1.2}
-                              height={32}
-                              fontSize={8}
-                              margin={0}
-                              displayValue={false}
-                            />
-                          ) : (
-                            <span className="text-[9px] text-slate-400">NO BARCODE</span>
-                          )}
-                        </div>
+                        <option value="A4_30">A4 Sheet (30 Labels - 3x10 Grid)</option>
+                        <option value="A4_24">A4 Sheet (24 Labels - 3x8 Grid)</option>
+                        <option value="THERMAL">Thermal Roll (50x25mm / 40x20mm)</option>
+                      </select>
+                    </div>
 
-                        <div className="font-mono text-[9px] font-bold text-slate-900 dark:text-white">
-                          {barcode}
-                        </div>
-                        <div className="flex items-center justify-between w-full text-[10px] font-bold text-slate-900 dark:text-white mt-1">
-                          <span>MRP: {formatCurrency(item.mrp || 0)}</span>
-                          <span className="text-emerald-700 dark:text-emerald-400 font-extrabold">
-                            OUR: {formatCurrency(item.sellingPrice || item.mrp || 0)}
-                          </span>
-                        </div>
+                    <div>
+                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        2. Label Quantity Mode
+                      </label>
+                      <select
+                        value={barcodeQtyMode}
+                        onChange={(e: any) => setBarcodeQtyMode(e.target.value)}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-medium"
+                      >
+                        <option value="FILL_PAGE">Fill Complete A4 Page ({barcodeLayout === 'A4_24' ? 24 : 30} Stickers)</option>
+                        <option value="BATCH_QTY">Match Inward Batch Stock Count</option>
+                        <option value="CUSTOM">Custom Number of Stickers</option>
+                      </select>
+                    </div>
+
+                    {barcodeQtyMode === 'CUSTOM' && (
+                      <div>
+                        <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Exact Sticker Count
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="200"
+                          value={customLabelCount}
+                          onChange={(e: any) => setCustomLabelCount(parseInt(e.target.value) || 1)}
+                          className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
+                        />
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-2 border-t border-slate-200 dark:border-slate-800 print:hidden">
-                <button
-                  type="button"
-                  onClick={() => setBarcodeModal(null)}
-                  className="px-4 py-2 border border-slate-300 dark:border-slate-850 rounded-xl font-semibold text-slate-650 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePrintLabels}
-                  className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-semibold rounded-xl flex items-center gap-2 shadow transition"
-                >
-                  <Printer className="w-4 h-4" />
-                  Print 40x20mm Labels
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {paymentModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 text-xs text-slate-900 dark:text-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                    Record Supplier Bill Payment
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setPaymentModal(null)}
-                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Invoice:</span>
-                    <span className="font-mono font-bold text-sky-600">
-                      {paymentModal.invoiceNumber}
-                    </span>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Supplier:</span>
-                    <span className="font-semibold">{paymentModal.supplier?.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Total Invoice Amount:</span>
-                    <span className="font-bold font-mono">
-                      {formatCurrency(paymentModal.totalAmount || 0)}
-                    </span>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-800/60">
+                    <span>Generating <strong>{printStickers.length}</strong> barcode sticker(s). All medicine, batch, expiry, and MRP information is encoded.</span>
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Compatible with all 1D laser &amp; optical POS scanners</span>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Payment Amount (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={paymentAmount}
-                    onChange={(e: any) => setPaymentAmount(parseFloat(e.target.value) || 0)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono text-sm focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Payment Mode
-                  </label>
-                  <select
-                    value={paymentMode}
-                    onChange={(e: any) => setPaymentMode(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value={PaymentMode.BANK_TRANSFER}>Bank Transfer (NEFT/RTGS/IMPS)</option>
-                    <option value={PaymentMode.UPI}>UPI / QR</option>
-                    <option value={PaymentMode.CASH}>Cash</option>
-                    <option value={PaymentMode.CARD}>Card / POS</option>
-                    <option value={PaymentMode.CHEQUE}>Cheque</option>
-                  </select>
-                </div>
-
-                <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentModal(null)}
-                    className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      recordPaymentMutation.mutate({
-                        id: paymentModal.id,
-                        amount: paymentAmount,
-                        paymentMode,
-                      })
+                <div
+                  ref={labelPrintRef}
+                  className="space-y-3 max-h-[50vh] overflow-y-auto p-3 bg-slate-50 dark:bg-[#090d16] rounded-xl border border-slate-200 dark:border-slate-800 print:p-0 print:border-none print:bg-white print:max-h-none print:overflow-visible"
+                >
+                  {/* Print Stylesheet Overrides */}
+                  <style dangerouslySetInnerHTML={{ __html: `
+                    @media print {
+                      @page {
+                        size: A4 portrait;
+                        margin: 8mm 6mm 8mm 6mm;
+                      }
+                      body * {
+                        visibility: hidden !important;
+                      }
+                      #label-print-area, #label-print-area * {
+                        visibility: visible !important;
+                      }
+                      #label-print-area {
+                        position: absolute !important;
+                        left: 0 !important;
+                        top: 0 !important;
+                        width: 100% !important;
+                        background: white !important;
+                        color: black !important;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        display: grid !important;
+                      }
+                      .print-grid-a4-30 {
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        gap: 2.5mm !important;
+                      }
+                      .print-grid-a4-24 {
+                        grid-template-columns: repeat(3, 1fr) !important;
+                        gap: 3.5mm !important;
+                      }
+                      .print-grid-thermal {
+                        grid-template-columns: 1fr !important;
+                        gap: 2mm !important;
+                      }
+                      .print-label-card {
+                        background: #ffffff !important;
+                        color: #000000 !important;
+                        border: 1px solid #111111 !important;
+                        border-radius: 4px !important;
+                        padding: 4px 6px !important;
+                        box-sizing: border-box !important;
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        justify-content: space-between !important;
+                        height: 86px !important;
+                      }
+                      .print-label-card * {
+                        color: #000000 !important;
+                        background: transparent !important;
+                      }
                     }
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow"
-                  >
-                    Confirm Payment
-                  </button>
+                  `}} />
+
+                  <div id="label-print-area" className={gridClass}>
+                    {printStickers.map((item: any, idx: number) => {
+                      const medicine =
+                        medicines.find((m: any) => m.id === item.medicineId) || item.medicine;
+                      const barcodeVal = medicine?.barcodes?.[0]?.barcodeValue || medicine?.barcode || medicine?.sku || item.batchNumber || 'N/A';
+                      const composition = medicine?.genericName || medicine?.composition || '';
+
+                      return (
+                        <div
+                          key={idx}
+                          className="p-2.5 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-800 rounded-lg flex flex-col justify-between text-center print-label-card shadow-sm"
+                          style={{ minHeight: '86px' }}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-extrabold text-[11px] text-slate-900 dark:text-white truncate text-left w-full">
+                                {medicine?.name || 'MEDICINE'}
+                              </span>
+                              <span className="text-[9px] font-bold text-slate-500 font-mono shrink-0">
+                                {medicine?.dosageForm || 'TAB'}
+                              </span>
+                            </div>
+                            {composition && (
+                              <p className="text-[8.5px] text-slate-500 dark:text-slate-400 truncate text-left mt-0.5">
+                                {composition}
+                              </p>
+                            )}
+                            <div className="flex items-center justify-between text-[9px] text-slate-600 dark:text-slate-400 font-mono font-semibold mt-0.5 border-t border-slate-100 dark:border-slate-800/80 pt-0.5">
+                              <span>B.No: {item.batchNumber}</span>
+                              <span>
+                                EXP: {item.expiryDate ? formatDate(item.expiryDate, 'MM/yyyy') : '-'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Graphical Barcode component */}
+                          <div className="my-0.5 flex items-center justify-center overflow-hidden bg-white p-0.5 rounded">
+                            {barcodeVal !== 'N/A' ? (
+                              <ReactBarcode
+                                value={barcodeVal}
+                                width={1.1}
+                                height={26}
+                                fontSize={8}
+                                margin={0}
+                                displayValue={false}
+                              />
+                            ) : (
+                              <span className="text-[9px] text-slate-400">NO BARCODE</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between text-[9.5px] font-bold text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800 pt-0.5">
+                            <span className="text-slate-600 dark:text-slate-400">MRP: {formatCurrency(item.mrp || 0)}</span>
+                            <span className="font-mono text-[8.5px] text-slate-500">{barcodeVal}</span>
+                            <span className="text-emerald-700 dark:text-emerald-400 font-extrabold">
+                              OUR: {formatCurrency(item.sellingPrice || item.mrp || 0)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800 print:hidden">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    Total Stickers Ready: <strong className="text-slate-900 dark:text-white">{printStickers.length}</strong>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setBarcodeModal(null)}
+                      className="px-4 py-2 border border-slate-300 dark:border-slate-800 rounded-xl font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
+                    >
+                      Close
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePrintLabels}
+                      className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-sky-500/20 transition active:scale-95"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Print Labels ({barcodeLayout === 'THERMAL' ? 'Roll' : 'A4 Sheet'})
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
+
+        {paymentModal && (() => {
+          const totalAmount = Number(paymentModal.totalAmount || 0);
+          const paidAmount = paymentModal.paidAmount !== undefined ? Number(paymentModal.paidAmount) : (paymentModal.payments ? paymentModal.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0);
+          const balanceDue = paymentModal.balanceDue !== undefined ? Number(paymentModal.balanceDue) : Math.max(0, totalAmount - paidAmount);
+
+          return (
+            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 text-xs text-slate-900 dark:text-slate-100">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-5 h-5 text-emerald-600" />
+                    <div>
+                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                        Record Supplier Bill Payment
+                      </h3>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                        Invoice #{paymentModal.invoiceNumber}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setPaymentModal(null)}
+                    className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Supplier:</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{paymentModal.supplier?.name}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-slate-500">Total Bill Amount:</span>
+                      <span className="font-bold font-mono text-slate-900 dark:text-white">
+                        {formatCurrency(totalAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Already Paid:</span>
+                      <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(paidAmount)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-200 dark:border-slate-800">
+                      <span className="text-red-600 dark:text-red-400 font-bold">Remaining Balance Due:</span>
+                      <span className="font-extrabold font-mono text-sm text-red-600 dark:text-red-400">
+                        {formatCurrency(balanceDue)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Payment Amount (₹) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      value={paymentAmount}
+                      onChange={(e: any) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono text-sm font-bold focus:outline-none focus:border-emerald-500"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      Enter partial amount (e.g. ₹20,000) or full remaining balance (₹{balanceDue.toLocaleString('en-IN')}).
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                      Payment Mode
+                    </label>
+                    <select
+                      value={paymentMode}
+                      onChange={(e: any) => setPaymentMode(e.target.value)}
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      <option value={PaymentMode.BANK_TRANSFER}>Bank Transfer (NEFT/RTGS/IMPS)</option>
+                      <option value={PaymentMode.UPI}>UPI / QR Code</option>
+                      <option value={PaymentMode.CASH}>Cash</option>
+                      <option value={PaymentMode.CARD}>Credit / Debit Card</option>
+                      <option value={PaymentMode.CHEQUE}>Cheque</option>
+                    </select>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setPaymentModal(null)}
+                      className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        recordPaymentMutation.mutate({
+                          id: paymentModal.id,
+                          amount: paymentAmount,
+                          paymentMode,
+                        })
+                      }
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition"
+                    >
+                      Confirm Payment (₹{paymentAmount.toLocaleString('en-IN')})
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

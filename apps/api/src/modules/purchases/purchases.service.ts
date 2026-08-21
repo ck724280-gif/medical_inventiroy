@@ -55,13 +55,52 @@ export class PurchasesService {
           supplier: { select: { id: true, name: true, phone: true } },
           branch: { select: { id: true, name: true } },
           createdByUser: { select: { id: true, firstName: true, lastName: true } },
+          payments: { select: { id: true, amount: true, paymentMode: true, paidAt: true } },
+          items: {
+            include: {
+              medicine: {
+                select: {
+                  id: true,
+                  name: true,
+                  genericName: true,
+                  sku: true,
+                  dosageForm: true,
+                  barcode: true,
+                  composition: true,
+                  baseUnit: true,
+                  taxPercent: true,
+                  stripsPerBox: true,
+                  tabletsPerStrip: true,
+                },
+              },
+            },
+          },
           _count: { select: { items: true, payments: true } },
         },
       }),
     ]);
 
+    const formattedPurchases = purchases.map((p) => {
+      const paidAmount = p.payments ? p.payments.reduce((sum, pay) => sum + Number(pay.amount || 0), 0) : 0;
+      const totalAmount = Number(p.totalAmount || 0);
+      const balanceDue = Math.max(0, totalAmount - paidAmount);
+      let paymentStatus = 'UNPAID';
+      if (paidAmount >= totalAmount && totalAmount > 0) {
+        paymentStatus = 'PAID';
+      } else if (paidAmount > 0) {
+        paymentStatus = 'PARTIAL';
+      }
+
+      return {
+        ...p,
+        paidAmount,
+        balanceDue,
+        paymentStatus,
+      };
+    });
+
     return {
-      data: purchases,
+      data: formattedPurchases,
       meta: {
         total,
         page,
