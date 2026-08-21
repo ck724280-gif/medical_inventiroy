@@ -25,8 +25,8 @@ import { formatDate, formatCurrency } from '@medical-inventory/shared-utils';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
-  const { selectedBranchId, isSuperAdmin } = useAuthStore();
-  const canManage = isSuperAdmin();
+  const { selectedBranchId, isSuperAdmin, hasPermission } = useAuthStore();
+  const canManage = isSuperAdmin() || hasPermission('inventory.adjust');
 
   const [activeTab, setActiveTab] = useState<'batches' | 'expiry' | 'reorder' | 'movements'>('batches');
   const [search, setSearch] = useState('');
@@ -90,31 +90,39 @@ export default function InventoryPage() {
     mutationFn: async (payload: any) => {
       return apiClient.post('/inventory/adjustments', payload);
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['inventory-batches'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-movements'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-low-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-expiry'] });
       setAdjustmentModal(null);
+      alert('Batch stock adjusted successfully!');
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to adjust stock.');
+      alert(err.response?.data?.message || err.message || 'Failed to adjust stock.');
     },
   });
 
   const handleApplyAdjustment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canManage) {
-      alert('Only Super Admin can adjust stock levels.');
+      alert('You do not have permission to adjust stock levels.');
       return;
     }
-    if (!adjustmentModal || !selectedBranchId) return;
+    if (!adjustmentModal) return;
+
+    const existingQty = Number(adjustmentModal.currentQty || 0);
+    const targetQty = Number(adjustmentQty);
+    const delta = targetQty - existingQty;
 
     adjustMutation.mutate({
-      branchId: selectedBranchId,
-      medicineId: adjustmentModal.medicine?.id,
+      branchId: selectedBranchId || adjustmentModal.branchId,
+      medicineId: adjustmentModal.medicineId || adjustmentModal.medicine?.id,
       batchId: adjustmentModal.id,
-      qty: Number(adjustmentQty),
+      newQty: targetQty,
+      adjustmentQty: delta,
       reason: adjustmentReason,
-      notes: 'Manual physical adjustment',
+      notes: `Manual stock adjustment from ${existingQty} to ${targetQty}`,
     });
   };
 

@@ -176,10 +176,12 @@ export class InventoryService {
 
   async createAdjustment(
     dto: {
-      branchId: string;
-      medicineId: string;
+      branchId?: string;
+      medicineId?: string;
       batchId: string;
-      adjustmentQty: number; // can be + or -
+      adjustmentQty?: number;
+      newQty?: number;
+      qty?: number;
       reason: string;
       notes?: string;
     },
@@ -188,6 +190,7 @@ export class InventoryService {
     return this.prisma.$transaction(async (tx) => {
       const batch = await tx.batch.findUnique({
         where: { id: dto.batchId },
+        include: { medicine: true },
       });
 
       if (!batch) {
@@ -195,50 +198,70 @@ export class InventoryService {
       }
 
       const existingQty = batch.currentQty;
-      const newQty = existingQty + dto.adjustmentQty;
+      let delta = 0;
+      let finalNewQty = existingQty;
 
-      if (newQty < 0) {
+      if (dto.newQty !== undefined && dto.newQty !== null) {
+        finalNewQty = Number(dto.newQty);
+        delta = finalNewQty - existingQty;
+      } else if (dto.adjustmentQty !== undefined && dto.adjustmentQty !== null) {
+        delta = Number(dto.adjustmentQty);
+        finalNewQty = existingQty + delta;
+      } else if (dto.qty !== undefined && dto.qty !== null) {
+        finalNewQty = Number(dto.qty);
+        delta = finalNewQty - existingQty;
+      }
+
+      if (isNaN(finalNewQty) || finalNewQty < 0) {
         throw new BadRequestException(
-          `Adjustment of ${dto.adjustmentQty} exceeds current stock (${existingQty})`
+          `Target stock quantity must be a non-negative number (received: ${finalNewQty})`
         );
       }
 
-      // Update Batch stock
+      const branchId = dto.branchId || batch.branchId;
+      const medicineId = dto.medicineId || batch.medicineId;
+
+      // 1. Update Batch stock
       await tx.batch.update({
         where: { id: dto.batchId },
-        data: { currentQty: newQty },
+        data: {
+          currentQty: finalNewQty,
+          status: finalNewQty === 0 ? 'DEPLETED' : 'ACTIVE',
+        },
       });
 
-      // Record Stock Adjustment
+      // 2. Record Stock Adjustment
       const adjustment = await tx.stockAdjustment.create({
         data: {
-          branchId: dto.branchId,
-          medicineId: dto.medicineId,
+          branchId,
+          medicineId,
           batchId: dto.batchId,
           existingQty,
-          adjustmentQty: dto.adjustmentQty,
-          newQty,
-          reason: dto.reason,
+          adjustmentQty: delta,
+          newQty: finalNewQty,
+          reason: dto.reason || 'PHYSICAL_MISMATCH',
           adjustedByUserId: userId,
-          notes: dto.notes || null,
+          notes: dto.notes || `Stock adjusted from ${existingQty} to ${finalNewQty}`,
         },
       });
 
-      // Record immutable Stock Movement
-      await tx.stockMovement.create({
-        data: {
-          branchId: dto.branchId,
-          medicineId: dto.medicineId,
-          batchId: dto.batchId,
-          qty: Math.abs(dto.adjustmentQty),
-          direction: dto.adjustmentQty > 0 ? MovementDirection.IN : MovementDirection.OUT,
-          type: StockMovementType.ADJUSTMENT,
-          referenceType: 'StockAdjustment',
-          referenceId: adjustment.id,
-          userId,
-          reason: dto.reason,
-        },
-      });
+      // 3. Record immutable Stock Movement if delta != 0
+      if (delta !== 0) {
+        await tx.stockMovement.create({
+          data: {
+            branchId,
+            medicineId,
+            batchId: dto.batchId,
+            qty: Math.abs(delta),
+            direction: delta > 0 ? MovementDirection.IN : MovementDirection.OUT,
+            type: StockMovementType.ADJUSTMENT,
+            referenceType: 'StockAdjustment',
+            referenceId: adjustment.id,
+            userId,
+            reason: dto.reason || 'Physical Stock Adjustment',
+          },
+        });
+      }
 
       return adjustment;
     });
