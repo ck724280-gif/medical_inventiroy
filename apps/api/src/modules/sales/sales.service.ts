@@ -790,9 +790,10 @@ export class SalesService {
             medicineId: item.medicineId,
             batchId: item.batchId,
             branchId: sale.branchId,
-            type: StockMovementType.ADJUSTMENT,
-            direction: MovementDirection.IN,
-            quantity: item.qty,
+            userId: sale.createdByUserId,
+            type: 'ADJUSTMENT',
+            direction: 'IN',
+            qty: item.qty,
             reason: `Sales Invoice ${sale.invoiceNumber} deleted/cancelled. Stock restored.`,
           },
         });
@@ -820,17 +821,17 @@ export class SalesService {
 
       // 3. Delete payments
       await tx.salesPayment.deleteMany({
-        where: { invoiceId: id },
+        where: { salesInvoiceId: id },
       });
 
       // 4. Delete items
       await tx.salesItem.deleteMany({
-        where: { invoiceId: id },
+        where: { salesInvoiceId: id },
       });
 
       // 5. Delete prescription record (if any)
       await tx.prescriptionRecord.deleteMany({
-        where: { invoiceId: id },
+        where: { salesInvoiceId: id },
       });
 
       // 6. Delete invoice
@@ -887,7 +888,7 @@ export class SalesService {
       // If payment mode is changing, update the payment records mode
       if (dto.paymentMode !== undefined) {
         await tx.salesPayment.updateMany({
-          where: { invoiceId: id },
+          where: { salesInvoiceId: id },
           data: { paymentMode: dto.paymentMode },
         });
       }

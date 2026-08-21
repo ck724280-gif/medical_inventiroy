@@ -86,6 +86,32 @@ export class CreateMedicineDto {
   @IsInt()
   tabletQty?: number;
 
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  stripsPerBox?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  tabletsPerStrip?: number;
+
+  @IsOptional()
+  @IsString()
+  drugSchedule?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isScheduleH?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isScheduleH1?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isScheduleX?: boolean;
+
   @IsNumber()
   @Min(0)
   mrp: number;
@@ -209,6 +235,32 @@ export class UpdateMedicineDto {
   @IsOptional()
   @IsInt()
   tabletQty?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  stripsPerBox?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  tabletsPerStrip?: number;
+
+  @IsOptional()
+  @IsString()
+  drugSchedule?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isScheduleH?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isScheduleH1?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isScheduleX?: boolean;
 
   @IsOptional()
   @IsNumber()

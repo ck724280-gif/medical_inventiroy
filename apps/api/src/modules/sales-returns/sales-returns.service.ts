@@ -284,10 +284,10 @@ export class SalesReturnsService {
         });
       }
 
-      // 3. Update original Sales Invoice status back to PAID or COMPLETED
+      // 3. Update original Sales Invoice status back to COMPLETED
       await tx.salesInvoice.update({
         where: { id: returnRecord.salesInvoiceId },
-        data: { status: SaleStatus.PAID },
+        data: { status: 'COMPLETED' },
       });
 
       // 4. Delete stock movements
@@ -297,7 +297,7 @@ export class SalesReturnsService {
 
       // 5. Delete sales return items
       await tx.salesReturnItem.deleteMany({
-        where: { salesReturnId: id },
+        where: { returnId: id },
       });
 
       // 6. Delete sales return

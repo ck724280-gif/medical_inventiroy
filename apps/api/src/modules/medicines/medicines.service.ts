@@ -26,8 +26,13 @@ export class MedicinesService {
 
     const where: any = {};
 
+    // Default to active medicines unless explicitly requested otherwise
     if (query?.isActive !== undefined) {
-      where.isActive = query.isActive === 'true' || query.isActive === true;
+      if (query.isActive !== 'all') {
+        where.isActive = query.isActive === 'true' || query.isActive === true;
+      }
+    } else {
+      where.isActive = true;
     }
 
     if (query?.categoryId) {
@@ -46,7 +51,7 @@ export class MedicinesService {
     }
 
     if (query?.search) {
-      const s = query.search;
+      const s = query.search.trim();
       where.OR = [
         { name: { contains: s, mode: 'insensitive' } },
         { genericName: { contains: s, mode: 'insensitive' } },
@@ -185,19 +190,58 @@ export class MedicinesService {
   }
 
   async create(dto: CreateMedicineDto) {
+    const skuClean = dto.sku ? dto.sku.trim() : `MED-${Date.now().toString().slice(-6)}`;
     const existingSku = await this.prisma.medicine.findUnique({
-      where: { sku: dto.sku },
+      where: { sku: skuClean },
     });
 
     if (existingSku) {
-      throw new ConflictException(`Medicine with SKU '${dto.sku}' already exists`);
+      throw new ConflictException(`Medicine with SKU '${skuClean}' already exists`);
     }
 
     const { unitConversions, ...medicineData } = dto;
 
+    // Sanitize empty strings to null or valid defaults
+    const sanitizedData: any = {
+      name: medicineData.name.trim(),
+      genericName: medicineData.genericName?.trim() || null,
+      brandName: medicineData.brandName?.trim() || null,
+      composition: medicineData.composition?.trim() || null,
+      strength: medicineData.strength?.trim() || null,
+      dosageForm: medicineData.dosageForm,
+      categoryId: medicineData.categoryId?.trim() || null,
+      subCategoryId: medicineData.subCategoryId?.trim() || null,
+      manufacturerId: medicineData.manufacturerId?.trim() || null,
+      sku: skuClean,
+      barcode: medicineData.barcode?.trim() || null,
+      eanUpcGtin: medicineData.eanUpcGtin?.trim() || null,
+      hsnCode: medicineData.hsnCode?.trim() || null,
+      taxPercent: Number(medicineData.taxPercent || 0),
+      baseUnitId: medicineData.baseUnitId,
+      packSize: medicineData.packSize?.trim() || null,
+      boxQty: medicineData.boxQty ? Number(medicineData.boxQty) : null,
+      stripQty: medicineData.stripQty ? Number(medicineData.stripQty) : null,
+      tabletQty: medicineData.tabletQty ? Number(medicineData.tabletQty) : null,
+      stripsPerBox: medicineData.stripsPerBox ? Number(medicineData.stripsPerBox) : 10,
+      tabletsPerStrip: medicineData.tabletsPerStrip ? Number(medicineData.tabletsPerStrip) : 10,
+      drugSchedule: medicineData.drugSchedule || 'OTC',
+      isScheduleH: medicineData.drugSchedule === 'SCHEDULE_H' || Boolean(medicineData.isScheduleH),
+      isScheduleH1: medicineData.drugSchedule === 'SCHEDULE_H1' || Boolean(medicineData.isScheduleH1),
+      isScheduleX: medicineData.drugSchedule === 'SCHEDULE_X' || Boolean(medicineData.isScheduleX),
+      mrp: Number(medicineData.mrp || 0),
+      defaultPurchasePrice: Number(medicineData.defaultPurchasePrice || 0),
+      defaultSellingPrice: Number(medicineData.defaultSellingPrice || 0),
+      reorderLevel: medicineData.reorderLevel ? Number(medicineData.reorderLevel) : 10,
+      reorderQty: medicineData.reorderQty ? Number(medicineData.reorderQty) : 50,
+      maxStock: medicineData.maxStock ? Number(medicineData.maxStock) : 1000,
+      prescriptionRequired: Boolean(medicineData.prescriptionRequired || medicineData.drugSchedule !== 'OTC'),
+      isActive: medicineData.isActive !== undefined ? Boolean(medicineData.isActive) : true,
+      notes: medicineData.notes?.trim() || null,
+    };
+
     const created = await this.prisma.medicine.create({
       data: {
-        ...medicineData,
+        ...sanitizedData,
         units: unitConversions
           ? {
               create: unitConversions.map((uc) => ({
@@ -217,22 +261,88 @@ export class MedicinesService {
     await this.findOne(id);
 
     if (dto.sku) {
+      const skuClean = dto.sku.trim();
       const existing = await this.prisma.medicine.findFirst({
-        where: { sku: dto.sku, id: { not: id } },
+        where: { sku: skuClean, id: { not: id } },
       });
-      if (existing) throw new ConflictException(`SKU '${dto.sku}' is already in use`);
+      if (existing) throw new ConflictException(`SKU '${skuClean}' is already in use`);
     }
+
+    const sanitizedData: any = {};
+    if (dto.name !== undefined) sanitizedData.name = dto.name.trim();
+    if (dto.genericName !== undefined) sanitizedData.genericName = dto.genericName?.trim() || null;
+    if (dto.brandName !== undefined) sanitizedData.brandName = dto.brandName?.trim() || null;
+    if (dto.composition !== undefined) sanitizedData.composition = dto.composition?.trim() || null;
+    if (dto.strength !== undefined) sanitizedData.strength = dto.strength?.trim() || null;
+    if (dto.dosageForm !== undefined) sanitizedData.dosageForm = dto.dosageForm;
+    if (dto.categoryId !== undefined) sanitizedData.categoryId = dto.categoryId?.trim() || null;
+    if (dto.subCategoryId !== undefined) sanitizedData.subCategoryId = dto.subCategoryId?.trim() || null;
+    if (dto.manufacturerId !== undefined) sanitizedData.manufacturerId = dto.manufacturerId?.trim() || null;
+    if (dto.sku !== undefined) sanitizedData.sku = dto.sku.trim();
+    if (dto.barcode !== undefined) sanitizedData.barcode = dto.barcode?.trim() || null;
+    if (dto.eanUpcGtin !== undefined) sanitizedData.eanUpcGtin = dto.eanUpcGtin?.trim() || null;
+    if (dto.hsnCode !== undefined) sanitizedData.hsnCode = dto.hsnCode?.trim() || null;
+    if (dto.taxPercent !== undefined) sanitizedData.taxPercent = Number(dto.taxPercent);
+    if (dto.baseUnitId !== undefined) sanitizedData.baseUnitId = dto.baseUnitId;
+    if (dto.packSize !== undefined) sanitizedData.packSize = dto.packSize?.trim() || null;
+    if (dto.boxQty !== undefined) sanitizedData.boxQty = dto.boxQty ? Number(dto.boxQty) : null;
+    if (dto.stripQty !== undefined) sanitizedData.stripQty = dto.stripQty ? Number(dto.stripQty) : null;
+    if (dto.tabletQty !== undefined) sanitizedData.tabletQty = dto.tabletQty ? Number(dto.tabletQty) : null;
+    if (dto.stripsPerBox !== undefined) sanitizedData.stripsPerBox = Number(dto.stripsPerBox);
+    if (dto.tabletsPerStrip !== undefined) sanitizedData.tabletsPerStrip = Number(dto.tabletsPerStrip);
+    if (dto.drugSchedule !== undefined) {
+      sanitizedData.drugSchedule = dto.drugSchedule;
+      sanitizedData.isScheduleH = dto.drugSchedule === 'SCHEDULE_H';
+      sanitizedData.isScheduleH1 = dto.drugSchedule === 'SCHEDULE_H1';
+      sanitizedData.isScheduleX = dto.drugSchedule === 'SCHEDULE_X';
+      sanitizedData.prescriptionRequired = dto.drugSchedule !== 'OTC' || Boolean(dto.prescriptionRequired);
+    }
+    if (dto.mrp !== undefined) sanitizedData.mrp = Number(dto.mrp);
+    if (dto.defaultPurchasePrice !== undefined) sanitizedData.defaultPurchasePrice = Number(dto.defaultPurchasePrice);
+    if (dto.defaultSellingPrice !== undefined) sanitizedData.defaultSellingPrice = Number(dto.defaultSellingPrice);
+    if (dto.reorderLevel !== undefined) sanitizedData.reorderLevel = Number(dto.reorderLevel);
+    if (dto.reorderQty !== undefined) sanitizedData.reorderQty = Number(dto.reorderQty);
+    if (dto.maxStock !== undefined) sanitizedData.maxStock = Number(dto.maxStock);
+    if (dto.prescriptionRequired !== undefined) sanitizedData.prescriptionRequired = Boolean(dto.prescriptionRequired);
+    if (dto.isActive !== undefined) sanitizedData.isActive = Boolean(dto.isActive);
+    if (dto.notes !== undefined) sanitizedData.notes = dto.notes?.trim() || null;
 
     await this.prisma.medicine.update({
       where: { id },
-      data: dto as any,
+      data: sanitizedData,
     });
 
     return this.findOne(id);
   }
 
   async remove(id: string) {
-    // Soft delete
-    return this.update(id, { isActive: false });
+    const medicine = await this.findOne(id);
+
+    // Check if medicine has transactional history (batches, sales, purchases, movements)
+    const [batchesCount, salesItemsCount, purchaseItemsCount, movementsCount] = await Promise.all([
+      this.prisma.batch.count({ where: { medicineId: id } }),
+      this.prisma.salesItem.count({ where: { medicineId: id } }),
+      this.prisma.purchaseItem.count({ where: { medicineId: id } }),
+      this.prisma.stockMovement.count({ where: { medicineId: id } }),
+    ]);
+
+    const hasTransactions = batchesCount > 0 || salesItemsCount > 0 || purchaseItemsCount > 0 || movementsCount > 0;
+
+    if (hasTransactions) {
+      // Soft-delete to preserve data integrity and audits
+      await this.prisma.medicine.update({
+        where: { id },
+        data: { isActive: false },
+      });
+      return { success: true, mode: 'soft-delete', message: `Medicine "${medicine.name}" has been deactivated.` };
+    } else {
+      // Permanent hard-delete if no transactional records exist
+      await this.prisma.$transaction(async (tx) => {
+        await tx.medicineUnit.deleteMany({ where: { medicineId: id } });
+        await tx.barcode.deleteMany({ where: { medicineId: id } });
+        await tx.medicine.delete({ where: { id } });
+      });
+      return { success: true, mode: 'hard-delete', message: `Medicine "${medicine.name}" has been permanently deleted.` };
+    }
   }
 }

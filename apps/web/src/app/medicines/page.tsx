@@ -24,8 +24,9 @@ import { formatCurrency } from '@medical-inventory/shared-utils';
 
 export default function MedicinesPage() {
   const queryClient = useQueryClient();
-  const { isSuperAdmin } = useAuthStore();
-  const canManage = isSuperAdmin();
+  const { isSuperAdmin, hasPermission } = useAuthStore();
+  const canManage = isSuperAdmin() || hasPermission('medicine.create') || hasPermission('medicine.edit');
+  const canDelete = isSuperAdmin() || hasPermission('medicine.delete');
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -91,24 +92,40 @@ export default function MedicinesPage() {
     mutationFn: async (payload: any) => {
       const isControlled = payload.drugSchedule !== 'OTC';
       const body = {
-        ...payload,
+        name: payload.name.trim(),
+        genericName: payload.genericName?.trim() || undefined,
+        brandName: payload.brandName?.trim() || undefined,
+        dosageForm: payload.dosageForm,
+        categoryId: payload.categoryId?.trim() || undefined,
+        sku: payload.sku?.trim() || undefined,
+        barcode: payload.barcode?.trim() || undefined,
+        baseUnitId: payload.baseUnitId || units[0]?.id,
+        taxPercent: Number(payload.taxPercent || 0),
+        mrp: Number(payload.mrp || 0),
+        defaultPurchasePrice: Number(payload.defaultPurchasePrice || 0),
+        defaultSellingPrice: Number(payload.defaultSellingPrice || 0),
+        stripsPerBox: Number(payload.stripsPerBox || 10),
+        tabletsPerStrip: Number(payload.tabletsPerStrip || 10),
+        drugSchedule: payload.drugSchedule || 'OTC',
         isScheduleH: payload.drugSchedule === 'SCHEDULE_H',
         isScheduleH1: payload.drugSchedule === 'SCHEDULE_H1',
         isScheduleX: payload.drugSchedule === 'SCHEDULE_X',
-        prescriptionRequired: isControlled || payload.prescriptionRequired,
+        prescriptionRequired: isControlled || Boolean(payload.prescriptionRequired),
       };
+
       if (editingMedicine) {
         return apiClient.patch(`/medicines/${editingMedicine.id}`, body);
       }
       return apiClient.post('/medicines', body);
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['medicines'] });
       setShowCreateModal(false);
       setEditingMedicine(null);
+      alert(editingMedicine ? 'Medicine updated successfully!' : 'Medicine created successfully!');
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to save medicine.');
+      alert(err.response?.data?.message || err.message || 'Failed to save medicine.');
     },
   });
 
@@ -116,28 +133,28 @@ export default function MedicinesPage() {
     mutationFn: async (id: string) => {
       return apiClient.delete(`/medicines/${id}`);
     },
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['medicines'] });
-      alert('Medicine deleted successfully.');
+      alert(res.data?.message || 'Medicine deleted/removed successfully.');
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to delete medicine.');
+      alert(err.response?.data?.message || err.message || 'Failed to delete medicine.');
     },
   });
 
   const handleDelete = (med: any) => {
-    if (!canManage) {
-      alert('Only Super Admin can delete medicines.');
+    if (!canDelete) {
+      alert('You do not have permission to delete medicines.');
       return;
     }
-    if (confirm(`Are you sure you want to delete "${med.name}"? This action cannot be undone.`)) {
+    if (confirm(`Are you sure you want to remove "${med.name}" from the active medicine catalog?`)) {
       deleteMutation.mutate(med.id);
     }
   };
 
   const handleOpenCreate = () => {
     if (!canManage) {
-      alert('Only Super Admin can add new medicines.');
+      alert('You do not have permission to add new medicines.');
       return;
     }
     setEditingMedicine(null);
@@ -147,7 +164,7 @@ export default function MedicinesPage() {
       brandName: '',
       dosageForm: DosageForm.TABLET,
       categoryId: categories[0]?.id || '',
-      sku: '',
+      sku: `MED-${Date.now().toString().slice(-6)}`,
       barcode: '',
       baseUnitId: units[0]?.id || '',
       taxPercent: 12,
@@ -164,7 +181,7 @@ export default function MedicinesPage() {
 
   const handleOpenEdit = (med: any) => {
     if (!canManage) {
-      alert('Only Super Admin can edit medicines.');
+      alert('You do not have permission to edit medicines.');
       return;
     }
     setEditingMedicine(med);
@@ -174,9 +191,9 @@ export default function MedicinesPage() {
       brandName: med.brandName || '',
       dosageForm: med.dosageForm || DosageForm.TABLET,
       categoryId: med.categoryId || '',
-      sku: med.sku,
+      sku: med.sku || '',
       barcode: med.barcode || '',
-      baseUnitId: med.baseUnitId || '',
+      baseUnitId: med.baseUnitId || units[0]?.id || '',
       taxPercent: med.taxPercent || 12,
       mrp: med.mrp || 0,
       defaultPurchasePrice: med.defaultPurchasePrice || 0,
@@ -191,6 +208,10 @@ export default function MedicinesPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.name.trim()) {
+      alert('Please enter medicine name.');
+      return;
+    }
     createMutation.mutate(formData);
   };
 
@@ -343,24 +364,28 @@ export default function MedicinesPage() {
                             {formatCurrency(med.defaultSellingPrice || 0)}
                           </td>
 
-                          {/* Action Buttons: Super Admin Only */}
+                          {/* Action Buttons */}
                           <td className="py-3 px-4 text-center">
-                            {canManage ? (
+                            {canManage || canDelete ? (
                               <div className="flex items-center justify-center gap-2">
-                                <button
-                                  onClick={() => handleOpenEdit(med)}
-                                  title="Edit Medicine"
-                                  className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(med)}
-                                  title="Delete Medicine"
-                                  className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                                {canManage && (
+                                  <button
+                                    onClick={() => handleOpenEdit(med)}
+                                    title="Edit Medicine"
+                                    className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    onClick={() => handleDelete(med)}
+                                    title="Delete Medicine"
+                                    className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               <span className="text-[10px] text-slate-400 italic">Locked</span>
