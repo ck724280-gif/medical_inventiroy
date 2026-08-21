@@ -7,12 +7,15 @@ import {
   Param,
   Body,
   Query,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { SalesService } from './sales.service';
 import { CheckoutSaleDto } from './dto/create-sale.dto';
 import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Auditable } from '../../common/decorators/auditable.decorator';
+import { Public } from '../../common/decorators/public.decorator';
 import { PaperWidth } from '@medical-inventory/shared-types';
 
 @Controller('sales')
@@ -23,6 +26,28 @@ export class SalesController {
   @RequirePermissions('sale.view')
   async findAll(@Query() query: any) {
     return this.salesService.findAll(query);
+  }
+
+  @Public()
+  @Get('public/:id')
+  async getPublicReceipt(@Param('id') id: string) {
+    return this.salesService.getReceiptData(id);
+  }
+
+  @Public()
+  @Get('public/:id/pdf')
+  async getPublicPdfReceipt(@Param('id') id: string, @Res() res: Response) {
+    const html = await this.salesService.getPdfReceiptHtml(id);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
+  }
+
+  @Public()
+  @Get(':id/pdf')
+  async getPdfReceipt(@Param('id') id: string, @Res() res: Response) {
+    const html = await this.salesService.getPdfReceiptHtml(id);
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.send(html);
   }
 
   @Get(':id')
@@ -67,3 +92,4 @@ export class SalesController {
     return this.salesService.deleteSalesInvoice(id);
   }
 }
+

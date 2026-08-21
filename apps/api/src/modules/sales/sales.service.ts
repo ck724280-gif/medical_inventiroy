@@ -847,7 +847,9 @@ export class SalesService {
     const sale = await this.prisma.salesInvoice.findUnique({
       where: { id },
       include: {
+        items: { include: { batch: true, medicine: true } },
         payments: true,
+        prescriptionRecord: true,
       },
     });
 
@@ -856,44 +858,182 @@ export class SalesService {
     }
 
     const updateData: any = {};
+    if (dto.invoiceNumber !== undefined && dto.invoiceNumber.trim()) {
+      updateData.invoiceNumber = dto.invoiceNumber.trim();
+    }
     if (dto.notes !== undefined) updateData.notes = dto.notes;
     if (dto.createdAt !== undefined) updateData.createdAt = new Date(dto.createdAt);
     if (dto.paymentStatus !== undefined) updateData.paymentStatus = dto.paymentStatus;
-    if (dto.customerId !== undefined) updateData.customerId = dto.customerId;
+    if (dto.customerId !== undefined) updateData.customerId = dto.customerId || null;
 
-    await this.prisma.$transaction(async (tx) => {
-      // If customer is changing and there's an outstanding balance, adjust ledger
-      if (dto.customerId !== undefined && dto.customerId !== sale.customerId) {
-        const totalPaid = sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
-        const unpaidAmount = Number(sale.totalAmount) - totalPaid;
+    return this.prisma.$transaction(async (tx) => {
+      let grandTotal = Number(sale.totalAmount);
+      let subtotal = Number(sale.subtotal);
+      let discountAmount = Number(sale.discountAmount);
+      let taxAmount = Number(sale.taxAmount);
 
-        if (unpaidAmount > 0) {
-          // Remove from old customer balance (if existed)
-          if (sale.customerId) {
-            await tx.customer.update({
-              where: { id: sale.customerId },
-              data: { currentBalance: { decrement: unpaidAmount } },
-            });
+      // 1. If items are being updated by Super Admin
+      if (dto.items && Array.isArray(dto.items) && dto.items.length > 0) {
+        // Restore old batch stocks
+        for (const oldItem of sale.items) {
+          if (oldItem.batchId) {
+            await tx.batch.update({
+              where: { id: oldItem.batchId },
+              data: { currentQty: { increment: oldItem.qty } },
+            }).catch(() => {});
           }
-          // Add to new customer balance (if changing to a valid customer)
-          if (dto.customerId) {
-            await tx.customer.update({
-              where: { id: dto.customerId },
-              data: { currentBalance: { increment: unpaidAmount } },
-            });
+        }
+
+        // Delete old sales items
+        await tx.salesItem.deleteMany({
+          where: { salesInvoiceId: id },
+        });
+
+        // Recalculate totals and insert new sales items
+        subtotal = 0;
+        discountAmount = 0;
+        taxAmount = 0;
+        grandTotal = 0;
+
+        for (const item of dto.items) {
+          const qty = Number(item.qty || 1);
+          const rate = Number(item.rate || item.unitPrice || 0);
+          const mrp = Number(item.mrp || rate);
+          const discPercent = Number(item.discountPercent || 0);
+          const taxPercent = Number(item.taxPercent || 0);
+
+          const itemSubtotal = qty * rate;
+          const discVal = (itemSubtotal * discPercent) / 100;
+          const taxable = itemSubtotal - discVal;
+          const itemTax = (taxable * taxPercent) / 100;
+          const lineTotal = taxable + itemTax;
+
+          subtotal += itemSubtotal;
+          discountAmount += discVal;
+          taxAmount += itemTax;
+          grandTotal += lineTotal;
+
+          await tx.salesItem.create({
+            data: {
+              salesInvoiceId: id,
+              medicineId: item.medicineId,
+              batchId: item.batchId,
+              qty,
+              unitId: item.unitId || null,
+              rate,
+              mrp,
+              discountPercent: discPercent,
+              taxPercent,
+              hsnCode: item.hsnCode || null,
+              taxableAmount: taxable,
+              cgstAmount: itemTax / 2,
+              sgstAmount: itemTax / 2,
+              igstAmount: 0,
+              originalPrice: mrp,
+              lineTotal,
+            },
+          });
+
+          // Deduct new batch stock
+          if (item.batchId) {
+            await tx.batch.update({
+              where: { id: item.batchId },
+              data: { currentQty: { decrement: qty } },
+            }).catch(() => {});
           }
+        }
+
+        updateData.subtotal = subtotal;
+        updateData.discountAmount = discountAmount;
+        updateData.taxAmount = taxAmount;
+        updateData.totalAmount = grandTotal;
+      }
+
+      // 2. Prescription / Patient / Doctor update
+      if (dto.patientName !== undefined || dto.doctorName !== undefined) {
+        if (sale.prescriptionRecord) {
+          await tx.prescriptionRecord.update({
+            where: { id: sale.prescriptionRecord.id },
+            data: {
+              patientName: dto.patientName !== undefined ? dto.patientName : sale.prescriptionRecord.patientName,
+              doctorName: dto.doctorName !== undefined ? dto.doctorName : sale.prescriptionRecord.doctorName,
+            },
+          });
+        } else if (dto.patientName || dto.doctorName) {
+          await tx.prescriptionRecord.create({
+            data: {
+              salesInvoice: { connect: { id } },
+              patientName: dto.patientName || 'Patient',
+              doctorName: dto.doctorName || 'Dr. Self / Store',
+              doctorRegNo: 'DOC-REG-001',
+              patientAge: 30,
+              drugSchedule: 'SCHEDULE_H',
+            },
+          });
         }
       }
 
-      // If payment mode is changing, update the payment records mode
-      if (dto.paymentMode !== undefined) {
+      // 3. Payments and Paid Amount adjustment
+      if (dto.paidAmount !== undefined) {
+        const newPaidAmount = Number(dto.paidAmount);
+        const paymentMode = dto.paymentMode || sale.payments?.[0]?.paymentMode || 'CASH';
+
+        // Replace payment records with updated amount
+        await tx.salesPayment.deleteMany({
+          where: { salesInvoiceId: id },
+        });
+
+        if (newPaidAmount > 0) {
+          await tx.salesPayment.create({
+            data: {
+              salesInvoice: { connect: { id } },
+              amount: newPaidAmount,
+              paymentMode,
+              referenceNumber: 'ADMIN-EDIT-ADJUST',
+              createdByUserId: sale.payments?.[0]?.createdByUserId || 'system',
+            },
+          });
+        }
+
+        // Auto determine payment status
+        if (newPaidAmount >= grandTotal && grandTotal > 0) {
+          updateData.paymentStatus = 'PAID';
+        } else if (newPaidAmount > 0) {
+          updateData.paymentStatus = 'PARTIAL';
+        } else {
+          updateData.paymentStatus = 'UNPAID';
+        }
+      } else if (dto.paymentMode !== undefined) {
         await tx.salesPayment.updateMany({
           where: { salesInvoiceId: id },
           data: { paymentMode: dto.paymentMode },
         });
       }
 
-      // Finally update the sales invoice
+      // 4. Customer ledger balance adjustment
+      if (dto.customerId !== undefined && dto.customerId !== sale.customerId) {
+        const totalPaid = dto.paidAmount !== undefined
+          ? Number(dto.paidAmount)
+          : sale.payments.reduce((sum, p) => sum + Number(p.amount), 0);
+        const unpaidAmount = grandTotal - totalPaid;
+
+        if (unpaidAmount > 0) {
+          if (sale.customerId) {
+            await tx.customer.update({
+              where: { id: sale.customerId },
+              data: { currentBalance: { decrement: unpaidAmount } },
+            }).catch(() => {});
+          }
+          if (dto.customerId) {
+            await tx.customer.update({
+              where: { id: dto.customerId },
+              data: { currentBalance: { increment: unpaidAmount } },
+            }).catch(() => {});
+          }
+        }
+      }
+
+      // 5. Update sales invoice record
       await tx.salesInvoice.update({
         where: { id },
         data: updateData,
@@ -901,5 +1041,125 @@ export class SalesService {
     });
 
     return this.findOne(id);
+  }
+
+  async getPdfReceiptHtml(id: string): Promise<string> {
+    const receipt = await this.getReceiptData(id);
+    const paidAmount = receipt.payments.reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
+    const balanceDue = Math.max(0, Number(receipt.grandTotal) - paidAmount);
+
+    const itemsRows = receipt.items
+      .map(
+        (item: any) => `
+        <tr>
+          <td style="padding: 6px 4px; border-bottom: 1px dashed #ccc; font-weight: bold;">${item.name}</td>
+          <td style="padding: 6px 4px; border-bottom: 1px dashed #ccc; font-family: monospace; font-size: 11px;">${item.batch}</td>
+          <td style="padding: 6px 4px; border-bottom: 1px dashed #ccc; font-family: monospace; font-size: 11px;">${item.expiry}</td>
+          <td style="padding: 6px 4px; border-bottom: 1px dashed #ccc; text-align: center;">${item.qty} ${item.unit}</td>
+          <td style="padding: 6px 4px; border-bottom: 1px dashed #ccc; text-align: right;">₹${Number(item.rate).toFixed(2)}</td>
+          <td style="padding: 6px 4px; border-bottom: 1px dashed #ccc; text-align: right; font-weight: bold;">₹${Number(item.amount).toFixed(2)}</td>
+        </tr>
+      `
+      )
+      .join('');
+
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <title>Invoice #${receipt.invoiceNumber}</title>
+        <style>
+          @page { size: auto; margin: 10mm; }
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; color: #111; margin: 0; padding: 15px; }
+          .receipt-box { max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; padding: 20px; border-radius: 12px; }
+          .header { text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 15px; }
+          .header h1 { font-size: 20px; color: #0284c7; margin: 0 0 4px 0; }
+          .header p { margin: 2px 0; font-size: 11px; color: #475569; }
+          .meta-grid { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 12px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 8px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+          th { text-align: left; background: #f1f5f9; padding: 6px 4px; font-size: 10.5px; text-transform: uppercase; border-bottom: 1px solid #cbd5e1; }
+          .totals-table { width: 260px; margin-left: auto; font-size: 12px; }
+          .totals-table td { padding: 3px 0; }
+          .grand-total { font-size: 14px; font-weight: bold; color: #0f172a; border-top: 1px solid #0f172a; border-bottom: 1px solid #0f172a; padding: 6px 0 !important; }
+          .footer { text-align: center; margin-top: 20px; font-size: 10.5px; color: #64748b; border-top: 1px dashed #cbd5e1; padding-top: 10px; }
+          .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
+          .badge-paid { background: #dcfce7; color: #166534; }
+          .badge-due { background: #fee2e2; color: #991b1b; }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-box">
+          <div class="header">
+            <h1>${receipt.storeName}</h1>
+            <p>${receipt.address}</p>
+            <p><strong>Phone:</strong> ${receipt.phone} ${receipt.email ? '| <strong>Email:</strong> ' + receipt.email : ''}</p>
+            <p><strong>GSTIN:</strong> ${receipt.gstNumber || 'N/A'} | <strong>DL No:</strong> ${receipt.pharmacyLicense || 'N/A'}</p>
+          </div>
+
+          <div class="meta-grid">
+            <div>
+              <p style="margin: 2px 0;"><strong>Invoice #:</strong> <span style="font-family: monospace; color: #0284c7;">${receipt.invoiceNumber}</span></p>
+              <p style="margin: 2px 0;"><strong>Date:</strong> ${receipt.date} ${receipt.time}</p>
+              <p style="margin: 2px 0;"><strong>Cashier:</strong> ${receipt.cashierName}</p>
+            </div>
+            <div style="text-align: right;">
+              <p style="margin: 2px 0;"><strong>Customer:</strong> ${receipt.customerName}</p>
+              ${receipt.customerMobile ? `<p style="margin: 2px 0;"><strong>Mobile:</strong> ${receipt.customerMobile}</p>` : ''}
+              <p style="margin: 2px 0;"><strong>Status:</strong> <span class="badge ${balanceDue === 0 ? 'badge-paid' : 'badge-due'}">${balanceDue === 0 ? 'PAID' : 'PARTIAL / DUE'}</span></p>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Medicine / Item</th>
+                <th>Batch</th>
+                <th>Exp</th>
+                <th style="text-align: center;">Qty</th>
+                <th style="text-align: right;">Rate</th>
+                <th style="text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsRows}
+            </tbody>
+          </table>
+
+          <table class="totals-table">
+            <tr>
+              <td>Subtotal:</td>
+              <td style="text-align: right; font-family: monospace;">₹${Number(receipt.subtotal).toFixed(2)}</td>
+            </tr>
+            ${Number(receipt.discountTotal) > 0 ? `<tr><td>Discount:</td><td style="text-align: right; color: #dc2626; font-family: monospace;">-₹${Number(receipt.discountTotal).toFixed(2)}</td></tr>` : ''}
+            <tr>
+              <td>GST Tax:</td>
+              <td style="text-align: right; font-family: monospace;">₹${Number(receipt.taxTotal).toFixed(2)}</td>
+            </tr>
+            <tr class="grand-total">
+              <td>Total Amount:</td>
+              <td style="text-align: right; font-family: monospace;">₹${Number(receipt.grandTotal).toFixed(2)}</td>
+            </tr>
+            <tr>
+              <td>Amount Paid:</td>
+              <td style="text-align: right; color: #16a34a; font-family: monospace; font-weight: bold;">₹${paidAmount.toFixed(2)}</td>
+            </tr>
+            ${balanceDue > 0 ? `<tr style="color: #dc2626; font-weight: bold;"><td>Balance Due:</td><td style="text-align: right; font-family: monospace;">₹${balanceDue.toFixed(2)}</td></tr>` : ''}
+          </table>
+
+          <div class="footer">
+            <p style="font-weight: bold; margin: 2px 0;">${receipt.thankYouMessage}</p>
+            <p style="margin: 2px 0;">${receipt.returnPolicy}</p>
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            window.print();
+          };
+        </script>
+      </body>
+      </html>
+    `;
   }
 }
