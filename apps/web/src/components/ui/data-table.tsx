@@ -83,14 +83,16 @@ export function DataTable<TData>({
   compact = false,
   mobileCardRender,
 }: DataTableProps<TData>) {
+  const safeData = Array.isArray(data) ? data : [];
+
   const isAllSelected =
-    data.length > 0 &&
-    data.every((item, idx) => selectedRowIds.includes(keyExtractor(item, idx)));
+    safeData.length > 0 &&
+    safeData.every((item, idx) => selectedRowIds.includes(keyExtractor(item, idx)));
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!onSelectionChange) return;
     if (e.target.checked) {
-      onSelectionChange(data);
+      onSelectionChange(safeData);
     } else {
       onSelectionChange([]);
     }
@@ -103,13 +105,13 @@ export function DataTable<TData>({
     const isSelected = selectedRowIds.includes(rowKey);
     if (isSelected) {
       onSelectionChange(
-        data.filter((item, idx) => {
+        safeData.filter((item, idx) => {
           const k = keyExtractor(item, idx);
           return k !== rowKey && selectedRowIds.includes(k);
         })
       );
     } else {
-      const currentSelected = data.filter((item, idx) =>
+      const currentSelected = safeData.filter((item, idx) =>
         selectedRowIds.includes(keyExtractor(item, idx))
       );
       onSelectionChange([...currentSelected, row]);
@@ -231,7 +233,7 @@ export function DataTable<TData>({
                   ))}
                 </tr>
               ))
-            ) : data.length === 0 ? (
+            ) : safeData.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length + (selectable ? 1 : 0)}
@@ -247,7 +249,7 @@ export function DataTable<TData>({
                 </td>
               </tr>
             ) : (
-              data.map((row, rIdx) => {
+              safeData.map((row, rIdx) => {
                 const rowKey = keyExtractor(row, rIdx);
                 const isSelected =
                   selectedRowId === rowKey || selectedRowIds.includes(rowKey);
@@ -307,7 +309,7 @@ export function DataTable<TData>({
             <Skeleton variant="block" height={100} />
             <Skeleton variant="block" height={100} />
           </div>
-        ) : data.length === 0 ? (
+        ) : safeData.length === 0 ? (
           <div className="p-6 text-center">
             {emptyState || (
               <EmptyState
@@ -318,7 +320,7 @@ export function DataTable<TData>({
             )}
           </div>
         ) : (
-          data.map((row, rIdx) => {
+          safeData.map((row, rIdx) => {
             const rowKey = keyExtractor(row, rIdx);
             const isSelected =
               selectedRowId === rowKey || selectedRowIds.includes(rowKey);

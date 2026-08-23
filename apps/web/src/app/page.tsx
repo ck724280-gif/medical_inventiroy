@@ -304,13 +304,13 @@ export default function DashboardPage() {
             </div>
 
             <div className="h-64 w-full">
-              {isSummaryLoading ? (
+              {isSummaryLoading || !summary?.salesTrend ? (
                 <div className="h-full flex items-center justify-center">
                   <Skeleton variant="block" height="100%" />
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={summary?.salesTrend || []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <ResponsiveContainer width="100%" height={240} minWidth={0} minHeight={200}>
+                  <LineChart data={Array.isArray(summary?.salesTrend) ? summary.salesTrend : []} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" vertical={false} />
                     <XAxis
                       dataKey="date"
@@ -370,7 +370,7 @@ export default function DashboardPage() {
 
               <DataTable
                 columns={invoiceColumns}
-                data={recentInvoicesData || []}
+                data={Array.isArray(recentInvoicesData) ? recentInvoicesData : []}
                 isLoading={isRecentInvoicesLoading}
                 keyExtractor={(item, idx) => item?.id || item?.invoiceNumber || idx}
                 compact
