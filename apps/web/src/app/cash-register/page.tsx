@@ -31,8 +31,8 @@ import { useAuthStore } from '../../stores/auth-store';
 export default function CashRegisterPage() {
   const queryClient = useQueryClient();
   const { user, selectedBranchId } = useAuthStore();
-  const [openingFloat, setOpeningFloat] = useState<number>(500);
-  const [closingCount, setClosingCount] = useState<number>(0);
+  const [openingFloat, setOpeningFloat] = useState<number | string>('500');
+  const [closingCount, setClosingCount] = useState<number | string>('');
   const [closureNotes, setClosureNotes] = useState('');
   const [isCloseModalOpen, setIsCloseModalOpen] = useState(false);
 
@@ -123,7 +123,7 @@ export default function CashRegisterPage() {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => openShiftMutation.mutate(openingFloat)}
+                  onClick={() => openShiftMutation.mutate(Number(openingFloat) || 0)}
                   disabled={openShiftMutation.isPending}
                 >
                   <Unlock className="w-4 h-4 mr-1.5" />
@@ -148,15 +148,17 @@ export default function CashRegisterPage() {
                 <input
                   type="number"
                   value={openingFloat}
-                  onChange={(e) => setOpeningFloat(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-sm font-bold text-text-primary"
+                  onChange={(e) => setOpeningFloat(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-sm font-bold text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
                 />
               </div>
 
               <Button
                 variant="primary"
                 className="w-full"
-                onClick={() => openShiftMutation.mutate(openingFloat)}
+                onClick={() => openShiftMutation.mutate(Number(openingFloat) || 0)}
                 disabled={openShiftMutation.isPending}
               >
                 {openShiftMutation.isPending ? 'Opening...' : 'Start Cashier Session'}
@@ -264,18 +266,18 @@ export default function CashRegisterPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-text-muted">Physical Counted:</span>
-                      <span className="font-bold">{formatCurrency(closingCount)}</span>
+                      <span className="font-bold">{formatCurrency(Number(closingCount) || 0)}</span>
                     </div>
                     <div className="flex justify-between pt-1 border-t border-border-default font-semibold">
                       <span>Variance / Discrepancy:</span>
                       <span
                         className={
-                          closingCount - (liveTotals?.expectedDrawerCash || 0) < 0
+                          (Number(closingCount) || 0) - (liveTotals?.expectedDrawerCash || 0) < 0
                             ? 'text-status-error'
                             : 'text-status-success'
                         }
                       >
-                        {formatCurrency(closingCount - (liveTotals?.expectedDrawerCash || 0))}
+                        {formatCurrency((Number(closingCount) || 0) - (liveTotals?.expectedDrawerCash || 0))}
                       </span>
                     </div>
                   </div>
@@ -287,8 +289,10 @@ export default function CashRegisterPage() {
                     <input
                       type="number"
                       value={closingCount}
-                      onChange={(e) => setClosingCount(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-sm font-bold text-text-primary"
+                      onChange={(e) => setClosingCount(e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-sm font-bold text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary"
                     />
                   </div>
 
@@ -313,12 +317,12 @@ export default function CashRegisterPage() {
                     disabled={closeShiftMutation.isPending}
                     onClick={() =>
                       closeShiftMutation.mutate({
-                        closingCash: closingCount,
+                        closingCash: Number(closingCount) || 0,
                         notes: closureNotes,
                       })
                     }
                   >
-                    {closeShiftMutation.isPending ? 'Closing...' : 'Confirm Closure &amp; Z-Report'}
+                    {closeShiftMutation.isPending ? 'Closing...' : 'Confirm Closure & Z-Report'}
                   </Button>
                 </div>
               </div>

@@ -592,6 +592,7 @@ export default function MedicinesPage() {
                     type="number"
                     min="1"
                     value={formData.stripsPerBox}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setFormData({ ...formData, stripsPerBox: parseInt(e.target.value) || 1 })}
                   />
                   <Input
@@ -599,6 +600,7 @@ export default function MedicinesPage() {
                     type="number"
                     min="1"
                     value={formData.tabletsPerStrip}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setFormData({ ...formData, tabletsPerStrip: parseInt(e.target.value) || 1 })}
                   />
                 </div>
@@ -656,6 +658,7 @@ export default function MedicinesPage() {
                   min="0"
                   required
                   value={formData.mrp}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
                 />
                 <Input
@@ -664,6 +667,7 @@ export default function MedicinesPage() {
                   step="0.01"
                   min="0"
                   value={formData.defaultPurchasePrice}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setFormData({ ...formData, defaultPurchasePrice: parseFloat(e.target.value) || 0 })}
                 />
                 <Input
@@ -673,6 +677,7 @@ export default function MedicinesPage() {
                   min="0"
                   required
                   value={formData.defaultSellingPrice}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setFormData({ ...formData, defaultSellingPrice: parseFloat(e.target.value) || 0 })}
                 />
                 <Input
@@ -681,6 +686,7 @@ export default function MedicinesPage() {
                   step="0.1"
                   min="0"
                   value={formData.taxPercent}
+                  onFocus={(e) => e.target.select()}
                   onChange={(e) => setFormData({ ...formData, taxPercent: parseFloat(e.target.value) || 0 })}
                 />
               </div>

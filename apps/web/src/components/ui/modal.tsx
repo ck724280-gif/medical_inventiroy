@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import { X, AlertTriangle, AlertCircle, Info, CheckCircle2 } from 'lucide-react';
+import { X, AlertTriangle, AlertCircle, Info } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button, ButtonVariant } from './button';
 
@@ -42,36 +42,45 @@ export function Modal({
   const [mounted, setMounted] = React.useState(false);
   const modalRef = React.useRef<HTMLDivElement>(null);
   const previousActiveElement = React.useRef<HTMLElement | null>(null);
+  const onCloseRef = React.useRef(onClose);
+
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
   React.useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      if (previousActiveElement.current) {
+        previousActiveElement.current.focus?.();
+        previousActiveElement.current = null;
+      }
+      return;
+    }
 
-    previousActiveElement.current = document.activeElement as HTMLElement;
+    if (!previousActiveElement.current) {
+      previousActiveElement.current = document.activeElement as HTMLElement;
+    }
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (closeOnEscape && e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        onCloseRef.current();
       }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    // Prevent body scrolling while modal is open
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = originalOverflow;
-      if (previousActiveElement.current) {
-        previousActiveElement.current.focus?.();
-      }
     };
-  }, [isOpen, closeOnEscape, onClose]);
+  }, [isOpen, closeOnEscape]);
 
   if (!mounted || !isOpen) return null;
 
@@ -87,11 +96,11 @@ export function Modal({
     <div
       role="dialog"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 select-none animate-fade-in"
+      className="fixed inset-0 z-50 flex items-end md:items-center justify-center p-0 md:p-4 animate-fade-in"
     >
       {/* Backdrop */}
       <div
-        onClick={closeOnOverlayClick ? onClose : undefined}
+        onClick={closeOnOverlayClick ? () => onCloseRef.current() : undefined}
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
       />
 
@@ -135,9 +144,9 @@ export function Modal({
             {showCloseButton && (
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => onCloseRef.current()}
                 aria-label="Close dialog"
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0 -mr-1"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-hover transition-colors shrink-0 -mr-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
