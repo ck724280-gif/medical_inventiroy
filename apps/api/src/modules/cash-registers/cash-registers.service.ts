@@ -82,29 +82,49 @@ export class CashRegistersService {
     };
   }
 
+  private async resolveBranchId(userId: string, branchId?: string): Promise<string> {
+    if (branchId) return branchId;
+    const userWithBranches = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { branches: true },
+    });
+    if (userWithBranches?.branches?.[0]?.id) {
+      return userWithBranches.branches[0].id;
+    }
+    const fallback = await this.prisma.branch.findFirst({ select: { id: true } });
+    return fallback?.id || '';
+  }
+
   /**
    * Open a new cashier shift session
    */
   async openShift(dto: OpenShiftDto, userId: string) {
+    const resolvedBranchId = await this.resolveBranchId(userId, dto.branchId);
+    if (!resolvedBranchId) {
+      throw new BadRequestException('No active branch found. Please select or configure a branch first.');
+    }
+
     // Check if user already has an active open shift
     const existing = await this.prisma.cashierShift.findFirst({
       where: {
         userId,
         status: 'OPEN',
       },
+      include: {
+        branch: true,
+        user: true,
+      },
     });
 
     if (existing) {
-      throw new ConflictException(
-        'You already have an active open cashier register shift. Please close it first.'
-      );
+      return existing;
     }
 
     return this.prisma.cashierShift.create({
       data: {
-        branchId: dto.branchId,
+        branchId: resolvedBranchId,
         userId,
-        openingCash: dto.openingCash || 0,
+        openingCash: Number(dto.openingCash) || 0,
         notes: dto.notes || null,
         status: 'OPEN',
         openedAt: new Date(),
