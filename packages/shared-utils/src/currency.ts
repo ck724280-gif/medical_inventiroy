@@ -2,11 +2,13 @@
  * Formats a number to monetary standard with 2 decimal places.
  */
 export function formatCurrency(
-  amount: number,
+  amount: number | string | null | undefined,
   currencySymbol = '₹',
   decimalPlaces = 2
 ): string {
-  const rounded = roundToDecimals(amount, decimalPlaces);
+  const num = typeof amount === 'number' ? amount : Number(amount);
+  const validNum = isNaN(num) || !isFinite(num) ? 0 : num;
+  const rounded = roundToDecimals(validNum, decimalPlaces);
   return `${currencySymbol}${rounded.toLocaleString('en-IN', {
     minimumFractionDigits: decimalPlaces,
     maximumFractionDigits: decimalPlaces,
@@ -16,9 +18,11 @@ export function formatCurrency(
 /**
  * Rounds a financial number to the given number of decimal places, avoiding floating point issues.
  */
-export function roundToDecimals(value: number, decimals = 2): number {
+export function roundToDecimals(value: number | string | null | undefined, decimals = 2): number {
+  const num = typeof value === 'number' ? value : Number(value);
+  if (isNaN(num) || !isFinite(num)) return 0;
   const factor = Math.pow(10, decimals);
-  return Math.round((value + Number.EPSILON) * factor) / factor;
+  return Math.round((num + Number.EPSILON) * factor) / factor;
 }
 
 /**

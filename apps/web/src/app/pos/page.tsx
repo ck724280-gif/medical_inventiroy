@@ -634,7 +634,7 @@ export default function PosPage() {
               />
               <span>
                 {currentShift
-                  ? `Shift: Active (Cash: ${formatCurrency(currentShift.totalCashSales + currentShift.openingCash)})`
+                  ? `Shift: Active (Cash: ${formatCurrency((Number(currentShift.openingCash) || 0) + (Number(currentShift.totalCashSales ?? currentShift.liveTotals?.cashSales) || 0))})`
                   : 'No Active Shift — Click to Open'}
               </span>
               <Coins className="w-3.5 h-3.5 ml-0.5 opacity-70" />
@@ -1346,19 +1346,19 @@ export default function PosPage() {
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                     <div className="p-2.5 rounded-xl bg-surface-raised border border-border">
                       <p className="text-text-muted text-[10px]">Opening Float</p>
-                      <p className="text-sm font-bold text-text-primary">₹{currentShift.openingCash}</p>
+                      <p className="text-sm font-bold text-text-primary">{formatCurrency(Number(currentShift.openingCash) || 0)}</p>
                     </div>
                     <div className="p-2.5 rounded-xl bg-surface-raised border border-border">
                       <p className="text-text-muted text-[10px]">Cash Sales</p>
-                      <p className="text-sm font-bold text-status-success">₹{currentShift.totalCashSales}</p>
+                      <p className="text-sm font-bold text-status-success">{formatCurrency(Number(currentShift.totalCashSales ?? currentShift.liveTotals?.cashSales) || 0)}</p>
                     </div>
                     <div className="p-2.5 rounded-xl bg-surface-raised border border-border">
                       <p className="text-text-muted text-[10px]">UPI / Digital Sales</p>
-                      <p className="text-sm font-bold text-accent">₹{currentShift.totalUpiSales + currentShift.totalCardSales}</p>
+                      <p className="text-sm font-bold text-accent">{formatCurrency((Number(currentShift.totalUpiSales ?? currentShift.liveTotals?.upiSales) || 0) + (Number(currentShift.totalCardSales ?? currentShift.liveTotals?.cardSales) || 0))}</p>
                     </div>
                     <div className="p-2.5 rounded-xl bg-surface-raised border border-border">
                       <p className="text-text-muted text-[10px]">Expected Cash</p>
-                      <p className="text-sm font-bold text-status-warning">₹{currentShift.expectedCash}</p>
+                      <p className="text-sm font-bold text-status-warning">{formatCurrency(Number(currentShift.expectedCash ?? currentShift.liveTotals?.expectedDrawerCash) || ((Number(currentShift.openingCash) || 0) + (Number(currentShift.totalCashSales ?? currentShift.liveTotals?.cashSales) || 0)))}</p>
                     </div>
                   </div>
 
