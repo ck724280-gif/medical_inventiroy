@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
@@ -46,13 +46,18 @@ import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
 
 export default function DashboardPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const { isAuthenticated, isLoading: isAuthLoading, selectedBranchId } = useAuthStore();
 
   useEffect(() => {
-    if (!isAuthLoading && !isAuthenticated) {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted && !isAuthLoading && !isAuthenticated) {
       router.push('/login');
     }
-  }, [isAuthLoading, isAuthenticated, router]);
+  }, [mounted, isAuthLoading, isAuthenticated, router]);
 
   const { data: summary, isLoading: isSummaryLoading } = useQuery({
     queryKey: ['dashboard-summary', selectedBranchId],
@@ -79,7 +84,7 @@ export default function DashboardPage() {
     enabled: isAuthenticated,
   });
 
-  if (isAuthLoading || !isAuthenticated) {
+  if (!mounted || isAuthLoading || !isAuthenticated) {
     return (
       <div className="h-screen flex items-center justify-center bg-surface-page text-accent">
         <div className="flex flex-col items-center gap-3">

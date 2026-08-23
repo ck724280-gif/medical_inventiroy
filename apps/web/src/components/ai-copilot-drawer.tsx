@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   Sparkles,
   X,
@@ -8,18 +9,17 @@ import {
   Bot,
   User,
   Zap,
-  ArrowRight,
   TrendingUp,
   AlertCircle,
   Building2,
   Boxes,
-  CheckCircle2,
   Loader2,
   ShieldAlert,
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { apiClient } from '../lib/api-client';
+import { useAuthStore } from '../stores/auth-store';
 
 interface Message {
   role: 'user' | 'model';
@@ -35,6 +35,9 @@ interface Message {
 }
 
 export function AiCopilotDrawer() {
+  const pathname = usePathname();
+  const { isAuthenticated, isSuperAdmin, user } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,6 +52,10 @@ export function AiCopilotDrawer() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'j') {
         e.preventDefault();
@@ -60,8 +67,25 @@ export function AiCopilotDrawer() {
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    if (isOpen) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isOpen]);
+
+  // Restrict to authenticated Super Admins and hide on /login
+  if (!mounted || !isAuthenticated || pathname === '/login') {
+    return null;
+  }
+
+  // Double check Super Admin role
+  const isSuper = isSuperAdmin() || user?.roles?.some((r: any) => 
+    (typeof r === 'string' ? r : r?.name)?.toUpperCase()?.includes('ADMIN') ||
+    (typeof r === 'string' ? r : r?.name)?.toUpperCase()?.includes('OWNER')
+  );
+
+  if (!isSuper) {
+    return null;
+  }
 
   const handleSend = async (queryText?: string) => {
     const textToSend = queryText || input;
@@ -233,7 +257,7 @@ export function AiCopilotDrawer() {
                 >
                   <div className="whitespace-pre-wrap">{msg.text}</div>
 
-                  {/* Action Proposal Preview Card (§63) */}
+                  {/* Action Proposal Preview Card */}
                   {msg.actionProposal && !msg.actionProposal.executed && (
                     <div className="p-3 bg-surface-base border border-amber-300 dark:border-amber-700/60 rounded-xl space-y-2 text-xs text-text-primary mt-2 shadow-sm">
                       <div className="flex items-center gap-1.5 font-bold text-amber-700 dark:text-amber-400">

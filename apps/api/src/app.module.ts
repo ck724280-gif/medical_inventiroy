@@ -54,8 +54,10 @@ import { ApprovalsModule } from './modules/approvals/approvals.module';
 import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
 import { BackgroundJobsModule } from './modules/jobs/background-jobs.module';
 import { SystemModule } from './modules/system/system.module';
+import { AppController } from './app.controller';
 
 @Module({
+  controllers: [AppController],
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,

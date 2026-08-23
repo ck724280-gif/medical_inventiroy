@@ -55,16 +55,21 @@ const MORE_ITEMS: NavItem[] = [
 
 export function MobileNav() {
   const pathname = usePathname();
-  const { hasPermission } = useAuthStore();
+  const { hasPermission, isAuthenticated } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close more drawer on navigation
   useEffect(() => {
     setIsMoreOpen(false);
   }, [pathname]);
 
-  // Return null on login page
-  if (pathname === '/login') {
+  // Return null if not mounted, not authenticated, or on login page
+  if (!mounted || !isAuthenticated || pathname === '/login') {
     return null;
   }
 
