@@ -44,14 +44,22 @@ export class SalesService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (query?.branchId) where.branchId = query.branchId;
+    if (query?.branchId) {
+      where.OR = [{ branchId: query.branchId }, { branchId: null }];
+    }
     if (query?.customerId) where.customerId = query.customerId;
     if (query?.search) {
-      where.OR = [
+      const searchConditions = [
         { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
         { customer: { name: { contains: query.search, mode: 'insensitive' } } },
         { customer: { mobile: { contains: query.search, mode: 'insensitive' } } },
       ];
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+        delete where.OR;
+      } else {
+        where.OR = searchConditions;
+      }
     }
 
     const [total, sales] = await Promise.all([

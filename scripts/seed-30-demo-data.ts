@@ -1,16 +1,33 @@
 import { PrismaClient } from '@prisma/client';
+import * as argon2 from 'argon2';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('🚀 Seeding 30+ Demo Subjects across all ERP modules...');
 
-  // 1. Fetch Admin User and Branches
-  const adminUser = await prisma.user.findFirst({
-    where: { email: 'admin@medcare.com' },
-  });
-  if (!adminUser) {
-    throw new Error('Admin user not found. Please ensure admin user is initialized.');
+  const passwordHash = await argon2.hash('Admin@123');
+
+  // 1. Fetch / Create Owner Role
+  let ownerRole = await prisma.role.findFirst({ where: { name: 'OWNER' } });
+  if (!ownerRole) {
+    ownerRole = await prisma.role.create({
+      data: { name: 'OWNER', description: 'System Owner & Super Administrator' },
+    });
+  }
+
+  let managerRole = await prisma.role.findFirst({ where: { name: 'BRANCH_MANAGER' } });
+  if (!managerRole) {
+    managerRole = await prisma.role.create({
+      data: { name: 'BRANCH_MANAGER', description: 'Branch Manager' },
+    });
+  }
+
+  let cashierRole = await prisma.role.findFirst({ where: { name: 'CASHIER' } });
+  if (!cashierRole) {
+    cashierRole = await prisma.role.create({
+      data: { name: 'CASHIER', description: 'Point of Sale Cashier' },
+    });
   }
 
   let mainBranch = await prisma.branch.findFirst({ where: { code: 'MAIN-01' } });
@@ -19,14 +36,11 @@ async function main() {
       data: {
         code: 'MAIN-01',
         name: 'MedCare Central Pharmacy (HQ)',
-        address: 'Shop 1-4, Ground Floor, Central Medical Plaza, M.G. Road',
+        address: 'Shop 1-4, Ground Floor, Central Medical Plaza, M.G. Road, Mumbai - 400001',
         city: 'Mumbai',
         state: 'Maharashtra',
-        pincode: '400001',
         phone: '+91 98765 43210',
         email: 'central@medcare.com',
-        gstNumber: '27AABCU9603R1ZM',
-        drugLicenseNo: 'DL-20B-MH-102938, DL-21B-MH-102939',
         isDefault: true,
         isActive: true,
       },
@@ -39,30 +53,116 @@ async function main() {
       data: {
         code: 'BR-02',
         name: 'MedCare City Care Branch',
-        address: 'Block B, Metro Station Complex, Andheri East',
+        address: 'Block B, Metro Station Complex, Andheri East, Mumbai - 400069',
         city: 'Mumbai',
         state: 'Maharashtra',
-        pincode: '400069',
         phone: '+91 98765 43211',
         email: 'andheri@medcare.com',
-        gstNumber: '27AABCU9603R1ZN',
-        drugLicenseNo: 'DL-20B-MH-203948, DL-21B-MH-203949',
         isDefault: false,
         isActive: true,
       },
     });
   }
 
-  // Ensure Admin is linked to both branches
-  await prisma.branchMembership.upsert({
-    where: { userId_branchId: { userId: adminUser.id, branchId: mainBranch.id } },
+  // Upsert Super Admin User with Admin@123
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@medcare.com' },
+    update: { passwordHash, isActive: true, failedLoginCount: 0, lockedUntil: null },
+    create: {
+      email: 'admin@medcare.com',
+      mobile: '9876543210',
+      firstName: 'Super',
+      lastName: 'Admin',
+      passwordHash,
+      isActive: true,
+    },
+  });
+
+  // Upsert chiku542254@gmail.com with Admin@123
+  const chikuUser = await prisma.user.upsert({
+    where: { email: 'chiku542254@gmail.com' },
+    update: { passwordHash, isActive: true, failedLoginCount: 0, lockedUntil: null },
+    create: {
+      email: 'chiku542254@gmail.com',
+      mobile: '9876543219',
+      firstName: 'Chiku',
+      lastName: 'SuperAdmin',
+      passwordHash,
+      isActive: true,
+    },
+  });
+
+  // Upsert Cashier & Manager staff
+  const cashierUser = await prisma.user.upsert({
+    where: { email: 'cashier@medcare.com' },
+    update: { passwordHash, isActive: true, failedLoginCount: 0, lockedUntil: null },
+    create: {
+      email: 'cashier@medcare.com',
+      mobile: '9876543212',
+      firstName: 'Rajesh',
+      lastName: 'Kumar (Cashier)',
+      passwordHash,
+      isActive: true,
+    },
+  });
+
+  const managerUser = await prisma.user.upsert({
+    where: { email: 'manager@medcare.com' },
+    update: { passwordHash, isActive: true, failedLoginCount: 0, lockedUntil: null },
+    create: {
+      email: 'manager@medcare.com',
+      mobile: '9876543213',
+      firstName: 'Vikram',
+      lastName: 'Singhania (Manager)',
+      passwordHash,
+      isActive: true,
+    },
+  });
+
+  // Assign roles
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: adminUser.id, roleId: ownerRole.id } },
     update: {},
-    create: { userId: adminUser.id, branchId: mainBranch.id },
+    create: { userId: adminUser.id, roleId: ownerRole.id },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: chikuUser.id, roleId: ownerRole.id } },
+    update: {},
+    create: { userId: chikuUser.id, roleId: ownerRole.id },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: cashierUser.id, roleId: cashierRole.id } },
+    update: {},
+    create: { userId: cashierUser.id, roleId: cashierRole.id },
+  });
+  await prisma.userRole.upsert({
+    where: { userId_roleId: { userId: managerUser.id, roleId: managerRole.id } },
+    update: {},
+    create: { userId: managerUser.id, roleId: managerRole.id },
+  });
+
+  // Assign branch memberships
+  for (const u of [adminUser, chikuUser]) {
+    await prisma.branchMembership.upsert({
+      where: { userId_branchId: { userId: u.id, branchId: mainBranch.id } },
+      update: {},
+      create: { userId: u.id, branchId: mainBranch.id },
+    });
+    await prisma.branchMembership.upsert({
+      where: { userId_branchId: { userId: u.id, branchId: branch2.id } },
+      update: {},
+      create: { userId: u.id, branchId: branch2.id },
+    });
+  }
+  await prisma.branchMembership.upsert({
+    where: { userId_branchId: { userId: cashierUser.id, branchId: mainBranch.id } },
+    update: {},
+    create: { userId: cashierUser.id, branchId: mainBranch.id },
   });
   await prisma.branchMembership.upsert({
-    where: { userId_branchId: { userId: adminUser.id, branchId: branch2.id } },
+    where: { userId_branchId: { userId: managerUser.id, branchId: branch2.id } },
     update: {},
-    create: { userId: adminUser.id, branchId: branch2.id },
+    create: { userId: managerUser.id, branchId: branch2.id },
   });
 
   // 2. Units

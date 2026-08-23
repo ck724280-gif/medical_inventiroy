@@ -44,6 +44,8 @@ export interface AuthTokens {
     lastName: string;
     roles: string[];
     permissions: string[];
+    branches?: Array<{ id: string; name: string; code: string; isDefault?: boolean }>;
+    primaryBranchId?: string | null;
   };
 }
 

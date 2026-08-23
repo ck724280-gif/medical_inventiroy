@@ -100,12 +100,20 @@ export class PurchaseOrdersService {
     }
 
     if (query.supplierId) where.supplierId = query.supplierId;
-    if (query.branchId) where.branchId = query.branchId;
+    if (query.branchId) {
+      where.OR = [{ branchId: query.branchId }, { branchId: null }];
+    }
     if (query.search) {
-      where.OR = [
+      const searchConditions = [
         { poNumber: { contains: query.search, mode: 'insensitive' } },
         { supplier: { name: { contains: query.search, mode: 'insensitive' } } },
       ];
+      if (where.OR) {
+        where.AND = [{ OR: where.OR }, { OR: searchConditions }];
+        delete where.OR;
+      } else {
+        where.OR = searchConditions;
+      }
     }
 
     const [data, total] = await Promise.all([

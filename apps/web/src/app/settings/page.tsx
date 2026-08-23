@@ -460,9 +460,21 @@ export default function SettingsPage() {
     },
   });
 
-  const handleDownloadBackup = (id: string) => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://medical-inventory-y445.onrender.com';
-    window.open(`${baseUrl}/backup/download/${id}`, '_blank');
+  const handleDownloadBackup = async (id: string, filename?: string) => {
+    try {
+      const res = await apiClient.get(`/backup/download/${id}`, { responseType: 'blob' });
+      const blob = new Blob([res.data], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename || `medcare-backup-${id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert('Failed to download backup snapshot from server.');
+    }
   };
 
   return (
@@ -1864,7 +1876,7 @@ export default function SettingsPage() {
                               <td className="py-2.5 px-3 text-right">
                                 <div className="flex items-center justify-end gap-1.5">
                                   <button
-                                    onClick={() => handleDownloadBackup(b.id)}
+                                    onClick={() => handleDownloadBackup(b.id, b.filename)}
                                     title="Download JSON Snapshot to PC"
                                     className="p-1.5 bg-sky-50 dark:bg-slate-800 text-accent-primary hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg transition"
                                   >
