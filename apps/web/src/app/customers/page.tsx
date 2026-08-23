@@ -26,6 +26,7 @@ import { PageHeader } from '../../components/ui/page-header';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatCurrency, generatePaymentReminderUrl } from '@medical-inventory/shared-utils';
+import { extractDataArray } from '../../lib/utils';
 
 export default function CustomersPage() {
   const queryClient = useQueryClient();
@@ -60,13 +61,13 @@ export default function CustomersPage() {
     queryKey: ['customers-list', search],
     queryFn: async () => {
       const res = await apiClient.get('/customers', {
-        params: { search: search || undefined },
+        params: { search: search || undefined, limit: 100 },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const customers = Array.isArray(customersData) ? customersData : [];
+  const customers = extractDataArray(customersData);
 
   const totalCustomersCount = customers.length;
   const totalReceivableBalance = customers.reduce(
@@ -79,11 +80,11 @@ export default function CustomersPage() {
     queryKey: ['medicines-select'],
     queryFn: async () => {
       const res = await apiClient.get('/medicines', { params: { limit: 200 } });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
     enabled: showSpecialPriceModal,
   });
-  const medicines = Array.isArray(medicinesData) ? medicinesData : [];
+  const medicines = extractDataArray(medicinesData);
 
   // Fetch special prices for customer
   const { data: partyPricesData, refetch: refetchPartyPrices } = useQuery({
@@ -93,11 +94,11 @@ export default function CustomersPage() {
       const res = await apiClient.get('/party-pricing', {
         params: { customerId: specialPricingCustomer.id },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
     enabled: !!specialPricingCustomer?.id,
   });
-  const partyPrices = Array.isArray(partyPricesData) ? partyPricesData : [];
+  const partyPrices = extractDataArray(partyPricesData);
 
   const customerMutation = useMutation({
     mutationFn: async (payload: any) => {

@@ -33,6 +33,7 @@ import {
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
+import { extractDataArray } from '../../lib/utils';
 
 export default function PurchaseOrdersPage() {
   const router = useRouter();
@@ -63,9 +64,10 @@ export default function PurchaseOrdersPage() {
           branchId: selectedBranchId || undefined,
           search: search || undefined,
           status: activeTab,
+          limit: 100,
         },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
@@ -73,7 +75,7 @@ export default function PurchaseOrdersPage() {
     queryKey: ['suppliers-po-dropdown'],
     queryFn: async () => {
       const res = await apiClient.get('/suppliers');
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
@@ -81,13 +83,13 @@ export default function PurchaseOrdersPage() {
     queryKey: ['medicines-po-dropdown'],
     queryFn: async () => {
       const res = await apiClient.get('/medicines', { params: { limit: 200 } });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const purchaseOrders = Array.isArray(posData) ? posData : [];
-  const suppliers = Array.isArray(suppliersData) ? suppliersData : [];
-  const medicines = Array.isArray(medicinesData) ? medicinesData : [];
+  const purchaseOrders = extractDataArray(posData);
+  const suppliers = extractDataArray(suppliersData);
+  const medicines = extractDataArray(medicinesData);
 
   const createPoMutation = useMutation({
     mutationFn: async () => {

@@ -44,7 +44,7 @@ import { PaperWidth } from '@medical-inventory/shared-types';
 
 export default function SettingsPage() {
   const queryClient = useQueryClient();
-  const { fetchBranding } = useBrandingStore();
+  const { fetchBranding, updateLogoImmediately, logo: currentStoreLogo } = useBrandingStore();
   const [activeTab, setActiveTab] = useState<'business' | 'branding' | 'receipt' | 'branches' | 'staff' | 'backup' | 'ai'>('business');
   const [savedBanner, setSavedBanner] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
@@ -347,6 +347,22 @@ export default function SettingsPage() {
     }
   };
 
+  const uploadLogoMutation = useMutation({
+    mutationFn: async (logoBase64: string) => apiClient.post('/settings/logo', { logo: logoBase64 }),
+    onSuccess: (res: any) => {
+      const newLogo = res.data?.logoUrl || res.data?.data?.logoUrl || '';
+      updateLogoImmediately(newLogo);
+      fetchBranding();
+      queryClient.invalidateQueries({ queryKey: ['settings-business'] });
+      queryClient.invalidateQueries({ queryKey: ['settings-branding'] });
+      setSavedBanner(true);
+      setTimeout(() => setSavedBanner(false), 3000);
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to upload logo.');
+    },
+  });
+
   const saveBusinessMutation = useMutation({
     mutationFn: async (payload: any) => apiClient.patch('/settings/business', payload),
     onSuccess: () => {
@@ -542,10 +558,10 @@ export default function SettingsPage() {
                 {/* ── 1. Store Logo & Brand Icon ───────────────────── */}
                 <div className="p-4 bg-surface-page rounded-2xl border border-border-default flex flex-wrap items-center gap-5">
                   <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0 relative group">
-                    {businessData.logo ? (
+                    {(currentStoreLogo || businessData.logo) ? (
                       <img
                         id="logo-preview-img"
-                        src={businessData.logo}
+                        src={currentStoreLogo || businessData.logo}
                         alt="Store Logo"
                         className="w-full h-full object-contain p-1"
                       />
@@ -560,31 +576,26 @@ export default function SettingsPage() {
                     <div className="flex items-center gap-2">
                       <label className="px-3.5 py-1.5 bg-accent-primary hover:bg-accent-hover text-white rounded-xl font-semibold transition text-xs flex items-center gap-1.5 cursor-pointer shadow-sm">
                         <Upload className="w-3.5 h-3.5" />
-                        <span>Upload Store Logo</span>
+                        <span>{uploadLogoMutation.isPending ? 'Uploading...' : 'Upload Store Logo'}</span>
                         <input
                           type="file"
                           accept="image/*"
                           className="hidden"
+                          disabled={uploadLogoMutation.isPending}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
+                            if (file.size > 2 * 1024 * 1024) {
+                              alert('Image size exceeds 2MB limit. Please choose a smaller image.');
+                              return;
+                            }
                             const reader = new FileReader();
                             reader.onload = (event) => {
                               const base64 = event.target?.result as string;
+                              updateLogoImmediately(base64);
+                              uploadLogoMutation.mutate(base64);
                               const input = document.getElementById('logo-url-input') as HTMLInputElement;
                               if (input) input.value = base64;
-                              const preview = document.getElementById('logo-preview-img');
-                              if (preview) {
-                                if (preview.tagName === 'IMG') {
-                                  (preview as HTMLImageElement).src = base64;
-                                } else {
-                                  const newImg = document.createElement('img');
-                                  newImg.id = 'logo-preview-img';
-                                  newImg.src = base64;
-                                  newImg.className = 'w-full h-full object-contain p-1';
-                                  preview.parentNode?.replaceChild(newImg, preview);
-                                }
-                              }
                             };
                             reader.readAsDataURL(file);
                           }}
@@ -594,16 +605,10 @@ export default function SettingsPage() {
                       <button
                         type="button"
                         onClick={() => {
+                          updateLogoImmediately('');
+                          uploadLogoMutation.mutate('');
                           const input = document.getElementById('logo-url-input') as HTMLInputElement;
                           if (input) input.value = '';
-                          const preview = document.getElementById('logo-preview-img');
-                          if (preview && preview.tagName === 'IMG') {
-                            const div = document.createElement('div');
-                            div.id = 'logo-preview-img';
-                            div.className = 'text-2xl font-extrabold text-accent-primary';
-                            div.innerText = '+';
-                            preview.parentNode?.replaceChild(div, preview);
-                          }
                         }}
                         className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-text-secondary rounded-xl font-semibold transition text-xs flex items-center gap-1"
                       >
@@ -616,7 +621,7 @@ export default function SettingsPage() {
                       id="logo-url-input"
                       name="logo"
                       type="hidden"
-                      defaultValue={businessData.logo || ''}
+                      defaultValue={currentStoreLogo || businessData.logo || ''}
                     />
                   </div>
                 </div>

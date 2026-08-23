@@ -33,6 +33,7 @@ import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { DosageForm } from '@medical-inventory/shared-types';
 import { formatCurrency } from '@medical-inventory/shared-utils';
+import { extractDataArray, extractTotalCount } from '../../lib/utils';
 
 export default function MedicinesPage() {
   const queryClient = useQueryClient();
@@ -65,7 +66,7 @@ export default function MedicinesPage() {
     prescriptionRequired: false,
   });
 
-  const { data: medicinesData, isLoading } = useQuery({
+  const { data: medicinesResp, isLoading } = useQuery({
     queryKey: ['medicines', search, selectedCategory, page],
     queryFn: async () => {
       const res = await apiClient.get('/medicines', {
@@ -76,29 +77,30 @@ export default function MedicinesPage() {
           limit: 20,
         },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const { data: categoriesData } = useQuery({
+  const { data: categoriesResp } = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
       const res = await apiClient.get('/categories');
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const { data: unitsData } = useQuery({
+  const { data: unitsResp } = useQuery({
     queryKey: ['units'],
     queryFn: async () => {
       const res = await apiClient.get('/units');
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const medicines = Array.isArray(medicinesData) ? medicinesData : [];
-  const categories = Array.isArray(categoriesData) ? categoriesData : [];
-  const units = Array.isArray(unitsData) ? unitsData : [];
+  const medicines = extractDataArray(medicinesResp);
+  const totalMedicines = extractTotalCount(medicinesResp, medicines.length);
+  const categories = extractDataArray(categoriesResp);
+  const units = extractDataArray(unitsResp);
 
   const createMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -470,7 +472,7 @@ export default function MedicinesPage() {
             pagination={{
               page,
               pageSize: 20,
-              totalItems: medicines.length >= 20 ? (page + 1) * 20 : page * 20,
+              totalItems: totalMedicines,
               onPageChange: (p) => setPage(p),
             }}
           />

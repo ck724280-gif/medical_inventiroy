@@ -32,6 +32,7 @@ import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { BatchStatus, AdjustmentReason } from '@medical-inventory/shared-types';
 import { formatDate, formatCurrency } from '@medical-inventory/shared-utils';
+import { extractDataArray } from '../../lib/utils';
 
 export default function InventoryPage() {
   const queryClient = useQueryClient();
@@ -49,9 +50,9 @@ export default function InventoryPage() {
     queryKey: ['inventory-batches', selectedBranchId, search],
     queryFn: async () => {
       const res = await apiClient.get('/batches', {
-        params: { branchId: selectedBranchId || undefined, limit: 50 },
+        params: { branchId: selectedBranchId || undefined, limit: 100 },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
     enabled: activeTab === 'batches',
   });
@@ -85,15 +86,15 @@ export default function InventoryPage() {
     queryKey: ['inventory-movements', selectedBranchId],
     queryFn: async () => {
       const res = await apiClient.get('/inventory/movements', {
-        params: { branchId: selectedBranchId || undefined, limit: 50 },
+        params: { branchId: selectedBranchId || undefined, limit: 100 },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
     enabled: activeTab === 'movements',
   });
 
-  const batches = Array.isArray(batchesData) ? batchesData : [];
-  const movements = Array.isArray(movementsData) ? movementsData : [];
+  const batches = extractDataArray(batchesData);
+  const movements = extractDataArray(movementsData);
 
   // Stock Adjustment Mutation
   const adjustMutation = useMutation({

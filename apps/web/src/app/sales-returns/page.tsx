@@ -40,6 +40,7 @@ import { useBrandingStore } from '../../stores/branding-store';
 import { ReturnCondition, PaymentMode } from '@medical-inventory/shared-types';
 import { formatDate, formatCurrency, buildWhatsAppUrl } from '@medical-inventory/shared-utils';
 import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview';
+import { extractDataArray } from '../../lib/utils';
 
 export default function SalesReturnsPage() {
   const queryClient = useQueryClient();
@@ -73,13 +74,14 @@ export default function SalesReturnsPage() {
         params: {
           branchId: selectedBranchId || undefined,
           search: search || undefined,
+          limit: 100,
         },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const returns = Array.isArray(returnsData) ? returnsData : [];
+  const returns = extractDataArray(returnsData);
 
   // Summary Metrics
   const totalReturnsCount = returns.length;

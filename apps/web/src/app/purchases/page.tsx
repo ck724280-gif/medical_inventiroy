@@ -35,6 +35,7 @@ import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
 import { PaymentMode } from '@medical-inventory/shared-types';
+import { extractDataArray } from '../../lib/utils';
 // @ts-ignore
 import ReactBarcode from 'react-barcode';
 
@@ -116,9 +117,9 @@ function PurchasesContent() {
     queryKey: ['purchases-list', search, selectedBranchId],
     queryFn: async () => {
       const res = await apiClient.get('/purchases', {
-        params: { branchId: selectedBranchId || undefined, search: search || undefined },
+        params: { branchId: selectedBranchId || undefined, search: search || undefined, limit: 100 },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
@@ -126,7 +127,7 @@ function PurchasesContent() {
     queryKey: ['suppliers-dropdown'],
     queryFn: async () => {
       const res = await apiClient.get('/suppliers');
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
@@ -134,13 +135,13 @@ function PurchasesContent() {
     queryKey: ['medicines-dropdown'],
     queryFn: async () => {
       const res = await apiClient.get('/medicines', { params: { limit: 200 } });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const purchases = Array.isArray(purchasesData) ? purchasesData : [];
-  const suppliers = Array.isArray(suppliersData) ? suppliersData : [];
-  const medicines = Array.isArray(medicinesData) ? medicinesData : [];
+  const purchases = extractDataArray(purchasesData);
+  const suppliers = extractDataArray(suppliersData);
+  const medicines = extractDataArray(medicinesData);
 
   const createPurchaseMutation = useMutation({
     mutationFn: async (isDraft: boolean) => {

@@ -25,6 +25,7 @@ import { Skeleton } from '../../components/ui/skeleton';
 import { apiClient } from '../../lib/api-client';
 import { formatDate } from '@medical-inventory/shared-utils';
 import { useAuthStore } from '../../stores/auth-store';
+import { extractDataArray } from '../../lib/utils';
 
 export default function StockTransfersPage() {
   const queryClient = useQueryClient();
@@ -39,11 +40,14 @@ export default function StockTransfersPage() {
         params: {
           branchId: selectedBranchId || undefined,
           status: statusFilter || undefined,
+          limit: 100,
         },
       });
-      return res.data?.data || res.data;
+      return res.data;
     },
   });
+
+  const transferList = extractDataArray(transfers);
 
   const dispatchMutation = useMutation({
     mutationFn: async (id: string) => {
@@ -73,13 +77,12 @@ export default function StockTransfersPage() {
     },
   });
 
-  const transferList: any[] = transfers || [];
-  const filtered = transferList.filter((t) => {
+  const filtered = transferList.filter((t: any) => {
     const term = searchTerm.toLowerCase();
     return (
-      t.fromBranch?.name.toLowerCase().includes(term) ||
-      t.toBranch?.name.toLowerCase().includes(term) ||
-      t.id.toLowerCase().includes(term)
+      t.fromBranch?.name?.toLowerCase().includes(term) ||
+      t.toBranch?.name?.toLowerCase().includes(term) ||
+      t.id?.toLowerCase().includes(term)
     );
   });
 

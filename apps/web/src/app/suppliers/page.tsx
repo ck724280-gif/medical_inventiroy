@@ -26,6 +26,7 @@ import { PageHeader } from '../../components/ui/page-header';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatCurrency } from '@medical-inventory/shared-utils';
+import { extractDataArray } from '../../lib/utils';
 
 export default function SuppliersPage() {
   const queryClient = useQueryClient();
@@ -58,13 +59,13 @@ export default function SuppliersPage() {
     queryKey: ['suppliers-list', search],
     queryFn: async () => {
       const res = await apiClient.get('/suppliers', {
-        params: { search: search || undefined },
+        params: { search: search || undefined, limit: 100 },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const suppliers = Array.isArray(suppliersData) ? suppliersData : [];
+  const suppliers = extractDataArray(suppliersData);
 
   const totalSuppliersCount = suppliers.length;
   const totalOutstandingBalance = suppliers.reduce((sum: number, s: any) => sum + Number(s.currentBalance || 0), 0);

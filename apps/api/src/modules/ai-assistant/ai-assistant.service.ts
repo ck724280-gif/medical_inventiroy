@@ -79,14 +79,40 @@ export class AiAssistantService {
 
     const systemInstruction = `
 You are the **MedCare Pharmacy & Healthcare ERP Super Admin AI Co-Pilot** (§P7 Specification).
-You are an action-capable ERP Operating Agent operating the MedCare Pharmacy ERP.
+You are an expert AI mentor, system navigator, and action-capable ERP Operating Agent for the MedCare Pharmacy ERP.
 
-Core Rules:
+ERP SITEMAP & FUNCTIONALITY MANUAL:
+- **OPERATIONS -> Dashboard (/):** Today sales KPI, gross revenue, stock valuation, low stock alerts, revenue trend chart, recent bills, quick action shortcuts.
+- **OPERATIONS -> POS Billing (/pos):** Superfast counter billing with barcode scanning, batch auto-selection (FEFO), generic drug substitution, split payment (Cash, UPI, Card, Credit), thermal receipt print (58mm/80mm), and WhatsApp receipt dispatch.
+- **OPERATIONS -> Cash Register (/cash-register):** Opening/closing cash shift drawer, tracking cash float, recording cash drops/expenses, generating Z-reports for cashier shift handover.
+- **OPERATIONS -> Sales & Invoices (/sales):** All completed and pending sales bills, invoice PDF/thermal print, WhatsApp sharing, customer payment tracking, and reprint logs.
+- **OPERATIONS -> Sales Returns (/sales-returns):** Processing medicine returns from customers, refunding via Cash/Store Credit, and restocking non-expired medicines back to batch inventory.
+- **INVENTORY -> Medicines (/medicines):** Master pharmacy formulary catalog, dosage forms, category, base units, drug schedule (OTC, Schedule H, H1, X), HSN tax codes, MRP, and standard sale prices.
+- **INVENTORY -> Inventory & Batches (/inventory):** Batch numbers, manufacture & expiry dates, stock quantities per branch, near-expiry alerts (30/60/90 days), physical stock adjustment ledger.
+- **INVENTORY -> Stock Transfers (/stock-transfers):** Multi-branch inventory movements across 7 workflow stages (Draft, Dispatch, In-Transit, Receive, Reconcile).
+- **INVENTORY -> Purchases (/purchases):** Inward GRN supplier purchase bills, tax credit verification, batch creation, payment records, and purchase returns.
+- **INVENTORY -> Purchase Orders (/purchase-orders):** Generating POs to pharmaceutical distributors and converting them to inward purchase bills upon delivery.
+- **INVENTORY -> Opening Stock / Import (/import):** Excel/CSV spreadsheet bulk upload of medicines and opening inventory stock.
+- **PEOPLE -> Customers (/customers):** Patient/customer directory, credit limits, outstanding ledger balances, contact details, and special party-specific pricing. (e.g. Any customer like Rahul, Sunita, etc. details and balance are found here).
+- **PEOPLE -> Suppliers (/suppliers):** Medicine distributor agencies, drug license numbers (DL 20B/21B), GSTIN, payment terms, and credit ledger.
+- **FINANCE -> Expenses (/expenses):** Daily operational store expenses (shop rent, electricity, staff tea/welfare, maintenance, packaging).
+- **FINANCE -> Reports & Analytics (/reports):** Business intelligence, sales trend charts, gross profit & margin analysis, tax liabilities (CGST/SGST/IGST), fast/slow moving items.
+- **SUPER ADMIN -> Control Center (/super-admin):** Executive multi-branch dashboard, aggregated revenue, stock health, and central allocation.
+- **SUPER ADMIN -> Branches (/super-admin/branches):** Multi-branch creation, direct Web Login URL copy, assigned Branch Manager/Admin User ID and Password copy, and 1-click branch switcher.
+- **SUPER ADMIN -> Staff Directory (/super-admin/staff):** Staff accounts, role assignments (Super Admin, Manager, Pharmacist, Cashier, Inventory, Accountant), User ID, Password visibility, and login pack copy.
+- **MANAGEMENT -> Settings (/settings):** Store business profile, store logo upload, white-label colors, thermal printer width, and Gemini AI API configuration.
+
+BRANCH ACCESS & SWITCHING RULES:
+1. Super Admin can access and switch between any branch using the **Branch Selector Pill** in the top header, or via **/super-admin/branches**.
+2. Branch staff (Cashiers, Managers, Pharmacists) are isolated to their assigned branch and only see their branch's inventory, POS bills, and cash registers.
+3. In **/super-admin/branches**, every branch card provides a 1-click **Copy Web Login URL**, assigned Manager **User ID**, and **Password**.
+
+Core Guidelines:
 1. NEVER FAKE AN ACTION (§2): Only report data present in the database context. If a record does not exist, clearly say it was not found.
 2. SUPPORT MULTILINGUAL: Understand Hindi, Hinglish, and English naturally (§44, §71). Match the tone and language of the user.
-3. CURRENCY: Always format currency in Indian Rupees (₹) with proper comma separators (e.g., ₹1,45,000.00).
-4. SAFETY FIRST (§42, §63): For actions like stock adjustments, price changes, or branch transfers, always provide clear confirmation details.
-5. CLEAN PRESENTATION (§47, §72): Use clean Markdown tables for lists, bold for important numbers, and concise summaries. Do NOT use emojis excessively.
+3. STEP-BY-STEP HELP: When asked "how to...", "kaha milega...", "kaise kaam karta hai...", give clear, structured tab-by-tab directions.
+4. CURRENCY: Always format currency in Indian Rupees (₹) with proper comma separators (e.g., ₹1,45,000.00).
+5. CLEAN PRESENTATION (§47, §72): Use clean Markdown tables for lists, bold for important numbers, and concise summaries.
 
 Current Live ERP Database Context:
 ${JSON.stringify(contextData, null, 2)}
@@ -146,28 +172,46 @@ ${JSON.stringify(contextData, null, 2)}
   private async detectActionIntent(query: string, userId?: string, branchId?: string): Promise<any | null> {
     const q = query.toLowerCase();
 
-    // 1. Stock Transfer Intent: e.g. "Main branch se Branch 02 me 50 Paracetamol bhejo"
+    // Guard: If it's a question / navigational / informational query, do NOT create an action proposal
+    const isHelpQuestion =
+      /^(how|kaha|where|kaise|kya|what|which|kon|batao|explain|help|guide|dikhao|search)\b/i.test(q) ||
+      q.includes('kaha milega') ||
+      q.includes('kaise kaam') ||
+      q.includes('kaha dekh') ||
+      q.includes('how to') ||
+      q.includes('access kaise') ||
+      q.includes('detail kaha');
+
+    if (isHelpQuestion) {
+      return null;
+    }
+
+    // 1. Stock Transfer Intent: explicit command e.g. "Branch 02 me 50 Paracetamol bhejo"
     if ((q.includes('transfer') || q.includes('bhejo') || q.includes('send')) && (q.includes('branch') || q.includes('stock'))) {
       const numMatch = query.match(/\b\d+\b/);
       const qty = numMatch ? parseInt(numMatch[0], 10) : 0;
-      return {
-        action: 'TRANSFER_STOCK',
-        isRisky: true,
-        previewText: `Stock Transfer Request: Transfer ${qty || 'X'} units between branches.`,
-        suggestedPayload: { qty },
-      };
+      if (qty > 0) {
+        return {
+          action: 'TRANSFER_STOCK',
+          isRisky: true,
+          previewText: `Stock Transfer Request: Transfer ${qty} units between branches.`,
+          suggestedPayload: { qty },
+        };
+      }
     }
 
-    // 2. Medicine Price Update: e.g. "Paracetamol ka selling price ₹25 karo"
+    // 2. Medicine Price Update: explicit command e.g. "Paracetamol ka selling price ₹25 karo"
     if ((q.includes('price') || q.includes('daam') || q.includes('rate')) && (q.includes('karo') || q.includes('set') || q.includes('update') || q.includes('change'))) {
       const numMatch = query.match(/\b\d+(\.\d+)?\b/);
       const newPrice = numMatch ? parseFloat(numMatch[0]) : 0;
-      return {
-        action: 'UPDATE_MEDICINE_PRICE',
-        isRisky: true,
-        previewText: `Medicine Price Update: Set selling price to ₹${newPrice}.`,
-        suggestedPayload: { newPrice },
-      };
+      if (newPrice > 0) {
+        return {
+          action: 'UPDATE_MEDICINE_PRICE',
+          isRisky: true,
+          previewText: `Medicine Price Update: Set selling price to ₹${newPrice}.`,
+          suggestedPayload: { newPrice },
+        };
+      }
     }
 
     // 3. Customer Mobile Update: e.g. "Rahul ka mobile number update karo"
@@ -200,7 +244,61 @@ ${JSON.stringify(contextData, null, 2)}
     const q = query.toLowerCase();
     const context: any = {};
 
-    // 1. Inventory & Stock Valuation
+    // 1. Customer & Patient Lookup (e.g. "Rahul naam ka customer", "patient details", "credit ledger")
+    if (
+      q.includes('customer') ||
+      q.includes('patient') ||
+      q.includes('rahul') ||
+      q.includes('detail') ||
+      q.includes('ledger') ||
+      q.includes('udhari') ||
+      q.includes('credit') ||
+      q.includes('balance')
+    ) {
+      toolsUsed.push('searchCustomer');
+      const words = query.split(/[\s,?.!]+/).filter((w) => w.length >= 3 && !['kaha', 'kaise', 'naam', 'kya', 'hai', 'the', 'for', 'detail', 'details', 'dekh', 'sakega'].includes(w.toLowerCase()));
+      for (const word of words) {
+        const found = await this.searchCustomer(word);
+        if (found.length > 0) {
+          context.matchedCustomers = found;
+          break;
+        }
+      }
+      if (!context.matchedCustomers && (q.includes('customer') || q.includes('ledger'))) {
+        context.financialLedger = await this.getFinancialLedgerSummary();
+      }
+    }
+
+    // 2. Supplier & Distributor Lookup
+    if (q.includes('supplier') || q.includes('distributor') || q.includes('agency') || q.includes('payable') || q.includes('dealer')) {
+      toolsUsed.push('searchSupplier');
+      const words = query.split(/[\s,?.!]+/).filter((w) => w.length >= 3);
+      for (const word of words) {
+        const found = await this.searchSupplier(word);
+        if (found.length > 0) {
+          context.matchedSuppliers = found;
+          break;
+        }
+      }
+      if (!context.matchedSuppliers) {
+        context.financialLedger = await this.getFinancialLedgerSummary();
+      }
+    }
+
+    // 3. Branch Information & Switching (§22, §53)
+    if (q.includes('branch') || q.includes('branches') || q.includes('access') || q.includes('switch') || q.includes('main branch')) {
+      toolsUsed.push('getBranchOverview');
+      context.branches = await this.getBranchOverview();
+      context.branchAccessGuide = {
+        methods: [
+          'Top Header Branch Selector: Screen ke top par "Branch: Main Branch" pill par click karke kisi bhi branch me switch karein.',
+          'Super Admin Branches Hub: Left menu me "SUPER ADMIN -> Branches" (/super-admin/branches) me jakar branch login URLs aur admin credentials dekhein.',
+        ],
+        isolationNote: 'Branch staff only see their assigned branch records. Super Admin has unrestricted access to all branches.',
+      };
+    }
+
+    // 4. Inventory & Stock Valuation
     if (
       q.includes('stock') ||
       q.includes('inventory') ||
@@ -227,7 +325,7 @@ ${JSON.stringify(contextData, null, 2)}
       }
     }
 
-    // 2. Sales, Revenue, Profit & Loss (§15, §28)
+    // 5. Sales, Revenue, Profit & Loss (§15, §28)
     if (
       q.includes('sale') ||
       q.includes('profit') ||
@@ -243,41 +341,19 @@ ${JSON.stringify(contextData, null, 2)}
       context.salesAndProfit = await this.getSalesReport(branchId);
     }
 
-    // 3. Expiry Tracking (§29)
+    // 6. Expiry Tracking (§29)
     if (q.includes('expir') || q.includes('khatam') || q.includes('date') || q.includes('fefo')) {
       toolsUsed.push('getExpiringMedicines');
       context.expiringMedicines = await this.getExpiringMedicines(60, branchId);
     }
 
-    // 4. Low Stock Alert (§30)
+    // 7. Low Stock Alert (§30)
     if (q.includes('low') || q.includes('kam') || q.includes('shortage') || q.includes('out of stock')) {
       toolsUsed.push('getLowStockMedicines');
       context.lowStockMedicines = await this.getLowStockMedicines(10, branchId);
     }
 
-    // 5. Suppliers & Customer Ledgers (§9, §19, §20)
-    if (
-      q.includes('supplier') ||
-      q.includes('customer') ||
-      q.includes('ledger') ||
-      q.includes('udhari') ||
-      q.includes('payable') ||
-      q.includes('credit') ||
-      q.includes('outstanding') ||
-      q.includes('balance') ||
-      q.includes('baki')
-    ) {
-      toolsUsed.push('getFinancialLedgerSummary');
-      context.financialLedger = await this.getFinancialLedgerSummary();
-    }
-
-    // 6. Branch Information (§22, §53)
-    if (q.includes('branch') || q.includes('all branches') || q.includes('compare')) {
-      toolsUsed.push('getBranchOverview');
-      context.branches = await this.getBranchOverview();
-    }
-
-    // 7. System Health (§56)
+    // 8. System Health (§56)
     if (q.includes('system') || q.includes('health') || q.includes('latency') || q.includes('status')) {
       toolsUsed.push('getSystemHealthSummary');
       context.systemHealth = await this.getSystemHealthSummary();
@@ -371,6 +447,63 @@ ${JSON.stringify(contextData, null, 2)}
         })),
       };
     });
+  }
+
+  /** Live Tool: Search Customer by name or mobile */
+  async searchCustomer(query: string) {
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { mobile: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      include: {
+        sales: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          select: { invoiceNumber: true, totalAmount: true, createdAt: true },
+        },
+      },
+      take: 5,
+    });
+
+    return customers.map((c) => ({
+      id: c.id,
+      name: c.name,
+      mobile: c.mobile || 'Not set',
+      address: c.address || 'Not set',
+      creditLimit: `₹${Number(c.creditLimit || 0).toLocaleString('en-IN')}`,
+      currentBalance: `₹${Number(c.currentBalance || 0).toLocaleString('en-IN')}`,
+      recentInvoices: c.sales.map((s) => `${s.invoiceNumber} (₹${s.totalAmount})`),
+      accessPath: 'PEOPLE -> Customers (/customers)',
+    }));
+  }
+
+  /** Live Tool: Search Supplier by name or GST */
+  async searchSupplier(query: string) {
+    const suppliers = await this.prisma.supplier.findMany({
+      where: {
+        OR: [
+          { name: { contains: query, mode: 'insensitive' } },
+          { company: { contains: query, mode: 'insensitive' } },
+          { phone: { contains: query, mode: 'insensitive' } },
+          { gstNumber: { contains: query, mode: 'insensitive' } },
+        ],
+      },
+      take: 5,
+    });
+
+    return suppliers.map((s) => ({
+      id: s.id,
+      name: s.name,
+      company: s.company || s.name,
+      phone: s.phone,
+      gstNumber: s.gstNumber || 'Not set',
+      paymentTerms: s.paymentTerms || '30 Days Net',
+      currentBalance: `₹${Number(s.currentBalance || 0).toLocaleString('en-IN')}`,
+      accessPath: 'PEOPLE -> Suppliers (/suppliers)',
+    }));
   }
 
   /** Live Tool: Sales, Revenue & Net Profit Calculation (§15, §28) */
@@ -758,6 +891,90 @@ ${JSON.stringify(contextData, null, 2)}
   private generateFallbackResponse(query: string, context: any, actionProposal?: any): string {
     const q = query.toLowerCase();
 
+    // 1. Branch access & switching query
+    if (q.includes('branch') && (q.includes('access') || q.includes('switch') || q.includes('dusri') || q.includes('how to') || q.includes('kaise') || q.includes('kaha'))) {
+      const branchesList = context.branches || [];
+      return `### 🏢 **Branch Access & Multi-Store Management Guide**
+
+Aap MedCare ERP me do simple tareeqon se dusri branches access aur manage kar sakte hain:
+
+1. **Top Header Quick Switcher:**
+   - Screen ke top header me **\`Branch: Main Branch\`** pill par click karein aur drop-down se branch select karein.
+
+2. **Super Admin Branches Hub (\`/super-admin/branches\`):**
+   - Left menu me **\`SUPER ADMIN -> Branches\`** par jayein.
+   - Yahan har branch ka **Web Login URL**, assigned **Admin/Manager User ID** aur **Password** 1-click copy ke sath mil jayega.
+
+3. **Strict Branch Data Isolation:**
+   - Jab koi branch user (Cashier, Manager) login karega to unhe sirf unki branch ka stock, POS counter aur bills dikhenge.
+   - **Super Admin** ke paas pure network aur sabhi branches ka complete consolidated access hota hai.
+
+${branchesList.length > 0 ? `\n**Active Branches Network:**\n` + branchesList.map((b: any) => `- **${b.name}** (\`${b.code}\`): Staff: ${b.staffCount} users, Batches: ${b.batchesCount}`).join('\n') : ''}`;
+    }
+
+    // 2. Customer search / inquiry (e.g. "Rahul naam ka customer")
+    if (context.matchedCustomers && context.matchedCustomers.length > 0) {
+      let res = `### 👤 **Customer Search Results**\n\n`;
+      for (const c of context.matchedCustomers) {
+        res += `- **Customer Name:** **${c.name}**\n`;
+        res += `  - **Mobile:** \`${c.mobile}\`\n`;
+        res += `  - **Address:** ${c.address}\n`;
+        res += `  - **Credit Limit:** ${c.creditLimit} | **Current Outstanding Balance:** **${c.currentBalance}**\n`;
+        if (c.recentInvoices && c.recentInvoices.length > 0) {
+          res += `  - **Recent Invoices:** ${c.recentInvoices.join(', ')}\n`;
+        }
+        res += `  - 📍 **Access Location:** Aap is customer ki complete ledger aur billing history **PEOPLE -> Customers** (\`/customers\`) me search karke dekh sakte hain.\n\n`;
+      }
+      return res;
+    }
+
+    // 3. General Customer / Supplier question
+    if (q.includes('customer') && (q.includes('kaha') || q.includes('detail') || q.includes('where') || q.includes('kaise') || q.includes('rahul') || q.includes('patient'))) {
+      return `### 👥 **Customer & Patient Details Guide**
+
+- **Tab Location:** **\`PEOPLE -> Customers\`** (\`/customers\`)
+- **Working Method:**
+  1. Top search bar me customer ka naam (jaise *Rahul*, *Sunita*) ya mobile number type karein.
+  2. Table me customer ka **Mobile, Address, Credit Limit, Outstanding Balance, aur Ledger** dikhega.
+  3. Action column se aap customer ka **Statement Download**, **WhatsApp Payment Reminder**, ya **Special Party Pricing** set kar sakte hain.`;
+    }
+
+    if (q.includes('supplier') && (q.includes('kaha') || q.includes('detail') || q.includes('where') || q.includes('kaise') || q.includes('distributor'))) {
+      return `### 🏢 **Supplier & Distributor Management Guide**
+
+- **Tab Location:** **\`PEOPLE -> Suppliers\`** (\`/suppliers\`)
+- **Working Method:**
+  1. Search bar me agency ya distributor ka naam search karein.
+  2. Yahan har agency ka **Drug License (DL 20B/21B), GSTIN, Payment Terms**, aur **Outstanding Balance** dikhta hai.
+  3. Action column se direct **Purchase Order** generate ya **Ledger Settlement** kar sakte hain.`;
+    }
+
+    // 4. Tab / Feature Overview Guide
+    if (q.includes('tab') || q.includes('kaise kaam') || q.includes('function') || q.includes('all features') || q.includes('sitemap') || q.includes('guide') || q.includes('kaise use')) {
+      return `### 🗺️ **MedCare ERP Complete Function & Tab Guide**
+
+| Module Section | Tab Name & Route | Key Functions & Operations |
+|---|---|---|
+| **OPERATIONS** | **Dashboard** (\`/\`) | Real-time sales KPI, stock valuation, revenue chart, quick action shortcuts. |
+| **OPERATIONS** | **POS Billing** (\`/pos\`) | High-speed billing, barcode scan, FEFO auto batch, Cash/UPI/Split pay, WhatsApp receipt. |
+| **OPERATIONS** | **Cash Register** (\`/cash-register\`) | Opening/closing cash shift drawer, cash drop/float tracking, Z-report generation. |
+| **OPERATIONS** | **Sales & Invoices** (\`/sales\`) | All sales history, thermal/A4 print reprint, payment status tracking. |
+| **OPERATIONS** | **Sales Returns** (\`/sales-returns\`) | Customer medicine returns, instant cash/store credit refund, inventory restocking. |
+| **INVENTORY** | **Medicines** (\`/medicines\`) | Master drug catalog, brand/generic formulation, schedule (OTC, H, H1, X), tax & MRP. |
+| **INVENTORY** | **Inventory & Batches** (\`/inventory\`) | Batch-wise stock, expiry dates, 30/60/90 days near-expiry alerts, stock adjustments. |
+| **INVENTORY** | **Stock Transfers** (\`/stock-transfers\`) | Multi-branch stock movement, dispatch, in-transit tracking, and receiving. |
+| **INVENTORY** | **Purchases** (\`/purchases\`) | Inward GRN purchase bills, tax credit verification, batch creation, payment records. |
+| **INVENTORY** | **Purchase Orders** (\`/purchase-orders\`) | Raising POs to pharma distributors and converting to inward purchases. |
+| **INVENTORY** | **Import / Opening Stock** (\`/import\`) | Excel/CSV bulk import for medicines and opening stock batches. |
+| **PEOPLE** | **Customers** (\`/customers\`) | Patient/customer directory, credit limits, outstanding ledger, special pricing. |
+| **PEOPLE** | **Suppliers** (\`/suppliers\`) | Pharma agencies, drug licenses, GSTIN, payment terms, and distributor ledger. |
+| **FINANCE** | **Expenses** (\`/expenses\`) | Shop rent, electricity, wages, maintenance, and store overhead tracking. |
+| **FINANCE** | **Reports & Analytics** (\`/reports\`) | Sales trends, profit & loss, GST CGST/SGST tax liability, fast-moving items. |
+| **SUPER ADMIN** | **Branches** (\`/super-admin/branches\`) | Multi-store network, Web Login URL, Branch Admin credentials, 1-click branch switch. |
+| **SUPER ADMIN** | **Staff Directory** (\`/super-admin/staff\`) | Staff accounts, User ID & Password visibility, 1-click credential copying. |
+| **MANAGEMENT** | **Settings** (\`/settings\`) | Store business profile, store logo upload, white-label colors, Gemini AI API key. |`;
+    }
+
     if (q.includes('profit') || q.includes('sale') || q.includes('kamai')) {
       const s = context.salesAndProfit?.today;
       return `### 📊 **Today's Sales & Profit Summary**\n\n- **Invoices Generated:** ${s?.invoiceCount || 0}\n- **Total Revenue:** **${s?.totalRevenue || '₹0.00'}**\n- **Cost of Goods (COGS):** ${s?.costOfGoodsSold || '₹0.00'}\n- **Net Gross Profit:** **${s?.grossProfit || '₹0.00'}** (Margin: **${s?.profitMargin || '0%'}**)\n- **Payment Breakdown:** Cash: ${s?.paymentSplit?.cash || '₹0'}, UPI: ${s?.paymentSplit?.upi || '₹0'}, Card: ${s?.paymentSplit?.card || '₹0'}`;
@@ -784,6 +1001,6 @@ ${JSON.stringify(contextData, null, 2)}
       return `### ⚡ **Action Detected**\n\n${actionProposal.previewText}\n\nKya aap is action ko execute karna chahte hain? Confirm karne ke liye niche **Execute Action** button par click karein.`;
     }
 
-    return `Hello Super Admin! Main aapka **MedCare AI Action Co-Pilot** hoon.\n\nAap mujhse live store ka koi bhi data pooch sakte hain ya direct actions execute karwa sakte hain, jaise:\n- *"Aaj ki total sales aur profit kitna hua?"*\n- *"Paracetamol ya Dolo ka kitna stock bacha hai?"*\n- *"Branch 02 me Paracetamol bhejo"* (Stock Transfer)\n- *"Paracetamol ka price ₹25 karo"* (Price update)\n- *"Rahul ka bill WhatsApp par bhejo"* (WhatsApp Bill)`;
+    return `Hello Super Admin! Main aapka **MedCare AI Action Co-Pilot** hoon.\n\nAap mujhse live store ka koi bhi data pooch sakte hain ya direct actions execute karwa sakte hain, jaise:\n- *"How to access other branches?"*\n- *"Rahul naam ke customer ki detail kaha milegi?"*\n- *"Kon sa tab kaise kaam karta hai?"*\n- *"Aaj ki total sales aur profit kitna hua?"*\n- *"Paracetamol ya Dolo ka kitna stock bacha hai?"*\n- *"Branch 02 me 50 Paracetamol bhejo"* (Stock Transfer)\n- *"Paracetamol ka price ₹25 karo"* (Price update)`;
   }
 }

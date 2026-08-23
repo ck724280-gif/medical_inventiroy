@@ -37,6 +37,7 @@ import { useAuthStore } from '../../stores/auth-store';
 import { useBrandingStore } from '../../stores/branding-store';
 import { formatDate, formatCurrency, buildWhatsAppUrl } from '@medical-inventory/shared-utils';
 import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview';
+import { extractDataArray } from '../../lib/utils';
 
 export default function SalesPage() {
   const { selectedBranchId, isSuperAdmin } = useAuthStore();
@@ -70,10 +71,10 @@ export default function SalesPage() {
         params: {
           branchId: selectedBranchId || undefined,
           search: search || undefined,
-          limit: 50,
+          limit: 100,
         },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.sales || []);
+      return res.data;
     },
   });
 
@@ -81,7 +82,7 @@ export default function SalesPage() {
     queryKey: ['customers-list-all'],
     queryFn: async () => {
       const res = await apiClient.get('/customers');
-      return Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.customers || []);
+      return res.data;
     },
   });
 
@@ -89,13 +90,13 @@ export default function SalesPage() {
     queryKey: ['medicines-list-all'],
     queryFn: async () => {
       const res = await apiClient.get('/medicines', { params: { limit: 200 } });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const sales = Array.isArray(salesData) ? salesData : [];
-  const customers = Array.isArray(customersData) ? customersData : [];
-  const medicines = Array.isArray(medicinesData) ? medicinesData : [];
+  const sales = extractDataArray(salesData);
+  const customers = extractDataArray(customersData);
+  const medicines = extractDataArray(medicinesData);
 
   const handlePrintThermal = async (id: string) => {
     try {

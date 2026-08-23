@@ -32,6 +32,7 @@ import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { ExpenseCategory, PaymentMode } from '@medical-inventory/shared-types';
 import { formatDate, formatDateTime, formatCurrency } from '@medical-inventory/shared-utils';
+import { extractDataArray } from '../../lib/utils';
 
 export default function ExpensesPage() {
   const queryClient = useQueryClient();
@@ -81,11 +82,11 @@ export default function ExpensesPage() {
           limit: 100,
         },
       });
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+      return res.data;
     },
   });
 
-  const expenses = Array.isArray(expensesData) ? expensesData : [];
+  const expenses = extractDataArray(expensesData);
 
   // Summary KPI Calculations
   const totalAmount = expenses.reduce((sum, exp) => sum + Number(exp.amount || 0), 0);
