@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import {
   Plus,
-  Search,
   Truck,
   CheckCircle2,
   Clock,
@@ -15,9 +14,23 @@ import {
   CreditCard,
   Barcode,
   Printer,
+  FileText,
+  AlertCircle,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
+import {
+  PageHeader,
+  DataTable,
+  Column,
+  Badge,
+  Button,
+  Card,
+  Input,
+  Select,
+  Modal,
+} from '../../components/ui';
+import { SmartAutocomplete } from '../../components/ui/smart-autocomplete';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
@@ -149,29 +162,48 @@ function PurchasesContent() {
           purchasePrice: Number(item.purchasePrice || 0),
           sellingPrice: Number(item.sellingPrice || 0),
           mrp: Number(item.mrp || 0),
-          taxPercent: Number(item.taxPercent || 12),
+          taxPercent: Number(item.taxPercent || 0),
         })),
       };
 
       if (editingPurchase) {
         return apiClient.patch('/purchases/' + editingPurchase.id, payload);
       }
-      return apiClient.post(isDraft ? '/purchases?draft=true' : '/purchases', payload);
+      return apiClient.post('/purchases' + (isDraft ? '?draft=true' : ''), payload);
     },
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['purchases-list'] });
       queryClient.invalidateQueries({ queryKey: ['purchase-orders-list'] });
       setShowCreateModal(false);
+      setEditingPurchase(null);
+      setSupplierId('');
+      setInvoiceNumber('');
       setPurchaseOrderId(null);
       setInitialPaidAmount(0);
-      const isEdit = Boolean(editingPurchase);
-      setEditingPurchase(null);
-      if (!isEdit && res?.data) {
-        setBarcodeModal(res.data?.data || res.data);
+      setNotes('');
+      setItems([
+        {
+          medicineId: '',
+          batchNumber: '',
+          mfgDate: '',
+          expiryDate: '',
+          qty: 1,
+          unitLevel: 'BOX',
+          purchasePrice: 0,
+          sellingPrice: 0,
+          mrp: 0,
+          taxPercent: 12,
+        },
+      ]);
+      const created = res.data?.data || res.data;
+      if (created && Array.isArray(created.items) && created.items.length > 0 && !editingPurchase) {
+        setBarcodeModal(created);
+      } else {
+        alert(editingPurchase ? 'Purchase invoice updated!' : 'Purchase stock inwarded successfully!');
       }
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to save purchase entry.');
+      alert(err.response?.data?.message || err.message || 'Failed to save purchase');
     },
   });
 
@@ -181,10 +213,10 @@ function PurchasesContent() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['purchases-list'] });
-      alert('Purchase entry deleted successfully.');
+      alert('Purchase deleted successfully');
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to delete purchase entry.');
+      alert(err.response?.data?.message || 'Failed to delete purchase');
     },
   });
 
@@ -192,6 +224,8 @@ function PurchasesContent() {
     setEditingPurchase(null);
     setSupplierId('');
     setInvoiceNumber('');
+    setPurchaseOrderId(null);
+    setInitialPaidAmount(0);
     setNotes('');
     setItems([
       {
@@ -210,40 +244,52 @@ function PurchasesContent() {
     setShowCreateModal(true);
   };
 
-  const handleOpenEdit = async (p: any) => {
-    try {
-      const res = await apiClient.get('/purchases/' + p.id);
-      const full = res.data?.data || res.data;
-      setEditingPurchase(full);
-      setSupplierId(full.supplierId || '');
-      setInvoiceNumber(full.invoiceNumber || '');
-      setNotes(full.notes || '');
-      if (Array.isArray(full.items) && full.items.length > 0) {
-        setItems(
-          full.items.map((i: any) => ({
-            medicineId: i.medicineId,
-            batchNumber: i.batchNumber || '',
-            mfgDate: i.mfgDate ? i.mfgDate.split('T')[0] : '',
-            expiryDate: i.expiryDate ? i.expiryDate.split('T')[0] : '',
-            qty: i.qty || 1,
-            unitLevel: i.unitLevel || 'BOX',
-            purchasePrice: i.purchasePrice || 0,
-            sellingPrice: i.sellingPrice || 0,
-            mrp: i.mrp || 0,
-            taxPercent: i.taxPercent || 12,
-          }))
-        );
-      }
-      setShowCreateModal(true);
-    } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to load purchase details');
+  const handleOpenEdit = (p: any) => {
+    setEditingPurchase(p);
+    setSupplierId(p.supplierId || '');
+    setInvoiceNumber(p.invoiceNumber || '');
+    setPurchaseOrderId(p.purchaseOrderId || null);
+    setInitialPaidAmount(p.paidAmount || 0);
+    setNotes(p.notes || '');
+    if (Array.isArray(p.items) && p.items.length > 0) {
+      setItems(
+        p.items.map((i: any) => ({
+          medicineId: i.medicineId,
+          batchNumber: i.batchNumber || i.batch?.batchNumber || '',
+          mfgDate: i.mfgDate ? new Date(i.mfgDate).toISOString().slice(0, 10) : '',
+          expiryDate: i.expiryDate ? new Date(i.expiryDate).toISOString().slice(0, 10) : '',
+          qty: i.qty || 1,
+          unitLevel: i.unitLevel || 'BOX',
+          purchasePrice: i.purchasePrice || 0,
+          sellingPrice: i.sellingPrice || 0,
+          mrp: i.mrp || 0,
+          taxPercent: i.taxPercent || 0,
+        }))
+      );
     }
+    setShowCreateModal(true);
   };
 
   const handleDelete = (p: any) => {
     if (confirm('Are you sure you want to delete purchase invoice #' + p.invoiceNumber + '?')) {
       deletePurchaseMutation.mutate(p.id);
     }
+  };
+
+  const handleItemChange = (index: number, field: string, value: any) => {
+    const updated = [...items];
+    updated[index][field] = value;
+
+    if (field === 'medicineId') {
+      const selectedMed = medicines.find((m: any) => m.id === value);
+      if (selectedMed) {
+        updated[index].purchasePrice = selectedMed.defaultPurchasePrice || selectedMed.mrp * 0.7 || 0;
+        updated[index].sellingPrice = selectedMed.defaultSellingPrice || selectedMed.mrp * 0.9 || 0;
+        updated[index].mrp = selectedMed.mrp || 0;
+        updated[index].taxPercent = selectedMed.taxPercent || 12;
+      }
+    }
+    setItems(updated);
   };
 
   const addItemRow = () => {
@@ -275,7 +321,6 @@ function PurchasesContent() {
       return;
     }
 
-    // Create an isolated invisible print iframe to completely bypass app CSS/modals
     const iframe = document.createElement('iframe');
     iframe.style.position = 'fixed';
     iframe.style.right = '0';
@@ -391,826 +436,721 @@ function PurchasesContent() {
     },
   });
 
-  return (
-    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] overflow-hidden text-slate-900 dark:text-slate-100 font-sans">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-                Purchase Invoices &amp; Inward Stock
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                Manage supplier inward stock, verify batches, and track payable invoices.
-              </p>
-            </div>
-            <button
-              onClick={handleOpenCreate}
-              className="w-full sm:w-auto px-4 py-2.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-lg shadow-sky-500/20 transition active:scale-95"
+  const columns: Column<any>[] = [
+    {
+      key: 'invoiceNumber',
+      header: 'Invoice #',
+      accessor: (p) => (
+        <span className="font-mono font-bold text-accent">
+          {p.invoiceNumber}
+        </span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Date',
+      accessor: (p) => (
+        <span className="font-mono text-text-secondary text-xs">
+          {formatDate(p.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: 'supplier',
+      header: 'Supplier Agency',
+      accessor: (p) => (
+        <span className="font-medium text-text-primary">
+          {p.supplier?.name || '-'}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Inward Status',
+      render: (p) => {
+        const isConfirmed = p.status === 'CONFIRMED' || p.status === 'APPROVED';
+        return (
+          <Badge
+            variant={isConfirmed ? 'success' : 'warning'}
+            size="sm"
+            icon={isConfirmed ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+          >
+            {p.status}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'totalAmount',
+      header: 'Total Bill',
+      align: 'right',
+      accessor: (p) => (
+        <span className="font-mono font-bold text-text-primary">
+          {formatCurrency(Number(p.totalAmount || 0))}
+        </span>
+      ),
+    },
+    {
+      key: 'paidAmount',
+      header: 'Paid Amount',
+      align: 'right',
+      render: (p) => {
+        const paid = p.paidAmount !== undefined
+          ? Number(p.paidAmount)
+          : p.payments ? p.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0;
+        return (
+          <span className="font-mono font-semibold text-status-success">
+            {formatCurrency(paid)}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'balanceDue',
+      header: 'Balance Due',
+      align: 'right',
+      render: (p) => {
+        const total = Number(p.totalAmount || 0);
+        const paid = p.paidAmount !== undefined
+          ? Number(p.paidAmount)
+          : p.payments ? p.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0;
+        const bal = p.balanceDue !== undefined ? Number(p.balanceDue) : Math.max(0, total - paid);
+        return (
+          <span className="font-mono font-bold text-status-error">
+            {formatCurrency(bal)}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'paymentStatus',
+      header: 'Payment Status',
+      align: 'center',
+      render: (p) => {
+        const total = Number(p.totalAmount || 0);
+        const paid = p.paidAmount !== undefined
+          ? Number(p.paidAmount)
+          : p.payments ? p.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0;
+        const bal = p.balanceDue !== undefined ? Number(p.balanceDue) : Math.max(0, total - paid);
+        const isPaid = paid >= total && total > 0;
+        const isPartial = paid > 0 && paid < total;
+
+        if (isPaid) {
+          return (
+            <Badge variant="success" size="sm" dot>
+              PAID (₹{paid.toLocaleString('en-IN')})
+            </Badge>
+          );
+        }
+        if (isPartial) {
+          return (
+            <Badge variant="warning" size="sm" dot>
+              PARTIAL (Due: ₹{bal.toLocaleString('en-IN')})
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="error" size="sm" dot>
+            UNPAID (Due: ₹{total.toLocaleString('en-IN')})
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: 'Actions / Labels',
+      align: 'center',
+      render: (p) => {
+        const total = Number(p.totalAmount || 0);
+        const paid = p.paidAmount !== undefined
+          ? Number(p.paidAmount)
+          : p.payments ? p.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0;
+        const bal = p.balanceDue !== undefined ? Number(p.balanceDue) : Math.max(0, total - paid);
+
+        return (
+          <div className="flex items-center justify-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBarcodeModal(p)}
+              title="Print A4 / Thermal Barcode Shelf Labels"
+              className="text-accent border-border"
+              leftIcon={<Barcode className="w-3.5 h-3.5" />}
             >
-              <Plus className="w-4 h-4" />
-              New Purchase Inward (Stock In)
-            </button>
+              <span className="hidden sm:inline">Labels</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPaymentModal(p);
+                setPaymentAmount(bal > 0 ? bal : total);
+              }}
+              title="Record Payment"
+              className="text-status-success border-border"
+              leftIcon={<CreditCard className="w-3.5 h-3.5" />}
+            >
+              <span className="hidden sm:inline">Pay</span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleOpenEdit(p)}
+              title="Edit Purchase"
+              className="w-7 h-7 p-0 text-text-secondary hover:text-accent"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => handleDelete(p)}
+              title="Delete Purchase"
+              className="w-7 h-7 p-0 text-status-error hover:bg-status-error-bg"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
           </div>
+        );
+      },
+    },
+  ];
 
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search purchases by invoice #, supplier agency name..."
+  return (
+    <div className="flex h-screen bg-surface-page text-text-primary font-sans transition-colors duration-200 overflow-hidden">
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        <Header />
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6 pb-16 lg:pb-0 animate-fade-in">
+          {/* Header */}
+          <PageHeader
+            title="Purchase Invoices & Inward Stock"
+            description="Manage supplier inward stock, verify batches, and track payable invoices."
+            actions={
+              <Button
+                variant="primary"
+                onClick={handleOpenCreate}
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                New Purchase Inward (Stock In)
+              </Button>
+            }
+          />
+
+          {/* Search Bar */}
+          <Card elevation="flat" className="p-3">
+            <SmartAutocomplete
+              placeholder="Search purchases by invoice #, supplier agency name, mobile, GST... (First char instant)"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:border-sky-500 shadow-sm"
+              onChange={(val) => setSearch(val)}
+              onClear={() => setSearch('')}
+              fetchResults={async (q, signal) => {
+                const res = await apiClient.get('/search/universal', {
+                  params: { q, branchId: selectedBranchId || undefined, limit: 12 },
+                  signal,
+                });
+                return (res.data?.results || []).map((item: any) => ({
+                  id: item.id,
+                  title: item.title,
+                  subtitle: item.subtitle,
+                  badge: item.badge,
+                  metadata: item.metadata,
+                }));
+              }}
+              onSelect={(item) => {
+                setSearch(item.title);
+              }}
+              inputClassName="!py-2 !text-xs !rounded-lg"
             />
-          </div>
+          </Card>
 
-          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs min-w-[900px]">
-                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase font-bold tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Invoice #</th>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Supplier Agency</th>
-                    <th className="py-3 px-4">Inward Status</th>
-                    <th className="py-3 px-4 text-right">Total Bill</th>
-                    <th className="py-3 px-4 text-right">Paid Amount</th>
-                    <th className="py-3 px-4 text-right">Balance Due</th>
-                    <th className="py-3 px-4 text-center">Payment Status</th>
-                    <th className="py-3 px-4 text-center">Actions / Labels</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                        Loading purchase entries...
-                      </td>
-                    </tr>
-                  ) : purchases.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                        No purchase bills recorded.
-                      </td>
-                    </tr>
-                  ) : (
-                    purchases.map((p: any) => {
-                      const totalAmount = Number(p.totalAmount || 0);
-                      const paidAmount = p.paidAmount !== undefined ? Number(p.paidAmount) : (p.payments ? p.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0);
-                      const balanceDue = p.balanceDue !== undefined ? Number(p.balanceDue) : Math.max(0, totalAmount - paidAmount);
-                      const isPaid = paidAmount >= totalAmount && totalAmount > 0;
-                      const isPartial = paidAmount > 0 && paidAmount < totalAmount;
-
-                      return (
-                        <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="py-3 px-4 font-bold font-mono text-sky-600 dark:text-sky-400">{p.invoiceNumber}</td>
-                          <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono">{formatDate(p.createdAt)}</td>
-                          <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">{p.supplier?.name || '-'}</td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={'px-2 py-0.5 rounded text-[10px] font-bold inline-flex items-center gap-1 ' + (
-                                p.status === 'CONFIRMED' || p.status === 'APPROVED'
-                                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                                  : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
-                              )}
-                            >
-                              {p.status === 'CONFIRMED' ? (
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
-                              ) : (
-                                <Clock className="w-3 h-3 text-amber-600 dark:text-amber-400" />
-                              )}
-                              {p.status}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                            {formatCurrency(totalAmount)}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-semibold text-emerald-600 dark:text-emerald-400">
-                            {formatCurrency(paidAmount)}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-red-600 dark:text-red-400">
-                            {formatCurrency(balanceDue)}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {isPaid ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
-                                PAID (₹{paidAmount.toLocaleString('en-IN')})
-                              </span>
-                            ) : isPartial ? (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
-                                PARTIAL (Due: ₹{balanceDue.toLocaleString('en-IN')})
-                              </span>
-                            ) : (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-300 dark:border-rose-800">
-                                UNPAID (Due: ₹{totalAmount.toLocaleString('en-IN')})
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                onClick={() => setBarcodeModal(p)}
-                                title="Print A4 / Thermal Barcode Shelf Labels"
-                                className="p-1.5 bg-sky-50 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-sky-200 dark:border-slate-700 transition"
-                              >
-                                <Barcode className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Labels</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setPaymentModal(p);
-                                  setPaymentAmount(balanceDue > 0 ? balanceDue : totalAmount);
-                                }}
-                                title="Record Payment"
-                                className="p-1.5 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg text-[10px] font-semibold flex items-center gap-1 border border-emerald-200 dark:border-slate-700 transition"
-                              >
-                                <CreditCard className="w-3.5 h-3.5" />
-                                <span className="hidden sm:inline">Pay</span>
-                              </button>
-                              <button
-                                onClick={() => handleOpenEdit(p)}
-                                title="Edit Purchase"
-                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                onClick={() => handleDelete(p)}
-                                title="Delete Purchase"
-                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {/* Purchases Table */}
+          <DataTable
+            columns={columns}
+            data={purchases}
+            isLoading={isLoading}
+            emptyTitle="No purchase bills recorded"
+            emptyDescription="There are no purchase records matching your criteria."
+            compact
+          />
         </main>
 
+        {/* Create / Edit Purchase Modal */}
         {showCreateModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-4xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh] text-slate-900 dark:text-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2">
-                  <Truck className="w-5 h-5 text-sky-600" />
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                    {editingPurchase ? 'Edit Purchase Inward Entry' : 'New Purchase Inward Entry'}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+          <Modal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            size="xl"
+            title={
+              <div className="flex items-center gap-2 text-accent">
+                <Truck className="w-5 h-5" />
+                <span>{editingPurchase ? 'Edit Purchase Inward Entry' : 'New Purchase Inward Entry'}</span>
+              </div>
+            }
+            description="Enter purchase inward bill, suppliers, batch details, and pricing."
+          >
+            <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <Select
+                  label="Supplier Agency *"
+                  required
+                  value={supplierId}
+                  onChange={(e) => setSupplierId(e.target.value)}
+                  options={[
+                    { label: 'Select Supplier...', value: '' },
+                    ...suppliers.map((s: any) => ({
+                      label: `${s.name} (${s.phone || 'No phone'})`,
+                      value: s.id,
+                    })),
+                  ]}
+                />
+
+                <Input
+                  label="Supplier Invoice #"
+                  value={invoiceNumber}
+                  onChange={(e) => setInvoiceNumber(e.target.value)}
+                  placeholder="e.g. INV-98124"
+                />
+
+                <Input
+                  label="Inward Notes / PO Ref"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="e.g. Stock from central warehouse"
+                />
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Supplier Agency *
-                    </label>
-                    <select
-                      required
-                      value={supplierId}
-                      onChange={(e) => setSupplierId(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    >
-                      <option value="">Select Supplier...</option>
-                      {suppliers.map((s: any) => (
-                        <option key={s.id} value={s.id}>
-                          {s.name} (Ph: {s.phone})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Supplier Invoice / Bill No
-                    </label>
-                    <input
-                      type="text"
-                      value={invoiceNumber}
-                      onChange={(e) => setInvoiceNumber(e.target.value)}
-                      placeholder="Auto-generated if blank (e.g. INV-9842)"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Notes / PO Reference
-                    </label>
-                    <input
-                      type="text"
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      placeholder="e.g. Inward from PO #PO-2026-001"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
+              {/* Items Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-text-primary text-xs">Inward Batch Line Items:</span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={addItemRow}
+                    leftIcon={<Plus className="w-3.5 h-3.5" />}
+                  >
+                    Add Medicine Row
+                  </Button>
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 dark:text-slate-200">
-                      Inward Line Items &amp; Batches:
-                    </span>
-                    <button
-                      type="button"
-                      onClick={addItemRow}
-                      className="px-2.5 py-1 bg-sky-50 dark:bg-sky-950 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900 border border-sky-200 dark:border-sky-800 rounded-lg text-xs font-semibold flex items-center gap-1"
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                  {items.map((item: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-3 bg-surface-raised rounded-lg border border-border grid grid-cols-12 gap-2 items-center text-xs"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add Medicine Line
-                    </button>
-                  </div>
-
-                  <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {items.map((item: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-12 gap-2 items-center"
-                      >
-                        <div className="col-span-3">
-                          <label className="text-[10px] text-slate-500 block">Medicine</label>
-                          <select
-                            value={item.medicineId}
-                            onChange={(e) => {
-                              const med = medicines.find((m: any) => m.id === e.target.value);
-                              const updated = [...items];
-                              updated[idx].medicineId = e.target.value;
-                              if (med) {
-                                updated[idx].mrp = med.mrp || 0;
-                                updated[idx].sellingPrice = med.defaultSellingPrice || 0;
-                                updated[idx].taxPercent = med.taxPercent || 12;
-                              }
-                              setItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg text-xs focus:outline-none focus:border-sky-500"
-                          >
-                            <option value="">Select Medicine...</option>
-                            {medicines.map((m: any) => (
-                              <option key={m.id} value={m.id}>
-                                {m.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div className="col-span-2">
-                          <label className="text-[10px] text-slate-500 block">Batch No *</label>
-                          <input
-                            type="text"
-                            placeholder="e.g. BT-9021"
-                            value={item.batchNumber}
-                            onChange={(e) => {
-                              const updated = [...items];
-                              updated[idx].batchNumber = e.target.value;
-                              setItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs uppercase focus:outline-none focus:border-sky-500"
-                          />
-                        </div>
-
-                        <div className="col-span-2">
-                          <label className="text-[10px] text-slate-500 block">Expiry Date *</label>
-                          <input
-                            type="date"
-                            value={item.expiryDate}
-                            onChange={(e) => {
-                              const updated = [...items];
-                              updated[idx].expiryDate = e.target.value;
-                              setItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs focus:outline-none focus:border-sky-500"
-                          />
-                        </div>
-
-                        <div className="col-span-1">
-                          <label className="text-[10px] text-slate-500 block">Qty</label>
-                          <input
-                            type="number"
-                            min="1"
-                            placeholder="1"
-                            value={item.qty === 0 ? '' : item.qty}
-                            onFocus={(e: any) => e.target.select()}
-                            onChange={(e) => {
-                              const updated = [...items];
-                              updated[idx].qty = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
-                              setItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs text-center focus:outline-none focus:border-sky-500"
-                          />
-                        </div>
-
-                        <div className="col-span-2">
-                          <label className="text-[10px] text-slate-500 block">Purchase Cost (₹)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="0"
-                            value={item.purchasePrice === 0 ? '' : item.purchasePrice}
-                            onFocus={(e: any) => e.target.select()}
-                            onChange={(e) => {
-                              const updated = [...items];
-                              updated[idx].purchasePrice =
-                                e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                              setItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs text-right focus:outline-none focus:border-sky-500"
-                          />
-                        </div>
-
-                        <div className="col-span-1">
-                          <label className="text-[10px] text-slate-500 block">MRP (₹)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            placeholder="0"
-                            value={item.mrp === 0 ? '' : item.mrp}
-                            onFocus={(e: any) => e.target.select()}
-                            onChange={(e) => {
-                              const updated = [...items];
-                              updated[idx].mrp = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                              setItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white rounded-lg font-mono text-xs text-right focus:outline-none focus:border-sky-500"
-                          />
-                        </div>
-
-                        <div className="col-span-1 text-center pt-3">
-                          {items.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => removeItemRow(idx)}
-                              className="text-red-500 hover:text-red-700 p-1"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
+                      <div className="col-span-12 sm:col-span-3">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Medicine *</label>
+                        <select
+                          required
+                          value={item.medicineId}
+                          onChange={(e) => handleItemChange(idx, 'medicineId', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs text-text-primary focus:outline-none focus:border-accent"
+                        >
+                          <option value="">Select Medicine...</option>
+                          {medicines.map((m: any) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    ))}
-                  </div>
-                </div>
 
-                {/* Optional Initial / Advance Payment */}
-                {!editingPurchase && (
-                  <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-200/80 dark:border-emerald-900/50 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 text-xs">
-                        <CreditCard className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                        Optional Initial / Advance Payment (₹)
-                      </span>
-                      <span className="text-[10px] text-slate-500">Leave 0 if full invoice is unpaid/credit</span>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Initial Paid Amount (₹)
-                        </label>
+                      <div className="col-span-4 sm:col-span-2">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Batch #</label>
+                        <input
+                          type="text"
+                          value={item.batchNumber}
+                          placeholder="Auto if blank"
+                          onChange={(e) => handleItemChange(idx, 'batchNumber', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div className="col-span-4 sm:col-span-2">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Expiry Date</label>
+                        <input
+                          type="date"
+                          value={item.expiryDate}
+                          onChange={(e) => handleItemChange(idx, 'expiryDate', e.target.value)}
+                          className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div className="col-span-4 sm:col-span-1">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Qty</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.qty}
+                          onChange={(e) => handleItemChange(idx, 'qty', parseInt(e.target.value) || 1)}
+                          className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-center text-text-primary focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div className="col-span-4 sm:col-span-1">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Cost (₹)</label>
                         <input
                           type="number"
                           step="0.01"
-                          min="0"
-                          value={initialPaidAmount === 0 ? '' : initialPaidAmount}
-                          placeholder="0 (Unpaid / Full Credit)"
-                          onFocus={(e: any) => e.target.select()}
-                          onChange={(e) => setInitialPaidAmount(parseFloat(e.target.value) || 0)}
-                          className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500 text-xs"
+                          value={item.purchasePrice}
+                          onChange={(e) => handleItemChange(idx, 'purchasePrice', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-right text-text-primary focus:outline-none focus:border-accent"
                         />
                       </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Payment Mode
-                        </label>
-                        <select
-                          value={initialPaymentMode}
-                          onChange={(e: any) => setInitialPaymentMode(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 text-xs"
+
+                      <div className="col-span-4 sm:col-span-1">
+                        <label className="text-[10px] text-text-muted block mb-0.5">MRP (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.mrp}
+                          onChange={(e) => handleItemChange(idx, 'mrp', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-right text-text-primary focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div className="col-span-4 sm:col-span-1">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Tax %</label>
+                        <input
+                          type="number"
+                          value={item.taxPercent}
+                          onChange={(e) => handleItemChange(idx, 'taxPercent', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-center text-text-primary focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div className="col-span-1 flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onClick={() => removeItemRow(idx)}
+                          className="w-6 h-6 p-0 text-status-error hover:bg-status-error-bg"
                         >
-                          <option value={PaymentMode.BANK_TRANSFER}>Bank Transfer (NEFT/RTGS/IMPS)</option>
-                          <option value={PaymentMode.UPI}>UPI / QR</option>
-                          <option value={PaymentMode.CASH}>Cash</option>
-                          <option value={PaymentMode.CARD}>Card / POS</option>
-                          <option value={PaymentMode.CHEQUE}>Cheque</option>
-                        </select>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                )}
-
-                <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => createPurchaseMutation.mutate(true)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-xl"
-                  >
-                    Save as Draft
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => createPurchaseMutation.mutate(false)}
-                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl shadow"
-                  >
-                    Confirm &amp; Update Stock
-                  </button>
+                  ))}
                 </div>
               </div>
-            </div>
-          </div>
-        )}        {barcodeModal && (() => {
-          const rawItems = barcodeModal?.items || [];
-          let printStickers: any[] = [];
-          if (barcodeQtyMode === 'BATCH_QTY') {
-            rawItems.forEach((item: any) => {
-              const count = Math.max(1, Number(item.qty || 1));
-              for (let k = 0; k < count; k++) {
-                printStickers.push(item);
-              }
-            });
-          } else if (barcodeQtyMode === 'FILL_PAGE') {
-            const targetCount = barcodeLayout === 'A4_24' ? 24 : 30;
-            if (rawItems.length > 0) {
-              for (let k = 0; k < targetCount; k++) {
-                printStickers.push(rawItems[k % rawItems.length]);
-              }
-            }
-          } else {
-            const targetCount = Math.max(1, Number(customLabelCount || 1));
-            if (rawItems.length > 0) {
-              for (let k = 0; k < targetCount; k++) {
-                printStickers.push(rawItems[k % rawItems.length]);
-              }
-            }
-          }
 
-          const gridClass =
-            barcodeLayout === 'A4_30'
-              ? 'print-grid-a4-30 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5'
-              : barcodeLayout === 'A4_24'
-              ? 'print-grid-a4-24 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5'
-              : 'print-grid-thermal grid grid-cols-1 gap-2';
+              {/* Initial Payment Options */}
+              <Card elevation="flat" className="p-3 space-y-3 bg-surface-raised">
+                <span className="font-semibold text-text-primary text-xs flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-accent" />
+                  Initial Inward Payment (Optional)
+                </span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    label="Paid Amount Upfront (₹)"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={initialPaidAmount}
+                    onChange={(e) => setInitialPaidAmount(parseFloat(e.target.value) || 0)}
+                    placeholder="0.00"
+                  />
+
+                  <Select
+                    label="Payment Mode"
+                    value={initialPaymentMode}
+                    onChange={(e: any) => setInitialPaymentMode(e.target.value)}
+                    options={[
+                      { label: 'Bank Transfer (NEFT/RTGS)', value: PaymentMode.BANK_TRANSFER },
+                      { label: 'UPI / QR Code', value: PaymentMode.UPI },
+                      { label: 'Cash', value: PaymentMode.CASH },
+                      { label: 'Credit / Debit Card', value: PaymentMode.CARD },
+                      { label: 'Cheque', value: PaymentMode.CHEQUE },
+                    ]}
+                  />
+                </div>
+              </Card>
+
+              {/* Action Buttons */}
+              <div className="pt-3 border-t border-border flex justify-end gap-3">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={createPurchaseMutation.isPending}
+                  onClick={() => createPurchaseMutation.mutate(true)}
+                >
+                  Save as Draft
+                </Button>
+                <Button
+                  variant="primary"
+                  type="button"
+                  disabled={createPurchaseMutation.isPending}
+                  onClick={() => createPurchaseMutation.mutate(false)}
+                  leftIcon={<CheckCircle2 className="w-4 h-4" />}
+                >
+                  {createPurchaseMutation.isPending ? 'Inwarding...' : 'Confirm & Inward Stock'}
+                </Button>
+              </div>
+            </div>
+          </Modal>
+        )}
+
+        {/* Barcode Shelf Labels Generator Modal */}
+        {barcodeModal && (() => {
+          const rawItems = Array.isArray(barcodeModal.items) ? barcodeModal.items : [];
+          const labelList: any[] = [];
+
+          rawItems.forEach((it: any) => {
+            const medName = it.medicine?.name || it.medicineName || 'Medicine Item';
+            const bNum = it.batchNumber || it.batch?.batchNumber || 'BT-001';
+            const exp = it.expiryDate ? formatDate(it.expiryDate) : 'N/A';
+            const mrpVal = it.mrp || (it.sellingPrice ? it.sellingPrice * 1.1 : 0);
+            const sellVal = it.sellingPrice || it.mrp || 0;
+            const barcodeVal = it.medicine?.barcode || it.barcode || bNum;
+
+            let count = 1;
+            if (barcodeQtyMode === 'BATCH_QTY') {
+              count = Math.max(1, Math.min(Number(it.qty || 1), 100));
+            } else if (barcodeQtyMode === 'CUSTOM') {
+              count = Math.max(1, Math.min(customLabelCount, 100));
+            } else {
+              count = barcodeLayout === 'A4_24' ? 24 : 30;
+            }
+
+            for (let i = 0; i < count; i++) {
+              labelList.push({
+                medName,
+                bNum,
+                exp,
+                mrpVal,
+                sellVal,
+                barcodeVal,
+              });
+            }
+          });
 
           return (
-            <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 print:p-0 print:bg-white print:static print-modal-container">
-              <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-4xl w-full p-6 space-y-4 text-xs print:shadow-none print:border-none print:w-full print:max-w-none print:p-0">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800 print:hidden">
-                  <div className="flex items-center gap-2">
-                    <Barcode className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                    <div>
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                        Barcode Shelf Labels Generator &amp; A4 Print Engine
-                      </h3>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Invoice #{barcodeModal.invoiceNumber} | Received {rawItems.length} Batch item(s)
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setBarcodeModal(null)}
-                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-350 transition"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+            <Modal
+              isOpen={Boolean(barcodeModal)}
+              onClose={() => setBarcodeModal(null)}
+              size="xl"
+              title={
+                <div className="flex items-center gap-2 text-accent">
+                  <Barcode className="w-5 h-5" />
+                  <span>Print Barcode Shelf Labels — Invoice #{barcodeModal.invoiceNumber}</span>
                 </div>
-
-                {/* Print Customization Controls (Hidden in Print) */}
-                <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 print:hidden">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              }
+              description="Configure barcode sticker format, quantity rules, and print to sticker sheets or thermal roll."
+            >
+              <div className="space-y-4 pt-2">
+                {/* Configuration Bar */}
+                <div className="p-3 bg-surface-raised rounded-xl border border-border flex flex-wrap gap-4 items-center justify-between">
+                  <div className="flex flex-wrap items-center gap-3">
                     <div>
-                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        1. Sheet Format / Printer Type
+                      <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                        Sticker Sheet Layout
                       </label>
                       <select
                         value={barcodeLayout}
                         onChange={(e: any) => setBarcodeLayout(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-medium"
+                        className="px-2.5 py-1.5 bg-surface-base border border-border rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:border-accent"
                       >
-                        <option value="A4_30">A4 Sheet (30 Labels - 3x10 Grid)</option>
-                        <option value="A4_24">A4 Sheet (24 Labels - 3x8 Grid)</option>
-                        <option value="THERMAL">Thermal Roll (50x25mm / 40x20mm)</option>
+                        <option value="A4_30">A4 Sheet — 30 Labels (3 × 10 Grid)</option>
+                        <option value="A4_24">A4 Sheet — 24 Labels (3 × 8 Grid)</option>
+                        <option value="THERMAL">Direct Thermal Roll (50mm × 25mm)</option>
                       </select>
                     </div>
 
                     <div>
-                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        2. Label Quantity Mode
+                      <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                        Quantity Generation Rule
                       </label>
                       <select
                         value={barcodeQtyMode}
                         onChange={(e: any) => setBarcodeQtyMode(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-medium"
+                        className="px-2.5 py-1.5 bg-surface-base border border-border rounded-lg text-xs font-semibold text-text-primary focus:outline-none focus:border-accent"
                       >
-                        <option value="FILL_PAGE">Fill Complete A4 Page ({barcodeLayout === 'A4_24' ? 24 : 30} Stickers)</option>
-                        <option value="BATCH_QTY">Match Inward Batch Stock Count</option>
-                        <option value="CUSTOM">Custom Number of Stickers</option>
+                        <option value="FILL_PAGE">Full Sheet (Fill standard page)</option>
+                        <option value="BATCH_QTY">Match Inward Qty (1 sticker per unit)</option>
+                        <option value="CUSTOM">Custom Sticker Count</option>
                       </select>
                     </div>
 
                     {barcodeQtyMode === 'CUSTOM' && (
                       <div>
-                        <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                          Exact Sticker Count
+                        <label className="text-[11px] font-semibold text-text-secondary block mb-1">
+                          Count Per Item
                         </label>
                         <input
                           type="number"
                           min="1"
-                          max="200"
+                          max="100"
                           value={customLabelCount}
-                          onChange={(e: any) => setCustomLabelCount(parseInt(e.target.value) || 1)}
-                          className="w-full px-3 py-1.5 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-lg text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
+                          onChange={(e) => setCustomLabelCount(parseInt(e.target.value) || 1)}
+                          className="w-20 px-2 py-1.5 bg-surface-base border border-border rounded-lg text-xs font-mono text-center text-text-primary"
                         />
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-200 dark:border-slate-800/60">
-                    <span>Generating <strong>{printStickers.length}</strong> barcode sticker(s). All medicine, batch, expiry, and MRP information is encoded.</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold">✓ Compatible with all 1D laser &amp; optical POS scanners</span>
-                  </div>
-                </div>
 
-                <div
-                  ref={labelPrintRef}
-                  className="space-y-3 max-h-[50vh] overflow-y-auto p-3 bg-slate-50 dark:bg-[#090d16] rounded-xl border border-slate-200 dark:border-slate-800 print:p-0 print:border-none print:bg-white print:max-h-none print:overflow-visible"
-                >
-                  {/* Print Stylesheet Overrides */}
-                  <style dangerouslySetInnerHTML={{ __html: `
-                    @media print {
-                      @page {
-                        size: A4 portrait;
-                        margin: 8mm 6mm 8mm 6mm;
-                      }
-                      body * {
-                        visibility: hidden !important;
-                      }
-                      #label-print-area, #label-print-area * {
-                        visibility: visible !important;
-                      }
-                      #label-print-area {
-                        position: absolute !important;
-                        left: 0 !important;
-                        top: 0 !important;
-                        width: 100% !important;
-                        background: white !important;
-                        color: black !important;
-                        padding: 0 !important;
-                        margin: 0 !important;
-                        display: grid !important;
-                      }
-                      .print-grid-a4-30 {
-                        grid-template-columns: repeat(3, 1fr) !important;
-                        gap: 2.5mm !important;
-                      }
-                      .print-grid-a4-24 {
-                        grid-template-columns: repeat(3, 1fr) !important;
-                        gap: 3.5mm !important;
-                      }
-                      .print-grid-thermal {
-                        grid-template-columns: 1fr !important;
-                        gap: 2mm !important;
-                      }
-                      .print-label-card {
-                        background: #ffffff !important;
-                        color: #000000 !important;
-                        border: 1px solid #111111 !important;
-                        border-radius: 4px !important;
-                        padding: 4px 6px !important;
-                        box-sizing: border-box !important;
-                        page-break-inside: avoid !important;
-                        break-inside: avoid !important;
-                        display: flex !important;
-                        flex-direction: column !important;
-                        justify-content: space-between !important;
-                        height: 86px !important;
-                      }
-                      .print-label-card * {
-                        color: #000000 !important;
-                        background: transparent !important;
-                      }
-                    }
-                  `}} />
-
-                  <div id="label-print-area" className={gridClass}>
-                    {printStickers.map((item: any, idx: number) => {
-                      const medicine =
-                        medicines.find((m: any) => m.id === item.medicineId) || item.medicine;
-                      const barcodeVal = medicine?.barcodes?.[0]?.barcodeValue || medicine?.barcode || medicine?.sku || item.batchNumber || 'N/A';
-                      const composition = medicine?.genericName || medicine?.composition || '';
-
-                      return (
-                        <div
-                          key={idx}
-                          className="p-2.5 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-800 rounded-lg flex flex-col justify-between text-center print-label-card shadow-sm"
-                          style={{ minHeight: '86px' }}
-                        >
-                          <div>
-                            <div className="flex items-center justify-between gap-1">
-                              <span className="font-extrabold text-[11px] text-slate-900 dark:text-white truncate text-left w-full">
-                                {medicine?.name || 'MEDICINE'}
-                              </span>
-                              <span className="text-[9px] font-bold text-slate-500 font-mono shrink-0">
-                                {medicine?.dosageForm || 'TAB'}
-                              </span>
-                            </div>
-                            {composition && (
-                              <p className="text-[8.5px] text-slate-500 dark:text-slate-400 truncate text-left mt-0.5">
-                                {composition}
-                              </p>
-                            )}
-                            <div className="flex items-center justify-between text-[9px] text-slate-600 dark:text-slate-400 font-mono font-semibold mt-0.5 border-t border-slate-100 dark:border-slate-800/80 pt-0.5">
-                              <span>B.No: {item.batchNumber}</span>
-                              <span>
-                                EXP: {item.expiryDate ? formatDate(item.expiryDate, 'MM/yyyy') : '-'}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Graphical Barcode component */}
-                          <div className="my-0.5 flex items-center justify-center overflow-hidden bg-white p-0.5 rounded">
-                            {barcodeVal !== 'N/A' ? (
-                              <ReactBarcode
-                                value={barcodeVal}
-                                width={1.1}
-                                height={26}
-                                fontSize={8}
-                                margin={0}
-                                displayValue={false}
-                              />
-                            ) : (
-                              <span className="text-[9px] text-slate-400">NO BARCODE</span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center justify-between text-[9.5px] font-bold text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800 pt-0.5">
-                            <span className="text-slate-600 dark:text-slate-400">MRP: {formatCurrency(item.mrp || 0)}</span>
-                            <span className="font-mono text-[8.5px] text-slate-500">{barcodeVal}</span>
-                            <span className="text-emerald-700 dark:text-emerald-400 font-extrabold">
-                              OUR: {formatCurrency(item.sellingPrice || item.mrp || 0)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-3 border-t border-slate-200 dark:border-slate-800 print:hidden">
-                  <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    Total Stickers Ready: <strong className="text-slate-900 dark:text-white">{printStickers.length}</strong>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setBarcodeModal(null)}
-                      className="px-4 py-2 border border-slate-300 dark:border-slate-800 rounded-xl font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition"
-                    >
-                      Close
-                    </button>
-                    <button
-                      type="button"
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" size="sm" className="font-mono">
+                      {labelList.length} Stickers
+                    </Badge>
+                    <Button
+                      variant="primary"
                       onClick={handlePrintLabels}
-                      className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-sky-500/20 transition active:scale-95"
+                      leftIcon={<Printer className="w-3.5 h-3.5" />}
                     >
-                      <Printer className="w-4 h-4" />
-                      Print Labels ({barcodeLayout === 'THERMAL' ? 'Roll' : 'A4 Sheet'})
-                    </button>
+                      Print Stickers
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Live Preview Container */}
+                <div className="bg-surface-raised p-4 rounded-xl border border-border max-h-[50vh] overflow-y-auto">
+                  <div
+                    id="label-print-area"
+                    ref={labelPrintRef}
+                    className={`grid gap-2 bg-white text-black p-3 rounded-lg border border-border ${
+                      barcodeLayout === 'THERMAL' ? 'grid-cols-1 max-w-xs mx-auto' : 'grid-cols-3'
+                    }`}
+                  >
+                    {labelList.map((lbl: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="print-label-card border border-neutral-800 rounded p-1.5 flex flex-col justify-between bg-white text-black h-24 text-[10px] overflow-hidden"
+                      >
+                        <div className="flex justify-between items-start leading-tight">
+                          <span className="font-bold truncate max-w-[130px]">{lbl.medName}</span>
+                          <span className="font-mono font-semibold text-[9px]">₹{Number(lbl.sellVal).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-[9px] text-neutral-600 font-mono">
+                          <span>B:{lbl.bNum}</span>
+                          <span>EXP:{lbl.exp}</span>
+                        </div>
+                        <div className="flex justify-center my-0.5">
+                          <ReactBarcode
+                            value={lbl.barcodeVal || lbl.bNum || '000000'}
+                            width={1.1}
+                            height={20}
+                            fontSize={8}
+                            margin={0}
+                            displayValue={true}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
-            </div>
+            </Modal>
           );
         })()}
 
+        {/* Record Payment Modal */}
         {paymentModal && (() => {
           const totalAmount = Number(paymentModal.totalAmount || 0);
-          const paidAmount = paymentModal.paidAmount !== undefined ? Number(paymentModal.paidAmount) : (paymentModal.payments ? paymentModal.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0);
-          const balanceDue = paymentModal.balanceDue !== undefined ? Number(paymentModal.balanceDue) : Math.max(0, totalAmount - paidAmount);
+          const paidAmount = paymentModal.paidAmount !== undefined
+            ? Number(paymentModal.paidAmount)
+            : paymentModal.payments ? paymentModal.payments.reduce((s: number, pay: any) => s + Number(pay.amount || 0), 0) : 0;
+          const balanceDue = paymentModal.balanceDue !== undefined
+            ? Number(paymentModal.balanceDue)
+            : Math.max(0, totalAmount - paidAmount);
 
           return (
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-md w-full p-6 space-y-4 text-xs text-slate-900 dark:text-slate-100">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                  <div className="flex items-center gap-2">
-                    <CreditCard className="w-5 h-5 text-emerald-600" />
-                    <div>
-                      <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                        Record Supplier Bill Payment
-                      </h3>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                        Invoice #{paymentModal.invoiceNumber}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setPaymentModal(null)}
-                    className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+            <Modal
+              isOpen={Boolean(paymentModal)}
+              onClose={() => setPaymentModal(null)}
+              title={
+                <div className="flex items-center gap-2 text-status-success">
+                  <CreditCard className="w-5 h-5" />
+                  <span>Record Supplier Payment — Invoice #{paymentModal.invoiceNumber}</span>
                 </div>
-
-                <div className="space-y-3">
-                  <div className="p-3.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span className="text-slate-500">Supplier:</span>
-                      <span className="font-bold text-slate-900 dark:text-white">{paymentModal.supplier?.name}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-slate-500">Total Bill Amount:</span>
-                      <span className="font-bold font-mono text-slate-900 dark:text-white">
-                        {formatCurrency(totalAmount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-medium">Already Paid:</span>
-                      <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(paidAmount)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-xs pt-1.5 border-t border-slate-200 dark:border-slate-800">
-                      <span className="text-red-600 dark:text-red-400 font-bold">Remaining Balance Due:</span>
-                      <span className="font-extrabold font-mono text-sm text-red-600 dark:text-red-400">
-                        {formatCurrency(balanceDue)}
-                      </span>
-                    </div>
+              }
+              description={`Payable to supplier: ${paymentModal.supplier?.name || 'Supplier Agency'}`}
+            >
+              <div className="space-y-4 pt-2">
+                <Card elevation="flat" className="p-3 space-y-2 bg-surface-raised">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-text-muted">Supplier Agency:</span>
+                    <span className="font-semibold text-text-primary">{paymentModal.supplier?.name || '-'}</span>
                   </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Payment Amount (₹) *
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0.01"
-                      value={paymentAmount}
-                      onChange={(e: any) => setPaymentAmount(parseFloat(e.target.value) || 0)}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono text-sm font-bold focus:outline-none focus:border-emerald-500"
-                    />
-                    <p className="text-[10px] text-slate-500 mt-1">
-                      Enter partial amount (e.g. ₹20,000) or full remaining balance (₹{balanceDue.toLocaleString('en-IN')}).
-                    </p>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-text-muted">Total Bill Amount:</span>
+                    <span className="font-bold font-mono text-text-primary">
+                      {formatCurrency(totalAmount)}
+                    </span>
                   </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Payment Mode
-                    </label>
-                    <select
-                      value={paymentMode}
-                      onChange={(e: any) => setPaymentMode(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500"
-                    >
-                      <option value={PaymentMode.BANK_TRANSFER}>Bank Transfer (NEFT/RTGS/IMPS)</option>
-                      <option value={PaymentMode.UPI}>UPI / QR Code</option>
-                      <option value={PaymentMode.CASH}>Cash</option>
-                      <option value={PaymentMode.CARD}>Credit / Debit Card</option>
-                      <option value={PaymentMode.CHEQUE}>Cheque</option>
-                    </select>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-status-success font-medium">Already Paid:</span>
+                    <span className="font-bold font-mono text-status-success">
+                      {formatCurrency(paidAmount)}
+                    </span>
                   </div>
-
-                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentModal(null)}
-                      className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        recordPaymentMutation.mutate({
-                          id: paymentModal.id,
-                          amount: paymentAmount,
-                          paymentMode,
-                        })
-                      }
-                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20 active:scale-95 transition"
-                    >
-                      Confirm Payment (₹{paymentAmount.toLocaleString('en-IN')})
-                    </button>
+                  <div className="flex justify-between items-center text-xs pt-1.5 border-t border-border">
+                    <span className="text-status-error font-bold">Remaining Balance Due:</span>
+                    <span className="font-extrabold font-mono text-sm text-status-error">
+                      {formatCurrency(balanceDue)}
+                    </span>
                   </div>
+                </Card>
+
+                <Input
+                  label="Payment Amount (₹) *"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={paymentAmount}
+                  onChange={(e: any) => setPaymentAmount(parseFloat(e.target.value) || 0)}
+                  helperText={`Enter partial amount or full remaining balance (₹${balanceDue.toLocaleString('en-IN')}).`}
+                />
+
+                <Select
+                  label="Payment Mode"
+                  value={paymentMode}
+                  onChange={(e: any) => setPaymentMode(e.target.value)}
+                  options={[
+                    { label: 'Bank Transfer (NEFT/RTGS/IMPS)', value: PaymentMode.BANK_TRANSFER },
+                    { label: 'UPI / QR Code', value: PaymentMode.UPI },
+                    { label: 'Cash', value: PaymentMode.CASH },
+                    { label: 'Credit / Debit Card', value: PaymentMode.CARD },
+                    { label: 'Cheque', value: PaymentMode.CHEQUE },
+                  ]}
+                />
+
+                <div className="pt-3 border-t border-border flex justify-end gap-3">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setPaymentModal(null)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="primary"
+                    className="bg-status-success hover:opacity-90"
+                    disabled={recordPaymentMutation.isPending}
+                    onClick={() =>
+                      recordPaymentMutation.mutate({
+                        id: paymentModal.id,
+                        amount: paymentAmount,
+                        paymentMode,
+                      })
+                    }
+                  >
+                    {recordPaymentMutation.isPending
+                      ? 'Recording...'
+                      : `Confirm Payment (₹${paymentAmount.toLocaleString('en-IN')})`}
+                  </Button>
                 </div>
               </div>
-            </div>
+            </Modal>
           );
         })()}
       </div>
@@ -1222,7 +1162,7 @@ export default function PurchasesPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-screen flex items-center justify-center bg-slate-50 dark:bg-[#090d16] text-sky-600">
+        <div className="h-screen flex items-center justify-center bg-surface-page text-accent">
           Loading Purchases...
         </div>
       }

@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Post,
   Patch,
   Body,
 } from '@nestjs/common';
@@ -48,6 +49,13 @@ export class SettingsController {
     return this.settingsService.updateBranding(dto);
   }
 
+  @Post('logo')
+  @RequirePermissions('settings.manage')
+  @Auditable('update_logo', 'BusinessSettings')
+  async uploadLogo(@Body('logo') logo: string) {
+    return this.settingsService.updateLogo(logo);
+  }
+
   @Get('receipt-template')
   async getReceiptTemplate() {
     return this.settingsService.getReceiptTemplate();
@@ -58,5 +66,24 @@ export class SettingsController {
   @Auditable('update_receipt_template', 'ReceiptTemplate')
   async updateReceiptTemplate(@Body() dto: UpdateReceiptTemplateDto) {
     return this.settingsService.updateReceiptTemplate(dto);
+  }
+
+  @Get('ai-config')
+  @RequirePermissions('settings.manage')
+  async getAiConfig() {
+    return this.settingsService.getAiConfig();
+  }
+
+  @Patch('ai-config')
+  @RequirePermissions('settings.manage')
+  @Auditable('update_ai_config', 'BusinessSettings')
+  async updateAiConfig(@Body() dto: any) {
+    return this.settingsService.updateAiConfig(dto);
+  }
+
+  @Post('ai-config/test-connection')
+  @RequirePermissions('settings.manage')
+  async testAiConnection(@Body() dto: any) {
+    return this.settingsService.testAiConnection(dto);
   }
 }

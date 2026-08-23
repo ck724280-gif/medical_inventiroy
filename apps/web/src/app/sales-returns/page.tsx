@@ -16,15 +16,27 @@ import {
   Calendar,
   CreditCard,
   FileText,
-  AlertCircle,
   TrendingDown,
   CheckCircle2,
+  Receipt,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
+import {
+  PageHeader,
+  DataTable,
+  Column,
+  Badge,
+  Button,
+  Card,
+  Input,
+  Select,
+  Modal,
+} from '../../components/ui';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
+import { useBrandingStore } from '../../stores/branding-store';
 import { ReturnCondition, PaymentMode } from '@medical-inventory/shared-types';
 import { formatDate, formatCurrency, buildWhatsAppUrl } from '@medical-inventory/shared-utils';
 import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview';
@@ -32,6 +44,7 @@ import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview'
 export default function SalesReturnsPage() {
   const queryClient = useQueryClient();
   const { selectedBranchId, isSuperAdmin } = useAuthStore();
+  const { name: storeName } = useBrandingStore();
   const [search, setSearch] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [invoiceLookup, setInvoiceLookup] = useState('');
@@ -169,18 +182,18 @@ export default function SalesReturnsPage() {
     const phone = ret.customer?.mobile || prompt('Enter customer WhatsApp mobile:');
     if (!phone) return;
 
-    const message = `🏥 *MEDCARE PHARMACY - SALES RETURN & REFUND RECEIPT*
-----------------------------------------
-📄 *Return #:* ${ret.returnNumber}
-🧾 *Original Invoice:* #${ret.salesInvoice?.invoiceNumber || 'N/A'}
-📅 *Date:* ${formatDate(ret.createdAt)}
-👤 *Customer:* ${ret.customer?.name || 'Walk-in Customer'}
-💵 *Refund Amount:* Rs. ${Number(ret.refundAmount || 0).toFixed(2)}
-💳 *Refund Mode:* ${ret.refundMode || 'CASH'}
-✅ *Status:* ${ret.status}
-
-Your returned medicines have been accepted and refund processed.
-Thank you for your visit to MedCare Pharmacy!`;
+    const currentStore = storeName || 'Pharmacy & Healthcare';
+    const message = `🏥 *${currentStore.toUpperCase()} - SALES RETURN & REFUND RECEIPT*\n` +
+      `----------------------------------------\n` +
+      `📄 *Return #:* ${ret.returnNumber}\n` +
+      `🧾 *Original Invoice:* #${ret.salesInvoice?.invoiceNumber || 'N/A'}\n` +
+      `📅 *Date:* ${formatDate(ret.createdAt)}\n` +
+      `👤 *Customer:* ${ret.customer?.name || 'Walk-in Customer'}\n` +
+      `💵 *Refund Amount:* Rs. ${Number(ret.refundAmount || 0).toFixed(2)}\n` +
+      `💳 *Refund Mode:* ${ret.refundMode || 'CASH'}\n` +
+      `✅ *Status:* ${ret.status}\n\n` +
+      `Your returned medicines have been accepted and refund processed.\n` +
+      `Thank you for choosing ${currentStore}!`;
 
     const url = buildWhatsAppUrl(phone, message);
     window.open(url, '_blank');
@@ -232,500 +245,484 @@ Thank you for your visit to MedCare Pharmacy!`;
 
   const isUserSuperAdmin = isSuperAdmin();
 
+  const columns: Column<any>[] = [
+    {
+      key: 'returnNumber',
+      header: 'Return #',
+      accessor: (r) => (
+        <span className="font-mono font-bold text-accent">
+          {r.returnNumber}
+        </span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Date',
+      accessor: (r) => (
+        <span className="font-mono text-text-secondary text-xs">
+          {formatDate(r.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: 'originalInvoice',
+      header: 'Original Invoice',
+      accessor: (r) => (
+        <span className="font-mono text-accent">
+          {r.salesInvoice?.invoiceNumber ? `#${r.salesInvoice.invoiceNumber}` : 'N/A'}
+        </span>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      accessor: (r) => (
+        <span className="font-medium text-text-primary">
+          {r.customer?.name || 'Walk-in Customer'}
+        </span>
+      ),
+    },
+    {
+      key: 'refundAmount',
+      header: 'Refund Amount',
+      align: 'right',
+      accessor: (r) => (
+        <span className="font-mono font-bold text-status-error">
+          {formatCurrency(Number(r.refundAmount || 0))}
+        </span>
+      ),
+    },
+    {
+      key: 'refundMode',
+      header: 'Refund Mode',
+      align: 'center',
+      render: (r) => (
+        <Badge variant="outline" size="sm">
+          {r.refundMode || 'CASH'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'status',
+      header: 'Status',
+      align: 'center',
+      render: (r) => (
+        <Badge
+          variant={r.status === 'COMPLETED' ? 'success' : 'info'}
+          size="sm"
+          dot
+        >
+          {r.status || 'COMPLETED'}
+        </Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'center',
+      render: (r) => (
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleWhatsAppShareReturn(r)}
+            title="Send WhatsApp Return Receipt"
+            className="w-7 h-7 p-0 text-status-success hover:bg-status-success-bg"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handlePrintReturn(r.id)}
+            title="Print Thermal Return Receipt"
+            className="w-7 h-7 p-0 text-text-secondary hover:text-text-primary"
+          >
+            <Printer className="w-3.5 h-3.5" />
+          </Button>
+          {isUserSuperAdmin && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => startEdit(r)}
+                title="Super Admin Edit Return"
+                className="w-7 h-7 p-0 text-status-warning hover:bg-status-warning-bg"
+              >
+                <Edit className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteReturn(r.id, r.returnNumber)}
+                title="Delete Return & Reverse Stock"
+                className="w-7 h-7 p-0 text-status-error hover:bg-status-error-bg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
+    <div className="flex h-screen bg-surface-page text-text-primary font-sans transition-colors duration-200 overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
-        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6 pb-16 lg:pb-0 animate-fade-in">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                <RotateCcw className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                Sales Returns &amp; Refunds
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Process customer medicine returns against tax bills, restore inventory, and issue instant refunds or credit notes.
-              </p>
-            </div>
+          <PageHeader
+            title="Sales Returns & Refunds"
+            description="Process customer medicine returns against tax bills, restore inventory, and issue instant refunds or credit notes."
+            actions={
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setLoadedInvoice(null);
+                  setReturnItems([]);
+                  setInvoiceLookup('');
+                  setCreateNotes('');
+                  setCreateRefundMode(PaymentMode.CASH);
+                  setShowModal(true);
+                }}
+                leftIcon={<Plus className="w-4 h-4" />}
+              >
+                Process Sales Return
+              </Button>
+            }
+          />
 
-            <button
-              onClick={() => {
-                setLoadedInvoice(null);
-                setReturnItems([]);
-                setInvoiceLookup('');
-                setCreateNotes('');
-                setCreateRefundMode(PaymentMode.CASH);
-                setShowModal(true);
-              }}
-              className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg transition cursor-pointer active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              Process Sales Return
-            </button>
-          </div>
-
-          {/* Top KPI Metrics Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+          {/* Top KPI Metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Card elevation="raised" className="p-4 flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Total Returns</p>
-                <p className="text-xl font-black text-slate-900 dark:text-white font-mono mt-0.5">
+                <p className="text-xs text-text-muted font-medium">Total Returns</p>
+                <p className="text-2xl font-bold text-text-primary font-mono mt-1">
                   {totalReturnsCount}
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-accent-subtle text-accent flex items-center justify-center">
                 <RotateCcw className="w-5 h-5" />
               </div>
-            </div>
+            </Card>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <Card elevation="raised" className="p-4 flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Total Refunded</p>
-                <p className="text-xl font-black text-red-600 dark:text-red-400 font-mono mt-0.5">
+                <p className="text-xs text-text-muted font-medium">Total Refunded</p>
+                <p className="text-2xl font-bold text-status-error font-mono mt-1">
                   {formatCurrency(totalRefundAmount)}
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-status-error-bg text-status-error flex items-center justify-center">
                 <TrendingDown className="w-5 h-5" />
               </div>
-            </div>
+            </Card>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <Card elevation="raised" className="p-4 flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Today&apos;s Returns</p>
-                <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
+                <p className="text-xs text-text-muted font-medium">Today&apos;s Returns</p>
+                <p className="text-2xl font-bold text-status-success font-mono mt-1">
                   {todayReturnsCount}
                 </p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-status-success-bg text-status-success flex items-center justify-center">
                 <CheckCircle2 className="w-5 h-5" />
               </div>
-            </div>
+            </Card>
           </div>
 
           {/* Search Filter Bar */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-sm dark:shadow-xl flex items-center gap-3">
-            <div className="flex-1 relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                <Search className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by Return #, Original Invoice #, or Customer Name/Mobile..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
-              />
-            </div>
-          </div>
+          <Card elevation="flat" className="p-3">
+            <Input
+              leadingIcon={<Search className="w-4 h-4 text-text-muted" />}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by Return #, Original Invoice #, or Customer Name/Mobile..."
+            />
+          </Card>
 
           {/* Returns Table */}
-          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs min-w-[750px]">
-                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Return #</th>
-                    <th className="py-3 px-4">Date</th>
-                    <th className="py-3 px-4">Original Invoice</th>
-                    <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4 text-right">Refund Amount</th>
-                    <th className="py-3 px-4 text-center">Refund Mode</th>
-                    <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                        Loading returns...
-                      </td>
-                    </tr>
-                  ) : returns.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                        No sales returns found. Click &quot;Process Sales Return&quot; to begin.
-                      </td>
-                    </tr>
-                  ) : (
-                    returns.map((r: any) => (
-                      <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                        <td className="py-3 px-4 font-mono font-bold text-sky-600 dark:text-sky-400">
-                          {r.returnNumber}
-                        </td>
-                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono">
-                          {formatDate(r.createdAt)}
-                        </td>
-                        <td className="py-3 px-4 font-mono text-slate-700 dark:text-slate-300 font-semibold">
-                          #{r.salesInvoice?.invoiceNumber}
-                        </td>
-                        <td className="py-3 px-4 text-slate-900 dark:text-white font-medium">
-                          {r.customer?.name || 'Walk-in Customer'}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-red-600 dark:text-red-400">
-                          {formatCurrency(r.refundAmount || 0)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                            {r.refundMode || 'CASH'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            {r.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => handlePrintReturn(r.id)}
-                              title="Print Credit Note / Return Receipt"
-                              className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleWhatsAppShareReturn(r)}
-                              title="Share Return Receipt on WhatsApp"
-                              className="p-1.5 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg transition"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" />
-                            </button>
-                            {isUserSuperAdmin && (
-                              <>
-                                <button
-                                  onClick={() => startEdit(r)}
-                                  title="Super Admin Edit Return"
-                                  className="p-1.5 bg-amber-50 dark:bg-slate-800 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-slate-700 rounded-lg transition"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteReturn(r.id, r.returnNumber)}
-                                  title="Delete / Cancel Return &amp; Reverse Stock"
-                                  className="p-1.5 bg-red-50 dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-slate-700 rounded-lg transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            columns={columns}
+            data={returns}
+            isLoading={isLoading}
+            emptyTitle="No sales returns recorded"
+            emptyDescription="There are no sales return records matching your search or branch filters."
+            compact
+          />
         </main>
 
         {/* Process Return Modal */}
         {showModal && (
-          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[92vh] text-slate-900 dark:text-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-bold text-sm">
-                  <RotateCcw className="w-5 h-5" />
-                  <h3>Process Customer Sales Return</h3>
+          <Modal
+            isOpen={showModal}
+            onClose={() => setShowModal(false)}
+            size="xl"
+            title={
+              <div className="flex items-center gap-2 text-accent">
+                <RotateCcw className="w-5 h-5" />
+                <span>Process Customer Sales Return &amp; Refund</span>
+              </div>
+            }
+            description="Lookup tax invoice number, specify return quantities, and issue refunds."
+          >
+            <div className="space-y-4 pt-2">
+              {/* Lookup Invoice Section */}
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <Input
+                    label="Lookup Tax Invoice Number *"
+                    placeholder="e.g. INV-1001"
+                    value={invoiceLookup}
+                    onChange={(e) => setInvoiceLookup(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleLookupInvoice();
+                      }
+                    }}
+                  />
                 </div>
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Invoice Lookup Form */}
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  placeholder="Enter Invoice Number (e.g. INV-000125)..."
-                  value={invoiceLookup}
-                  onChange={(e) => setInvoiceLookup(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLookupInvoice()}
-                  className="flex-1 px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                />
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
                   onClick={handleLookupInvoice}
-                  className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl font-semibold shadow active:scale-95 transition"
+                  leftIcon={<Search className="w-4 h-4" />}
                 >
-                  Lookup Bill
-                </button>
+                  Lookup Invoice
+                </Button>
               </div>
 
+              {/* Loaded Invoice Details */}
               {loadedInvoice && (
-                <div className="space-y-4 pt-2">
-                  <div className="bg-slate-50 dark:bg-[#090d16] p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-wrap justify-between items-center gap-2">
+                <div className="space-y-3">
+                  <Card elevation="flat" className="p-3 bg-surface-raised grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
                     <div>
-                      <p className="font-bold text-slate-900 dark:text-white">
-                        Invoice: #{loadedInvoice.invoiceNumber} | Total: ₹{Number(loadedInvoice.totalAmount || 0).toFixed(2)}
-                      </p>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                        Customer: {loadedInvoice.customer?.name || 'Walk-in'} | Date: {formatDate(loadedInvoice.createdAt)}
-                      </p>
+                      <span className="text-text-muted block">Invoice #:</span>
+                      <span className="font-mono font-bold text-text-primary">{loadedInvoice.invoiceNumber}</span>
                     </div>
+                    <div>
+                      <span className="text-text-muted block">Customer:</span>
+                      <span className="font-semibold text-text-primary">{loadedInvoice.customer?.name || 'Walk-in'}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block">Invoice Total:</span>
+                      <span className="font-mono font-bold text-text-primary">{formatCurrency(loadedInvoice.totalAmount || 0)}</span>
+                    </div>
+                  </Card>
 
-                    <div className="text-right">
-                      <span className="text-[10px] text-slate-400 block uppercase font-bold">Estimated Refund</span>
-                      <span className="text-base font-black text-red-600 font-mono">
-                        ₹{estimatedRefundSum.toFixed(2)}
+                  {/* Return Line Items */}
+                  <div className="space-y-2">
+                    <span className="font-semibold text-text-primary text-xs">Select Items to Return:</span>
+
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {returnItems.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-3 bg-surface-raised rounded-lg border border-border grid grid-cols-12 gap-2 items-center text-xs"
+                        >
+                          <div className="col-span-12 sm:col-span-4">
+                            <p className="font-bold text-text-primary">{item.name}</p>
+                            <p className="text-[10px] text-text-muted font-mono">
+                              Batch: {item.batchNumber} | Sold: {item.soldQty} | Already Ret: {item.alreadyReturned}
+                            </p>
+                          </div>
+
+                          <div className="col-span-4 sm:col-span-2">
+                            <label className="text-[10px] text-text-muted block mb-0.5">Return Qty</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max={item.maxReturnable}
+                              value={item.returnQty}
+                              onChange={(e) => {
+                                const updated = [...returnItems];
+                                const val = parseInt(e.target.value) || 0;
+                                updated[idx].returnQty = Math.max(0, Math.min(val, item.maxReturnable));
+                                setReturnItems(updated);
+                              }}
+                              className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md font-mono text-center text-text-primary focus:outline-none focus:border-accent"
+                            />
+                          </div>
+
+                          <div className="col-span-4 sm:col-span-3">
+                            <label className="text-[10px] text-text-muted block mb-0.5">Condition</label>
+                            <select
+                              value={item.condition}
+                              onChange={(e) => {
+                                const updated = [...returnItems];
+                                updated[idx].condition = e.target.value;
+                                setReturnItems(updated);
+                              }}
+                              className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs text-text-primary focus:outline-none focus:border-accent"
+                            >
+                              <option value={ReturnCondition.RESALABLE}>Resalable (Restock)</option>
+                              <option value={ReturnCondition.DAMAGED}>Damaged (Discard)</option>
+                              <option value={ReturnCondition.EXPIRED}>Expired (Quarantine)</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-4 sm:col-span-3 text-right">
+                            <label className="text-[10px] text-text-muted block mb-0.5">Refund (₹)</label>
+                            <span className="font-mono font-bold text-status-error">
+                              ₹{(Number(item.returnQty || 0) * Number(item.rate || 0)).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Refund Summary & Mode */}
+                  <Card elevation="flat" className="p-3 bg-surface-raised space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-semibold text-text-primary">Estimated Refund Total:</span>
+                      <span className="font-mono font-extrabold text-status-error text-base">
+                        {formatCurrency(estimatedRefundSum)}
                       </span>
                     </div>
-                  </div>
 
-                  <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                    <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                      Select Items and Quantities to Return:
-                    </label>
-                    {returnItems.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="p-3 bg-white dark:bg-[#0d1322] border border-slate-200 dark:border-slate-800 rounded-xl grid grid-cols-12 gap-2 items-center"
-                      >
-                        <div className="col-span-12 sm:col-span-4">
-                          <p className="font-bold text-slate-900 dark:text-white truncate">{item.name}</p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
-                            Batch: {item.batchNumber} (Sold: {item.soldQty}, Ret: {item.alreadyReturned})
-                          </p>
-                        </div>
-
-                        <div className="col-span-4 sm:col-span-2">
-                          <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">
-                            Ret Qty (Max {item.maxReturnable})
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            max={item.maxReturnable}
-                            value={item.returnQty === 0 ? '' : item.returnQty}
-                            placeholder="0"
-                            onFocus={(e) => e.target.select()}
-                            onChange={(e) => {
-                              const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
-                              const bounded = Math.min(item.maxReturnable, Math.max(0, val));
-                              const updated = [...returnItems];
-                              updated[idx].returnQty = bounded;
-                              setReturnItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg text-center font-mono font-bold text-slate-900 dark:text-white"
-                          />
-                        </div>
-
-                        <div className="col-span-4 sm:col-span-3">
-                          <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Condition</label>
-                          <select
-                            value={item.condition}
-                            onChange={(e) => {
-                              const updated = [...returnItems];
-                              updated[idx].condition = e.target.value;
-                              setReturnItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] text-slate-900 dark:text-white"
-                          >
-                            <option value={ReturnCondition.RESALABLE}>Resalable (Restores Stock)</option>
-                            <option value={ReturnCondition.DAMAGED}>Damaged (Mark Damaged)</option>
-                            <option value={ReturnCondition.EXPIRED}>Expired (Mark Expired)</option>
-                          </select>
-                        </div>
-
-                        <div className="col-span-4 sm:col-span-3">
-                          <label className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">Reason</label>
-                          <input
-                            type="text"
-                            value={item.reason}
-                            onChange={(e) => {
-                              const updated = [...returnItems];
-                              updated[idx].reason = e.target.value;
-                              setReturnItems(updated);
-                            }}
-                            className="w-full px-2 py-1 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] text-slate-900 dark:text-white"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Refund Mode & Notes */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Refund Mode *
-                      </label>
-                      <select
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border">
+                      <Select
+                        label="Refund Mode"
                         value={createRefundMode}
                         onChange={(e: any) => setCreateRefundMode(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-semibold focus:outline-none focus:border-sky-500"
-                      >
-                        <option value={PaymentMode.CASH}>CASH (Cash returned to customer)</option>
-                        <option value={PaymentMode.UPI}>UPI / Instant Refund</option>
-                        <option value={PaymentMode.CARD}>CARD / POS Refund</option>
-                        <option value={PaymentMode.CREDIT}>CREDIT NOTE (Adjust Ledger Balance)</option>
-                      </select>
-                    </div>
+                        options={[
+                          { label: 'Cash Refund', value: PaymentMode.CASH },
+                          { label: 'UPI / Bank Transfer', value: PaymentMode.UPI },
+                          { label: 'Store Credit / Adjust Ledger', value: PaymentMode.BANK_TRANSFER },
+                        ]}
+                      />
 
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Return Notes / Remarks
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Wrong dosage purchased by customer"
+                      <Input
+                        label="Return Reason / Remarks"
                         value={createNotes}
                         onChange={(e) => setCreateNotes(e.target.value)}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                        placeholder="e.g. Unopened medicine returned by customer"
                       />
                     </div>
-                  </div>
+                  </Card>
 
-                  <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
-                    <button
-                      type="button"
+                  {/* Actions */}
+                  <div className="pt-3 border-t border-border flex justify-end gap-3">
+                    <Button
+                      variant="secondary"
                       onClick={() => setShowModal(false)}
-                      className="px-4 py-2 border border-slate-300 dark:border-slate-700 rounded-xl font-semibold text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800"
                     >
                       Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => createReturnMutation.mutate()}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      className="bg-status-error hover:opacity-90 text-white"
                       disabled={createReturnMutation.isPending || estimatedRefundSum <= 0}
-                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow active:scale-95 transition"
+                      onClick={() => createReturnMutation.mutate()}
+                      leftIcon={<ArrowDownLeft className="w-4 h-4" />}
                     >
                       {createReturnMutation.isPending
-                        ? 'Processing Return...'
-                        : `Confirm Return & Refund (₹${estimatedRefundSum.toFixed(2)})`}
-                    </button>
+                        ? 'Processing...'
+                        : `Process Refund (${formatCurrency(estimatedRefundSum)})`}
+                    </Button>
                   </div>
                 </div>
               )}
             </div>
-          </div>
+          </Modal>
         )}
 
-        {/* Thermal Return Receipt Preview Modal */}
+        {/* Thermal Receipt Preview Modal */}
         {activeReceipt && (
           <ThermalReceiptPreview data={activeReceipt} onClose={() => setActiveReceipt(null)} />
         )}
 
         {/* Super Admin Edit Return Modal */}
         {editingReturn && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] max-w-md w-full p-6 space-y-4 shadow-2xl text-xs text-slate-900 dark:text-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
-                  <Edit className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                    Super Admin Edit Return #{editingReturn.returnNumber}
-                  </h3>
-                </div>
-                <button
-                  onClick={() => setEditingReturn(null)}
-                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+          <Modal
+            isOpen={Boolean(editingReturn)}
+            onClose={() => setEditingReturn(null)}
+            size="md"
+            title={
+              <div className="flex items-center gap-2 text-accent">
+                <Edit className="w-5 h-5" />
+                <span>Super Admin Edit Return #{editingReturn.returnNumber}</span>
+              </div>
+            }
+            description="Override refund financial metrics and audit notes."
+          >
+            <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
+              <Input
+                label="Return #"
+                required
+                value={editForm.returnNumber}
+                onChange={(e) => setEditForm({ ...editForm, returnNumber: e.target.value })}
+              />
+
+              <Input
+                label="Refund Amount (₹) *"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={editForm.refundAmount}
+                onChange={(e) => setEditForm({ ...editForm, refundAmount: parseFloat(e.target.value) || 0 })}
+              />
+
+              <Select
+                label="Refund Mode"
+                value={editForm.refundMode}
+                onChange={(e) => setEditForm({ ...editForm, refundMode: e.target.value })}
+                options={[
+                  { label: 'CASH', value: 'CASH' },
+                  { label: 'UPI', value: 'UPI' },
+                  { label: 'CARD', value: 'CARD' },
+                  { label: 'BANK TRANSFER', value: 'BANK_TRANSFER' },
+                ]}
+              />
+
+              <Input
+                label="Date & Time"
+                type="datetime-local"
+                value={editForm.createdAt}
+                onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
+              />
+
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">
+                  Audit Notes / Reason
+                </label>
+                <textarea
+                  rows={2}
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                  placeholder="Reason for Super Admin modification..."
+                  className="w-full px-3 py-2 bg-surface-base border border-border rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent transition resize-none"
+                />
               </div>
 
-              <form onSubmit={handleEditSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    Return #
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.returnNumber}
-                    onChange={(e) => setEditForm({ ...editForm, returnNumber: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5" /> Return Date &amp; Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={editForm.createdAt}
-                    onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                      <CreditCard className="w-3.5 h-3.5" /> Refund Mode
-                    </label>
-                    <select
-                      value={editForm.refundMode}
-                      onChange={(e) => setEditForm({ ...editForm, refundMode: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    >
-                      <option value="CASH">CASH</option>
-                      <option value="UPI">UPI</option>
-                      <option value="CARD">CARD</option>
-                      <option value="CREDIT">CREDIT NOTE</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Refund Amount (₹)
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={editForm.refundAmount}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, refundAmount: parseFloat(e.target.value) || 0 })
-                      }
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" /> Remarks / Reason
-                  </label>
-                  <textarea
-                    placeholder="Add return audit remarks..."
-                    value={editForm.notes}
-                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                    rows={3}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 transition resize-none"
-                  />
-                </div>
-
-                <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setEditingReturn(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg flex items-center gap-1.5 transition active:scale-95"
-                  >
-                    <Save className="w-4 h-4" /> Save Changes
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+              <div className="pt-3 border-t border-border flex justify-end gap-3">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setEditingReturn(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  type="submit"
+                  leftIcon={<Save className="w-4 h-4" />}
+                >
+                  Save Super Admin Changes
+                </Button>
+              </div>
+            </form>
+          </Modal>
         )}
       </div>
     </div>
   );
 }
-

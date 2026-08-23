@@ -8,6 +8,13 @@ const nextConfig = {
     '@medical-inventory/validation',
     'three',
   ],
+  generateBuildId: async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const staticDir = path.join(__dirname, '.next', 'static', 'build');
+    fs.mkdirSync(staticDir, { recursive: true });
+    return 'build';
+  },
   async rewrites() {
     return [
       {

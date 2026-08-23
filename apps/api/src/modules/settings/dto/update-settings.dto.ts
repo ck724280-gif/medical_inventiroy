@@ -157,10 +157,37 @@ export class UpdateReceiptTemplateDto {
   thankYouMessage?: string;
 
   @IsOptional()
-  @IsString()
-  returnPolicy?: string;
-
-  @IsOptional()
   @IsObject()
   displayFields?: Record<string, any>;
+}
+
+export class UpdateAiConfigDto {
+  @IsOptional()
+  @IsString()
+  geminiApiKey?: string;
+
+  @IsOptional()
+  @IsString()
+  aiModelName?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  aiEnabled?: boolean;
+
+  @IsOptional()
+  aiTemperature?: number;
+
+  @IsOptional()
+  @IsString()
+  aiSystemPrompt?: string;
+}
+
+export class TestAiConnectionDto {
+  @IsOptional()
+  @IsString()
+  geminiApiKey?: string;
+
+  @IsOptional()
+  @IsString()
+  aiModelName?: string;
 }

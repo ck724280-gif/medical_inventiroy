@@ -10,9 +10,62 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Primary brand: Cyan accent
+        // Semantic surface tokens
+        surface: {
+          page: 'var(--surface-page)',
+          base: 'var(--surface-base)',
+          raised: 'var(--surface-raised)',
+          overlay: 'var(--surface-overlay)',
+          sunken: 'var(--surface-sunken)',
+          hover: 'var(--surface-hover)',
+          active: 'var(--surface-active)',
+        },
+        // Semantic border tokens
+        border: {
+          DEFAULT: 'var(--border-default)',
+          default: 'var(--border-default)',
+          strong: 'var(--border-strong)',
+          subtle: 'var(--border-subtle)',
+          focus: 'var(--border-focus)',
+          divider: 'var(--border-divider)',
+          card: 'var(--border-card)',
+        },
+        // Semantic text tokens
+        text: {
+          primary: 'var(--text-primary)',
+          secondary: 'var(--text-secondary)',
+          muted: 'var(--text-muted)',
+          disabled: 'var(--text-disabled)',
+          inverse: 'var(--text-inverse)',
+        },
+        // Semantic accent tokens
+        accent: {
+          DEFAULT: 'var(--accent-primary)',
+          primary: 'var(--accent-primary)',
+          hover: 'var(--accent-hover)',
+          active: 'var(--accent-active)',
+          subtle: 'var(--accent-subtle)',
+          'subtle-border': 'var(--accent-subtle-border)',
+          foreground: 'var(--accent-foreground)',
+        },
+        // Semantic status tokens
+        status: {
+          success: 'var(--status-success)',
+          'success-bg': 'var(--status-success-bg)',
+          'success-border': 'var(--status-success-border)',
+          warning: 'var(--status-warning)',
+          'warning-bg': 'var(--status-warning-bg)',
+          'warning-border': 'var(--status-warning-border)',
+          error: 'var(--status-error)',
+          'error-bg': 'var(--status-error-bg)',
+          'error-border': 'var(--status-error-border)',
+          info: 'var(--status-info)',
+          'info-bg': 'var(--status-info-bg)',
+          'info-border': 'var(--status-info-border)',
+        },
+        // Retained for P2 Branding
         brand: {
-          50:  '#ecfeff',
+          50: '#ecfeff',
           100: '#cffafe',
           200: '#a5f3fc',
           300: '#67e8f9',
@@ -23,79 +76,41 @@ const config: Config = {
           800: '#155e75',
           900: '#164e63',
         },
-        // Deep obsidian backgrounds
-        obsidian: {
-          950: '#050a0f',
-          900: '#070e18',
-          800: '#0a1628',
-          700: '#0d1e38',
-          600: '#0f2040',
-          500: '#132848',
-          400: '#1a3a5c',
-          300: '#2c5f7a',
-          200: '#5a8ca8',
-          100: '#a8c8dc',
-        },
-        // Glassmorphism tints
-        glass: {
-          cyan:  'rgba(6, 182, 212, 0.06)',
-          blue:  'rgba(14, 116, 144, 0.08)',
-          dark:  'rgba(5, 10, 15, 0.70)',
-          white: 'rgba(226, 244, 255, 0.05)',
-        },
+      },
+      boxShadow: {
+        sm: 'var(--shadow-sm)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+        card: 'var(--shadow-sm)',
+        'card-hover': 'var(--shadow-md)',
+      },
+      borderRadius: {
+        sm: 'var(--radius-sm)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
       },
-      boxShadow: {
-        'glow-cyan':    '0 0 24px rgba(6, 182, 212, 0.35)',
-        'glow-cyan-sm': '0 0 12px rgba(6, 182, 212, 0.25)',
-        'glow-cyan-lg': '0 0 48px rgba(6, 182, 212, 0.25)',
-        'card':         '0 4px 24px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4)',
-        'card-hover':   '0 8px 32px rgba(0, 0, 0, 0.7), 0 0 12px rgba(6, 182, 212, 0.25)',
-        'inner-glow':   'inset 0 1px 0 rgba(6, 182, 212, 0.1)',
-      },
-      backgroundImage: {
-        'obsidian-gradient': 'linear-gradient(135deg, #050a0f 0%, #0a1628 50%, #071525 100%)',
-        'cyan-gradient':     'linear-gradient(135deg, #0891b2 0%, #06b6d4 100%)',
-        'hero-gradient':     'linear-gradient(135deg, #050a0f 0%, #0a1628 40%, #071d35 70%, #083650 100%)',
-        'card-gradient':     'linear-gradient(135deg, rgba(6,182,212,0.06) 0%, rgba(10,22,40,0.8) 100%)',
-      },
       animation: {
-        'fade-slide-up':  'fadeSlideUp 0.4s ease-out both',
-        'fade-in':        'fadeIn 0.35s ease-out both',
-        'slide-in-left':  'slideInLeft 0.3s ease-out both',
-        'aurora':         'auroraFloat 8s ease-in-out infinite',
-        'pulse-ring':     'pulseRing 2s ease-out infinite',
-        'cyan-pulse':     'cyanPulse 1.5s ease-in-out infinite',
+        'fade-slide-up': 'fadeSlideUp 0.3s ease-out both',
+        'fade-in': 'fadeIn 0.2s ease-out both',
+        'slide-in-left': 'slideInLeft 0.25s ease-out both',
       },
       keyframes: {
         fadeSlideUp: {
-          from: { opacity: '0', transform: 'translateY(16px)' },
-          to:   { opacity: '1', transform: 'translateY(0)' },
+          from: { opacity: '0', transform: 'translateY(8px)' },
+          to: { opacity: '1', transform: 'translateY(0)' },
         },
         fadeIn: {
           from: { opacity: '0' },
-          to:   { opacity: '1' },
+          to: { opacity: '1' },
         },
         slideInLeft: {
-          from: { opacity: '0', transform: 'translateX(-12px)' },
-          to:   { opacity: '1', transform: 'translateX(0)' },
-        },
-        auroraFloat: {
-          '0%, 100%': { transform: 'translate(0, 0) scale(1)', opacity: '0.25' },
-          '33%':      { transform: 'translate(30px, -20px) scale(1.08)', opacity: '0.35' },
-          '66%':      { transform: 'translate(-20px, 30px) scale(0.95)', opacity: '0.28' },
-        },
-        pulseRing: {
-          '0%':    { boxShadow: '0 0 0 0 rgba(6, 182, 212, 0.5)' },
-          '70%':   { boxShadow: '0 0 0 12px rgba(6, 182, 212, 0)' },
-          '100%':  { boxShadow: '0 0 0 0 rgba(6, 182, 212, 0)' },
-        },
-        cyanPulse: {
-          '0%, 100%': { opacity: '1', boxShadow: '0 0 0 0 rgba(6, 182, 212, 0.6)' },
-          '50%':      { opacity: '0.8', boxShadow: '0 0 0 6px rgba(6, 182, 212, 0)' },
+          from: { opacity: '0', transform: 'translateX(-10px)' },
+          to: { opacity: '1', transform: 'translateX(0)' },
         },
       },
     },

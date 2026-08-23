@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import { Providers } from '../components/providers';
+import { MobileNav } from '../components/mobile-nav';
+import { AiCopilotDrawer } from '../components/ai-copilot-drawer';
 
 export const metadata: Metadata = {
   title: 'MedCare Pharmacy ERP & POS',
@@ -14,9 +16,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full dark" data-theme="dark">
-      <body className="h-full bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 font-sans antialiased transition-colors duration-200">
-        <Providers>{children}</Providers>
+      <body className="h-full bg-surface-page text-text-primary font-sans antialiased transition-colors duration-200">
+        <Providers>
+          {children}
+          <MobileNav />
+          <AiCopilotDrawer />
+        </Providers>
       </body>
     </html>
   );
 }
+

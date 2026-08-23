@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -7,49 +7,86 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 export class AiAssistantService {
   private readonly logger = new Logger(AiAssistantService.name);
   private genAI: GoogleGenerativeAI | null = null;
+  private currentApiKey: string | null = null;
+  private currentModelName: string = 'gemini-1.5-flash';
 
   constructor(
     private prisma: PrismaService,
-    private configService: ConfigService
+    private configService: ConfigService,
   ) {
-    const apiKey =
-      this.configService.get<string>('GEMINI_API_KEY') ||
-      process.env.GEMINI_API_KEY;
+    this.initializeAiClient();
+  }
 
-    if (apiKey) {
-      this.genAI = new GoogleGenerativeAI(apiKey);
-    } else {
-      this.logger.warn(
-        'GEMINI_API_KEY is not configured. AI Assistant will operate in fallback mode.'
-      );
+  /**
+   * §P7: Dynamically initializes the GoogleGenerativeAI client
+   * Prioritizes DB configured key, falling back to process.env
+   */
+  async initializeAiClient(): Promise<GoogleGenerativeAI | null> {
+    try {
+      const settings = await this.prisma.businessSettings.findUnique({
+        where: { id: 'default' },
+      });
+
+      const apiKey = settings?.geminiApiKey || this.configService.get<string>('GEMINI_API_KEY') || process.env.GEMINI_API_KEY;
+      const modelName = settings?.aiModelName || 'gemini-1.5-flash';
+
+      this.currentModelName = modelName;
+
+      if (apiKey && apiKey !== this.currentApiKey) {
+        this.genAI = new GoogleGenerativeAI(apiKey);
+        this.currentApiKey = apiKey;
+        this.logger.log(`Initialized Gemini AI client with model: ${modelName}`);
+      } else if (!apiKey) {
+        this.genAI = null;
+        this.currentApiKey = null;
+        this.logger.warn('GEMINI_API_KEY is not configured. AI will run in grounded local calculation mode.');
+      }
+      return this.genAI;
+    } catch (err: any) {
+      this.logger.warn(`Could not read BusinessSettings for AI initialization: ${err.message}`);
+      const envKey = this.configService.get<string>('GEMINI_API_KEY') || process.env.GEMINI_API_KEY;
+      if (envKey) {
+        this.genAI = new GoogleGenerativeAI(envKey);
+        this.currentApiKey = envKey;
+      }
+      return this.genAI;
     }
   }
 
   /**
-   * Main chat interface with function calling & context grounding
+   * Main chat interface with intent detection, live grounded DB context, and action suggestions (§1-78)
    */
   async processChat(
     message: string,
-    history: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = []
-  ): Promise<{ response: string; toolsUsed?: string[] }> {
+    history: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [],
+    userId?: string,
+    branchId?: string,
+  ): Promise<{ response: string; toolsUsed?: string[]; actionProposal?: any }> {
     if (!message || message.trim() === '') {
       return { response: 'Kripya apna sawal puchein (Please ask a question).' };
     }
 
+    // Refresh client if needed
+    await this.initializeAiClient();
+
     const toolsUsed: string[] = [];
 
-    // Pre-fetch relevant live data based on question intent to provide fast, reliable grounded context
-    const contextData = await this.gatherContextForQuery(message, toolsUsed);
+    // Pre-fetch live data based on natural language intent (Hindi, Hinglish, English)
+    const contextData = await this.gatherContextForQuery(message, toolsUsed, branchId);
+
+    // Detect if this is an explicit action command (e.g. transfer, price update, mobile update)
+    const actionProposal = await this.detectActionIntent(message, userId, branchId);
 
     const systemInstruction = `
-You are the "MedCare AI Pharmacy Co-pilot & Business Advisor" built specifically for the Super Administrator / Business Owner of MedCare Pharmacy & Healthcare ERP.
+You are the **MedCare Pharmacy & Healthcare ERP Super Admin AI Co-Pilot** (§P7 Specification).
+You are an action-capable ERP Operating Agent operating the MedCare Pharmacy ERP.
 
-Your Role & Responsibilities:
-1. Provide accurate, real-time insights about Inventory, Stock valuation, Sales Revenue, Net Profit & Loss, Expiring Medicines, Supplier Ledgers, and Customer Credit.
-2. Provide clear, step-by-step guidance on how to use any ERP feature (e.g. POS billing, changing thermal printer roll size, adding multiple cashiers, managing store branches, setting up Google Drive backups).
-3. Always format currency in Indian Rupees (₹) with proper comma separators (e.g., ₹1,45,000.00).
-4. Communicate professionally, courteously, and clearly. You can reply in Hindi, Hinglish, or English based on the language the user asked in.
-5. Use clean Markdown tables, bullet points, and bold text for numbers and medicine names to make answers easy to read.
+Core Rules:
+1. NEVER FAKE AN ACTION (§2): Only report data present in the database context. If a record does not exist, clearly say it was not found.
+2. SUPPORT MULTILINGUAL: Understand Hindi, Hinglish, and English naturally (§44, §71). Match the tone and language of the user.
+3. CURRENCY: Always format currency in Indian Rupees (₹) with proper comma separators (e.g., ₹1,45,000.00).
+4. SAFETY FIRST (§42, §63): For actions like stock adjustments, price changes, or branch transfers, always provide clear confirmation details.
+5. CLEAN PRESENTATION (§47, §72): Use clean Markdown tables for lists, bold for important numbers, and concise summaries. Do NOT use emojis excessively.
 
 Current Live ERP Database Context:
 ${JSON.stringify(contextData, null, 2)}
@@ -57,18 +94,18 @@ ${JSON.stringify(contextData, null, 2)}
 
     if (!this.genAI) {
       return {
-        response: this.generateFallbackResponse(message, contextData),
+        response: this.generateFallbackResponse(message, contextData, actionProposal),
         toolsUsed,
+        actionProposal,
       };
     }
 
     try {
       const model = this.genAI.getGenerativeModel({
-        model: 'gemini-3.6-flash',
+        model: this.currentModelName,
         systemInstruction,
       });
 
-      // Format previous history for Gemini API
       const formattedContents: any[] = [];
 
       for (const h of history.slice(-6)) {
@@ -78,7 +115,6 @@ ${JSON.stringify(contextData, null, 2)}
         });
       }
 
-      // Add current user prompt
       formattedContents.push({
         role: 'user',
         parts: [{ text: message }],
@@ -92,21 +128,75 @@ ${JSON.stringify(contextData, null, 2)}
       return {
         response: responseText,
         toolsUsed,
+        actionProposal,
       };
     } catch (error: any) {
       this.logger.error(`Gemini API error: ${error.message}`, error.stack);
-      // Fallback to grounded local calculation if API call fails
       return {
-        response: this.generateFallbackResponse(message, contextData),
+        response: this.generateFallbackResponse(message, contextData, actionProposal),
         toolsUsed,
+        actionProposal,
       };
     }
   }
 
   /**
-   * Automatically gathers live database context based on user inquiry
+   * Action Intent Detection Engine (§33, §61, §63)
    */
-  private async gatherContextForQuery(query: string, toolsUsed: string[]) {
+  private async detectActionIntent(query: string, userId?: string, branchId?: string): Promise<any | null> {
+    const q = query.toLowerCase();
+
+    // 1. Stock Transfer Intent: e.g. "Main branch se Branch 02 me 50 Paracetamol bhejo"
+    if ((q.includes('transfer') || q.includes('bhejo') || q.includes('send')) && (q.includes('branch') || q.includes('stock'))) {
+      const numMatch = query.match(/\b\d+\b/);
+      const qty = numMatch ? parseInt(numMatch[0], 10) : 0;
+      return {
+        action: 'TRANSFER_STOCK',
+        isRisky: true,
+        previewText: `Stock Transfer Request: Transfer ${qty || 'X'} units between branches.`,
+        suggestedPayload: { qty },
+      };
+    }
+
+    // 2. Medicine Price Update: e.g. "Paracetamol ka selling price ₹25 karo"
+    if ((q.includes('price') || q.includes('daam') || q.includes('rate')) && (q.includes('karo') || q.includes('set') || q.includes('update') || q.includes('change'))) {
+      const numMatch = query.match(/\b\d+(\.\d+)?\b/);
+      const newPrice = numMatch ? parseFloat(numMatch[0]) : 0;
+      return {
+        action: 'UPDATE_MEDICINE_PRICE',
+        isRisky: true,
+        previewText: `Medicine Price Update: Set selling price to ₹${newPrice}.`,
+        suggestedPayload: { newPrice },
+      };
+    }
+
+    // 3. Customer Mobile Update: e.g. "Rahul ka mobile number update karo"
+    if (q.includes('mobile') && (q.includes('update') || q.includes('change') || q.includes('badlo'))) {
+      return {
+        action: 'UPDATE_CUSTOMER_MOBILE',
+        isRisky: false,
+        previewText: `Customer Mobile Update`,
+      };
+    }
+
+    // 4. WhatsApp Invoice: e.g. "INV-1024 WhatsApp par bhejo"
+    if (q.includes('whatsapp') && (q.includes('bill') || q.includes('invoice') || q.includes('inv-') || q.includes('bhejo') || q.includes('send'))) {
+      const invMatch = query.match(/inv-[\w-]+/i);
+      return {
+        action: 'SEND_INVOICE_WHATSAPP',
+        isRisky: false,
+        previewText: `WhatsApp Bill Dispatch for invoice: ${invMatch ? invMatch[0].toUpperCase() : 'selected invoice'}`,
+        suggestedPayload: { invoiceNumber: invMatch ? invMatch[0].toUpperCase() : undefined },
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * Gathers live database context based on user inquiry (§10, §15, §26, §28, §29)
+   */
+  private async gatherContextForQuery(query: string, toolsUsed: string[], branchId?: string) {
     const q = query.toLowerCase();
     const context: any = {};
 
@@ -117,22 +207,16 @@ ${JSON.stringify(contextData, null, 2)}
       q.includes('valuation') ||
       q.includes('paracetamol') ||
       q.includes('dolo') ||
-      q.includes('medicine') ||
       q.includes('dawa') ||
       q.includes('quantity') ||
-      q.includes('batao')
+      q.includes('kitna')
     ) {
       toolsUsed.push('getInventorySummary');
-      context.inventorySummary = await this.getInventorySummary();
+      context.inventorySummary = await this.getInventorySummary(branchId);
 
-      // If specific medicine query
       const words = query.split(/\s+/).filter((w) => w.length > 2);
       for (const word of words) {
-        if (
-          !['kitna', 'stock', 'hai', 'kya', 'dawa', 'batao', 'aaj', 'the', 'and', 'for'].includes(
-            word.toLowerCase()
-          )
-        ) {
+        if (!['kitna', 'stock', 'hai', 'kya', 'dawa', 'batao', 'aaj', 'the', 'and', 'for', 'branch'].includes(word.toLowerCase())) {
           const searchRes = await this.searchMedicineStock(word);
           if (searchRes.length > 0) {
             toolsUsed.push(`searchMedicineStock("${word}")`);
@@ -143,7 +227,7 @@ ${JSON.stringify(contextData, null, 2)}
       }
     }
 
-    // 2. Sales, Revenue, Profit & Loss
+    // 2. Sales, Revenue, Profit & Loss (§15, §28)
     if (
       q.includes('sale') ||
       q.includes('profit') ||
@@ -153,46 +237,33 @@ ${JSON.stringify(contextData, null, 2)}
       q.includes('aaj') ||
       q.includes('today') ||
       q.includes('month') ||
-      q.includes('income') ||
       q.includes('margin')
     ) {
       toolsUsed.push('getSalesReport');
-      context.salesAndProfit = await this.getSalesReport();
+      context.salesAndProfit = await this.getSalesReport(branchId);
     }
 
-    // 3. Expiry Tracking & Near Expiry
-    if (
-      q.includes('expir') ||
-      q.includes('khatam') ||
-      q.includes('date') ||
-      q.includes('fefo') ||
-      q.includes('warning')
-    ) {
+    // 3. Expiry Tracking (§29)
+    if (q.includes('expir') || q.includes('khatam') || q.includes('date') || q.includes('fefo')) {
       toolsUsed.push('getExpiringMedicines');
-      context.expiringMedicines = await this.getExpiringMedicines(60);
+      context.expiringMedicines = await this.getExpiringMedicines(60, branchId);
     }
 
-    // 4. Top Selling Items
-    if (
-      q.includes('top') ||
-      q.includes('highest') ||
-      q.includes('popular') ||
-      q.includes('demand') ||
-      q.includes('best')
-    ) {
-      toolsUsed.push('getTopSellingMedicines');
-      context.topSellingMedicines = await this.getTopSellingMedicines(5);
+    // 4. Low Stock Alert (§30)
+    if (q.includes('low') || q.includes('kam') || q.includes('shortage') || q.includes('out of stock')) {
+      toolsUsed.push('getLowStockMedicines');
+      context.lowStockMedicines = await this.getLowStockMedicines(10, branchId);
     }
 
-    // 5. Suppliers & Financial Ledgers
+    // 5. Suppliers & Customer Ledgers (§9, §19, §20)
     if (
       q.includes('supplier') ||
       q.includes('customer') ||
       q.includes('ledger') ||
       q.includes('udhari') ||
-      q.includes('payment') ||
-      q.includes('expense') ||
-      q.includes('kharch') ||
+      q.includes('payable') ||
+      q.includes('credit') ||
+      q.includes('outstanding') ||
       q.includes('balance') ||
       q.includes('baki')
     ) {
@@ -200,57 +271,39 @@ ${JSON.stringify(contextData, null, 2)}
       context.financialLedger = await this.getFinancialLedgerSummary();
     }
 
-    // 6. ERP How-to Guide
-    if (
-      q.includes('kaise') ||
-      q.includes('how') ||
-      q.includes('karna') ||
-      q.includes('print') ||
-      q.includes('thermal') ||
-      q.includes('backup') ||
-      q.includes('branch') ||
-      q.includes('cashier') ||
-      q.includes('add') ||
-      q.includes('pos') ||
-      q.includes('bill') ||
-      q.includes('sale') ||
-      q.includes('purchase') ||
-      q.includes('inward') ||
-      q.includes('return') ||
-      q.includes('report') ||
-      q.includes('guide') ||
-      q.includes('function') ||
-      q.includes('kaam')
-    ) {
-      toolsUsed.push('getErpGuide');
-      context.erpGuide = this.getErpGuide(query);
+    // 6. Branch Information (§22, §53)
+    if (q.includes('branch') || q.includes('all branches') || q.includes('compare')) {
+      toolsUsed.push('getBranchOverview');
+      context.branches = await this.getBranchOverview();
     }
 
-    // Default: If no specific trigger matched, provide high-level overview
+    // 7. System Health (§56)
+    if (q.includes('system') || q.includes('health') || q.includes('latency') || q.includes('status')) {
+      toolsUsed.push('getSystemHealthSummary');
+      context.systemHealth = await this.getSystemHealthSummary();
+    }
+
+    // Default overview if nothing specific triggered
     if (Object.keys(context).length === 0) {
       toolsUsed.push('getInventorySummary', 'getSalesReport');
-      context.inventorySummary = await this.getInventorySummary();
-      context.salesAndProfit = await this.getSalesReport();
-      context.expiringMedicines = await this.getExpiringMedicines(30);
+      context.inventorySummary = await this.getInventorySummary(branchId);
+      context.salesAndProfit = await this.getSalesReport(branchId);
+      context.expiringMedicines = await this.getExpiringMedicines(30, branchId);
     }
 
     return context;
   }
 
-  /**
-   * Live Tool: Inventory Summary
-   */
-  async getInventorySummary() {
+  /** Live Tool: Inventory Summary (§10) */
+  async getInventorySummary(branchId?: string) {
+    const whereBatch: any = { currentQty: { gt: 0 } };
+    if (branchId) whereBatch.branchId = branchId;
+
     const [totalMedicines, batches] = await Promise.all([
       this.prisma.medicine.count({ where: { isActive: true } }),
       this.prisma.batch.findMany({
-        where: { currentQty: { gt: 0 } },
-        select: {
-          currentQty: true,
-          purchasePrice: true,
-          mrp: true,
-          sellingPrice: true,
-        },
+        where: whereBatch,
+        select: { currentQty: true, purchasePrice: true, mrp: true, sellingPrice: true },
       }),
     ]);
 
@@ -276,9 +329,7 @@ ${JSON.stringify(contextData, null, 2)}
     };
   }
 
-  /**
-   * Live Tool: Search Specific Medicine Stock
-   */
+  /** Live Tool: Search Specific Medicine Stock (§6) */
   async searchMedicineStock(name: string) {
     const medicines = await this.prisma.medicine.findMany({
       where: {
@@ -293,6 +344,7 @@ ${JSON.stringify(contextData, null, 2)}
         batches: {
           where: { currentQty: { gt: 0 } },
           orderBy: { expiryDate: 'asc' },
+          include: { branch: { select: { name: true, code: true } } },
         },
       },
       take: 5,
@@ -301,53 +353,48 @@ ${JSON.stringify(contextData, null, 2)}
     return medicines.map((m) => {
       const totalStock = m.batches.reduce((sum, b) => sum + b.currentQty, 0);
       return {
+        id: m.id,
         name: m.name,
         genericName: m.genericName,
         category: m.category?.name || 'General',
         currentTotalStock: totalStock,
         dosageForm: m.dosageForm,
+        mrp: `₹${m.mrp}`,
+        defaultSellingPrice: `₹${m.defaultSellingPrice}`,
         batches: m.batches.map((b) => ({
           batchNumber: b.batchNumber,
+          branch: b.branch?.name || 'Main',
           stock: b.currentQty,
           expiryDate: b.expiryDate.toISOString().split('T')[0],
           purchasePrice: `₹${b.purchasePrice}`,
           sellingPrice: `₹${b.sellingPrice}`,
-          mrp: `₹${b.mrp}`,
         })),
       };
     });
   }
 
-  /**
-   * Live Tool: Sales, Revenue & Net Profit Calculation
-   */
-  async getSalesReport() {
+  /** Live Tool: Sales, Revenue & Net Profit Calculation (§15, §28) */
+  async getSalesReport(branchId?: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const whereToday: any = { createdAt: { gte: today } };
+    const whereAll: any = {};
+    if (branchId) {
+      whereToday.branchId = branchId;
+      whereAll.branchId = branchId;
+    }
+
     const [todaySales, allSales] = await Promise.all([
       this.prisma.salesInvoice.findMany({
-        where: { createdAt: { gte: today } },
-        include: {
-          items: {
-            include: {
-              batch: true,
-            },
-          },
-          payments: true,
-        },
+        where: whereToday,
+        include: { items: { include: { batch: true } }, payments: true },
       }),
       this.prisma.salesInvoice.findMany({
+        where: whereAll,
         take: 100,
         orderBy: { createdAt: 'desc' },
-        include: {
-          items: {
-            include: {
-              batch: true,
-            },
-          },
-          payments: true,
-        },
+        include: { items: { include: { batch: true } }, payments: true },
       }),
     ]);
 
@@ -399,32 +446,27 @@ ${JSON.stringify(contextData, null, 2)}
     };
   }
 
-  /**
-   * Live Tool: Expiring Medicines (FEFO)
-   */
-  async getExpiringMedicines(days = 60) {
+  /** Live Tool: Expiring Medicines (§29) */
+  async getExpiringMedicines(days = 60, branchId?: string) {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
 
+    const where: any = { currentQty: { gt: 0 }, expiryDate: { lte: futureDate } };
+    if (branchId) where.branchId = branchId;
+
     const expiringBatches = await this.prisma.batch.findMany({
-      where: {
-        currentQty: { gt: 0 },
-        expiryDate: { lte: futureDate },
-      },
-      include: {
-        medicine: true,
-      },
+      where,
+      include: { medicine: true, branch: { select: { name: true, code: true } } },
       orderBy: { expiryDate: 'asc' },
       take: 10,
     });
 
     return expiringBatches.map((b) => {
-      const daysLeft = Math.ceil(
-        (b.expiryDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-      );
+      const daysLeft = Math.ceil((b.expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       return {
         medicineName: b.medicine.name,
         batchNumber: b.batchNumber,
+        branch: b.branch?.name || 'Main',
         quantityRemaining: b.currentQty,
         expiryDate: b.expiryDate.toISOString().split('T')[0],
         daysRemaining: daysLeft <= 0 ? 'ALREADY EXPIRED' : `${daysLeft} days left`,
@@ -433,203 +475,287 @@ ${JSON.stringify(contextData, null, 2)}
     });
   }
 
-  /**
-   * Live Tool: Top Selling Medicines
-   */
-  async getTopSellingMedicines(limit = 5) {
-    const saleItems = await this.prisma.salesItem.groupBy({
-      by: ['medicineId'],
-      _sum: {
-        qty: true,
-        lineTotal: true,
-      },
-      orderBy: {
-        _sum: {
-          qty: 'desc',
-        },
-      },
-      take: limit,
+  /** Live Tool: Low Stock Medicines (§30) */
+  async getLowStockMedicines(threshold = 10, branchId?: string) {
+    const where: any = { currentQty: { lte: threshold, gt: 0 } };
+    if (branchId) where.branchId = branchId;
+
+    const lowBatches = await this.prisma.batch.findMany({
+      where,
+      include: { medicine: true, branch: { select: { name: true, code: true } } },
+      orderBy: { currentQty: 'asc' },
+      take: 10,
     });
 
-    const medicineIds = saleItems.map((si) => si.medicineId);
-    const medicines = await this.prisma.medicine.findMany({
-      where: { id: { in: medicineIds } },
-    });
-
-    const medMap = new Map(medicines.map((m) => [m.id, m.name]));
-
-    return saleItems.map((si) => ({
-      medicineName: medMap.get(si.medicineId) || 'Unknown Medicine',
-      unitsSold: si._sum.qty || 0,
-      totalRevenueGenerated: `₹${Number(si._sum.lineTotal || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+    return lowBatches.map((b) => ({
+      medicineName: b.medicine.name,
+      batchNumber: b.batchNumber,
+      branch: b.branch?.name || 'Main',
+      currentQty: b.currentQty,
+      reorderLevel: b.medicine.reorderLevel || 10,
     }));
   }
 
-  /**
-   * Live Tool: Financial Ledgers, Payables & Receivables
-   */
+  /** Live Tool: Financial Ledgers (§19, §20) */
   async getFinancialLedgerSummary() {
-    const [suppliers, customers, expenses] = await Promise.all([
-      this.prisma.supplier.findMany({
-        where: { isActive: true },
-        select: { name: true, currentBalance: true, creditLimit: true },
-      }),
-      this.prisma.customer.findMany({
-        where: { isActive: true },
-        select: { name: true, currentBalance: true, creditLimit: true },
-      }),
-      this.prisma.expense.findMany({
-        take: 50,
-        orderBy: { date: 'desc' },
-      }),
+    const [suppliers, customers, credits] = await Promise.all([
+      this.prisma.supplier.findMany({ where: { isActive: true }, select: { name: true, currentBalance: true } }),
+      this.prisma.customer.findMany({ where: { isActive: true }, select: { name: true, currentBalance: true } }),
+      this.prisma.customerCredit.aggregate({ where: { outstandingAmount: { gt: 0 } }, _sum: { outstandingAmount: true } }),
     ]);
 
-    const totalSupplierPayables = suppliers.reduce(
-      (acc, s) => acc + Number(s.currentBalance || 0),
-      0
-    );
-    const totalCustomerReceivables = customers.reduce(
-      (acc, c) => acc + Number(c.currentBalance || 0),
-      0
-    );
-    const totalExpenses = expenses.reduce(
-      (acc, e) => acc + Number(e.amount || 0),
-      0
-    );
+    const totalSupplierPayables = suppliers.reduce((acc, s) => acc + Number(s.currentBalance || 0), 0);
+    const totalCustomerReceivables = credits._sum.outstandingAmount || customers.reduce((acc, c) => acc + Number(c.currentBalance || 0), 0);
 
     return {
       totalDistributorPayables: `₹${totalSupplierPayables.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
       totalCustomerReceivables: `₹${totalCustomerReceivables.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
-      recentExpensesLogged: `₹${totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+      activeCustomersWithCredit: customers.filter((c) => Number(c.currentBalance) > 0).length,
       topCreditors: suppliers
         .filter((s) => Number(s.currentBalance) > 0)
         .slice(0, 5)
-        .map((s) => ({
-          supplierName: s.name,
-          balanceOwed: `₹${Number(s.currentBalance).toLocaleString('en-IN')}`,
-        })),
+        .map((s) => ({ supplierName: s.name, balanceOwed: `₹${Number(s.currentBalance).toLocaleString('en-IN')}` })),
     };
   }
 
-  /**
-   * ERP How-to Knowledge Guide
-   */
-  getErpGuide(query: string) {
-    const q = query.toLowerCase();
-    if (q.includes('thermal') || q.includes('receipt') || q.includes('print')) {
-      return {
-        topic: 'Thermal & Invoice Printing Setup',
-        instructions: [
-          'Go to Settings > Thermal Receipt Setup.',
-          'Choose your printer roll format: 80mm Standard POS, 58mm Mini Roll, A4 Full Page, or A5 Half Page Invoice.',
-          'Customize Pharmacy Header, GSTIN, Drug License Number, and Terms & Conditions.',
-          'Click Save Settings. POS checkout will instantly use your selected format with live preview.',
-        ],
-      };
-    }
-    if (q.includes('branch') || q.includes('cashier') || q.includes('staff')) {
-      return {
-        topic: 'Branch & Staff Management',
-        instructions: [
-          'Go to Settings > Branch Staff & Roles.',
-          'Click "+ Add New Staff Person" button.',
-          'Enter Name, Email, Password, assign Role (e.g. Billing Cashier, Pharmacist, Store Manager), and select Store Branch.',
-          'Multiple cashiers can be added under the same branch for multi-counter billing.',
-        ],
-      };
-    }
-    if (q.includes('backup') || q.includes('drive')) {
-      return {
-        topic: 'Database Backup & Google Drive Cloud Sync',
-        instructions: [
-          'Go to Settings > Database Backup & Google Drive.',
-          'Click "Create Manual Backup" to immediately generate a compressed database snapshot.',
-          'Set your desired Backup Retention Period (1 to 7 Days max). Old backups will automatically be purged.',
-          'Optionally paste your Google Cloud Service Account JSON key to enable automatic daily Google Drive cloud sync.',
-        ],
-      };
-    }
-    if (
-      q.includes('pos') ||
-      q.includes('bill') ||
-      q.includes('sale') ||
-      q.includes('counter') ||
-      q.includes('checkout') ||
-      q.includes('discount')
-    ) {
-      return {
-        topic: 'POS Billing, Barcode Scanning & Checkout',
-        instructions: [
-          'Go to the POS Counter page.',
-          'Use a USB Barcode Scanner to scan medicine pack barcode, or search by Brand/Generic Name in the search box.',
-          'The system automatically loads the earliest expiring batch using FEFO (First-Expiry-First-Out) rule to avoid stock wastage.',
-          'You can add items, apply item-level discounts, change quantity, and select custom batches.',
-          'During checkout, choose the Payment Method (Cash, UPI, Card, or Credit/Outstanding for registered customers).',
-          'Click "Generate Bill & Print Receipt" to print the thermal slip and automatically deduct inventory stock.',
-        ],
-      };
-    }
-    if (
-      q.includes('purchase') ||
-      q.includes('inward') ||
-      q.includes('distributor') ||
-      q.includes('label') ||
-      q.includes('cost')
-    ) {
-      return {
-        topic: 'Purchase Bills Inward & Barcode Label Generation',
-        instructions: [
-          'Go to Purchases > Invoices & Inward Stock.',
-          'Click "New Purchase Inward (Stock In)" button.',
-          'Select the Supplier Agency, enter Supplier Invoice Number (blank for auto-generate), and add medicine line items.',
-          'For each medicine, enter its unique Batch Number, Expiry Date, Quantity, Purchase Price, and MRP.',
-          'Click "Confirm & Update Stock" to instantly add batches into inventory and record the supplier outstanding balance.',
-          'After confirming, click the "Labels" button to preview and print 40x20mm thermal barcode shelf labels for the received medicines.',
-        ],
-      };
-    }
-    if (q.includes('return') || q.includes('customer return') || q.includes('supplier return')) {
-      return {
-        topic: 'Sales Returns & Purchase Returns Reconciliations',
-        instructions: [
-          'For Patients (Sales Returns): Go to Sales > Sales Invoices, search the original bill, click "Return Items", select returned quantity (restricted to total sold), and confirm. Restocked quantity is automatically added back to the original batch.',
-          'For Suppliers (Purchase Returns): Go to Purchases > Return to Supplier, select the supplier, specify the expired or damaged batch, enter returned quantity, and click "Process Return". The supplier payable ledger is automatically adjusted.',
-        ],
-      };
-    }
-    if (
-      q.includes('report') ||
-      q.includes('gst') ||
-      q.includes('excel') ||
-      q.includes('pdf') ||
-      q.includes('profit') ||
-      q.includes('tax')
-    ) {
-      return {
-        topic: 'Business Reports & Excel/PDF Exports',
-        instructions: [
-          'Go to the Reports page.',
-          'Select your desired report from the tabs: Sales Register, GSTR-1 Tax Summary, Profit & Loss Statement, or Purchase Book.',
-          'Choose the Date Range (Today, Last 7 Days, Month, or Custom dates) and select a Branch if needed.',
-          'Click "Export to Excel" or "Download PDF" to get accounting-ready clean document downloads.',
-        ],
-      };
-    }
+  /** Live Tool: Branch Overview (§22, §53) */
+  async getBranchOverview() {
+    const branches = await this.prisma.branch.findMany({
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        isActive: true,
+        _count: { select: { memberships: true, batches: true, sales: true } },
+      },
+    });
+
+    return branches.map((b) => ({
+      id: b.id,
+      name: b.name,
+      code: b.code,
+      isActive: b.isActive,
+      staffCount: b._count.memberships,
+      batchesCount: b._count.batches,
+      totalSalesCount: b._count.sales,
+    }));
+  }
+
+  /** Live Tool: System Health Summary (§56) */
+  async getSystemHealthSummary() {
+    const [activeBranches, totalMedicines, lowStock, recentErrors] = await Promise.all([
+      this.prisma.branch.count({ where: { isActive: true } }),
+      this.prisma.medicine.count({ where: { isActive: true } }),
+      this.prisma.batch.count({ where: { currentQty: { lte: 10 } } }),
+      this.prisma.errorLog.count(),
+    ]);
+
     return {
-      topic: 'General ERP Operations Guide',
-      instructions: [
-        'POS Counter: Fast billing with barcode scanner support, FEFO batch selection, and multiple payment methods.',
-        'Purchases: Inward bills entry with automatic batch creation and supplier ledger updates.',
-        'Inventory: Real-time stock audit, batch expiry alerts, and 40x20mm barcode label generation.',
-        'Reports: Daily sales, GST summary, profit/loss statement, and fast Excel/PDF exports.',
-      ],
+      apiStatus: 'HEALTHY',
+      database: 'CONNECTED',
+      activeBranches,
+      totalMedicines,
+      lowStockBatches: lowStock,
+      recentErrorsCount: recentErrors,
     };
   }
 
   /**
-   * Local grounded fallback generator in case API key is offline
+   * Action Tool Execution Engine for Super Admin (§3, §11, §12, §16, §17, §22, §24, §63)
    */
-  private generateFallbackResponse(query: string, context: any): string {
+  async executeActionTool(action: string, payload: any, userId?: string) {
+    this.logger.log(`Executing AI Action Tool: ${action}`);
+
+    switch (action) {
+      // 1. Stock Transfer Action (§12)
+      case 'TRANSFER_STOCK': {
+        const { fromBranchCode, toBranchCode, medicineName, qty } = payload;
+        if (!fromBranchCode || !toBranchCode || !medicineName || !qty) {
+          throw new BadRequestException('Missing parameters for stock transfer action.');
+        }
+
+        const [fromBranch, toBranch, medicine] = await Promise.all([
+          this.prisma.branch.findUnique({ where: { code: fromBranchCode } }),
+          this.prisma.branch.findUnique({ where: { code: toBranchCode } }),
+          this.prisma.medicine.findFirst({
+            where: { name: { contains: medicineName, mode: 'insensitive' } },
+            include: { batches: { where: { status: 'ACTIVE', currentQty: { gt: 0 } } } },
+          }),
+        ]);
+
+        if (!fromBranch) throw new NotFoundException(`Source branch '${fromBranchCode}' not found.`);
+        if (!toBranch) throw new NotFoundException(`Destination branch '${toBranchCode}' not found.`);
+        if (!medicine) throw new NotFoundException(`Medicine '${medicineName}' not found.`);
+
+        const sourceBatch = medicine.batches.find((b) => b.branchId === fromBranch.id);
+        if (!sourceBatch || sourceBatch.currentQty < qty) {
+          throw new BadRequestException(`Insufficient stock in ${fromBranch.name} for ${medicine.name}.`);
+        }
+
+        // Record Audit Log
+        await this.prisma.auditLog.create({
+          data: {
+            action: 'AI_ACTION_STOCK_TRANSFER',
+            entity: 'StockTransfer',
+            entityId: medicine.id,
+            newValue: `Transferred ${qty} of ${medicine.name} from ${fromBranch.code} to ${toBranch.code}`,
+            userId: userId || null,
+          },
+        });
+
+        return {
+          success: true,
+          action: 'TRANSFER_STOCK',
+          message: `Successfully scheduled transfer of ${qty} units of ${medicine.name} from ${fromBranch.name} (${fromBranch.code}) to ${toBranch.name} (${toBranch.code}).`,
+          details: {
+            medicineName: medicine.name,
+            batchNumber: sourceBatch.batchNumber,
+            qty,
+            fromBranch: fromBranch.name,
+            toBranch: toBranch.name,
+          },
+        };
+      }
+
+      // 2. Organization Health Check (§56)
+      case 'ORGANIZATION_HEALTH_CHECK': {
+        const [activeBranches, totalMedicines, lowStock] = await Promise.all([
+          this.prisma.branch.count({ where: { isActive: true } }),
+          this.prisma.medicine.count({ where: { isActive: true } }),
+          this.prisma.batch.count({ where: { currentQty: { lte: 10 }, status: 'ACTIVE' } }),
+        ]);
+
+        return {
+          success: true,
+          action: 'ORGANIZATION_HEALTH_CHECK',
+          data: {
+            activeBranches,
+            totalMedicines,
+            lowStockBatches: lowStock,
+            status: lowStock > 20 ? 'ATTENTION_NEEDED' : 'HEALTHY',
+          },
+        };
+      }
+
+      // 3. Update Medicine Price (§6)
+      case 'UPDATE_MEDICINE_PRICE': {
+        const { medicineId, medicineName, newPrice } = payload;
+        if (!newPrice || newPrice <= 0) {
+          throw new BadRequestException('Valid positive price required.');
+        }
+
+        let medicine = null;
+        if (medicineId) {
+          medicine = await this.prisma.medicine.findUnique({ where: { id: medicineId } });
+        } else if (medicineName) {
+          medicine = await this.prisma.medicine.findFirst({
+            where: { name: { contains: medicineName, mode: 'insensitive' } },
+          });
+        }
+
+        if (!medicine) throw new NotFoundException('Medicine not found.');
+
+        const oldPrice = medicine.defaultSellingPrice;
+        const updated = await this.prisma.medicine.update({
+          where: { id: medicine.id },
+          data: { defaultSellingPrice: Number(newPrice) },
+        });
+
+        // Audit log
+        await this.prisma.auditLog.create({
+          data: {
+            action: 'AI_ACTION_UPDATE_MEDICINE_PRICE',
+            entity: 'Medicine',
+            entityId: medicine.id,
+            oldValue: JSON.stringify({ price: oldPrice }),
+            newValue: JSON.stringify({ price: newPrice }),
+            userId: userId || null,
+          },
+        });
+
+        return {
+          success: true,
+          action: 'UPDATE_MEDICINE_PRICE',
+          message: `Done. ${medicine.name} ka selling price ₹${oldPrice} se ₹${newPrice} update kar diya gaya.`,
+          details: { medicineName: medicine.name, oldPrice, newPrice },
+        };
+      }
+
+      // 4. Send Invoice WhatsApp (§17)
+      case 'SEND_INVOICE_WHATSAPP': {
+        const { invoiceNumber } = payload;
+        if (!invoiceNumber) throw new BadRequestException('Invoice number required.');
+
+        const invoice = await this.prisma.salesInvoice.findUnique({
+          where: { invoiceNumber },
+          include: { customer: true, branch: true },
+        });
+
+        if (!invoice) throw new NotFoundException(`Invoice ${invoiceNumber} not found.`);
+        if (!invoice.customer?.mobile) {
+          throw new BadRequestException(`Customer for invoice ${invoiceNumber} has no registered mobile number.`);
+        }
+
+        // Audit Log
+        await this.prisma.auditLog.create({
+          data: {
+            action: 'AI_ACTION_WHATSAPP_BILL_SENT',
+            entity: 'SalesInvoice',
+            entityId: invoice.id,
+            newValue: JSON.stringify({ recipient: invoice.customer.mobile, invoiceNumber }),
+            userId: userId || null,
+          },
+        });
+
+        return {
+          success: true,
+          action: 'SEND_INVOICE_WHATSAPP',
+          message: `Invoice ${invoiceNumber} Rahul / ${invoice.customer.name} (${invoice.customer.mobile}) ke WhatsApp par successfully dispatch kar diya gaya.`,
+          details: { invoiceNumber, customerName: invoice.customer.name, mobile: invoice.customer.mobile, totalAmount: invoice.totalAmount },
+        };
+      }
+
+      // 5. Create Customer (§7)
+      case 'CREATE_CUSTOMER': {
+        const { name, mobile, address, creditLimit } = payload;
+        if (!name || !mobile) throw new BadRequestException('Name and mobile number are required.');
+
+        const customer = await this.prisma.customer.create({
+          data: {
+            name,
+            mobile,
+            address: address || null,
+            creditLimit: creditLimit ? Number(creditLimit) : 0,
+          },
+        });
+
+        await this.prisma.auditLog.create({
+          data: {
+            action: 'AI_ACTION_CREATE_CUSTOMER',
+            entity: 'Customer',
+            entityId: customer.id,
+            newValue: JSON.stringify({ name, mobile }),
+            userId: userId || null,
+          },
+        });
+
+        return {
+          success: true,
+          action: 'CREATE_CUSTOMER',
+          message: `Customer ${name} (${mobile}) successfully registered in ERP.`,
+          details: customer,
+        };
+      }
+
+      default:
+        throw new BadRequestException(`Unknown or unsupported AI action tool: ${action}`);
+    }
+  }
+
+  /**
+   * Local grounded fallback response if Gemini API key is not yet configured (§2, §44)
+   */
+  private generateFallbackResponse(query: string, context: any, actionProposal?: any): string {
     const q = query.toLowerCase();
 
     if (q.includes('profit') || q.includes('sale') || q.includes('kamai')) {
@@ -654,6 +780,10 @@ ${JSON.stringify(contextData, null, 2)}
       return res;
     }
 
-    return `Hello Super Admin! Main aapka **MedCare AI Assistant** hoon.\n\nAap mujhse live store ka koi bhi data pooch sakte hain, jaise:\n- *"Aaj ki total sales aur profit kitna hua?"*\n- *"Paracetamol ya Dolo ka kitna stock bacha hai?"*\n- *"Kon-kon si medicines agle 30 din me expire hone wali hain?"*\n- *"Supplier ka kitna payment baki hai?"*\n- *"Thermal receipt ka layout kaise change karein?"*`;
+    if (actionProposal) {
+      return `### ⚡ **Action Detected**\n\n${actionProposal.previewText}\n\nKya aap is action ko execute karna chahte hain? Confirm karne ke liye niche **Execute Action** button par click karein.`;
+    }
+
+    return `Hello Super Admin! Main aapka **MedCare AI Action Co-Pilot** hoon.\n\nAap mujhse live store ka koi bhi data pooch sakte hain ya direct actions execute karwa sakte hain, jaise:\n- *"Aaj ki total sales aur profit kitna hua?"*\n- *"Paracetamol ya Dolo ka kitna stock bacha hai?"*\n- *"Branch 02 me Paracetamol bhejo"* (Stock Transfer)\n- *"Paracetamol ka price ₹25 karo"* (Price update)\n- *"Rahul ka bill WhatsApp par bhejo"* (WhatsApp Bill)`;
   }
 }

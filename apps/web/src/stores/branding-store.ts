@@ -4,6 +4,7 @@ import { apiClient } from '../lib/api-client';
 interface BusinessBrandingState {
   name: string;
   logo: string | null;
+  favicon: string | null;
   phone: string;
   altPhone: string | null;
   email: string | null;
@@ -17,15 +18,18 @@ interface BusinessBrandingState {
   currencySymbol: string;
   primaryColor: string;
   secondaryColor: string;
+  updatedAt?: string | null;
   isLoaded: boolean;
 
   fetchBranding: () => Promise<void>;
   setBranding: (data: Partial<BusinessBrandingState>) => void;
+  updateLogoImmediately: (newLogoUrl: string) => void;
 }
 
-export const useBrandingStore = create<BusinessBrandingState>((set) => ({
+export const useBrandingStore = create<BusinessBrandingState>((set, get) => ({
   name: 'MedCare Pharmacy',
   logo: null,
+  favicon: null,
   phone: '+91 98765 43210',
   altPhone: null,
   email: null,
@@ -39,18 +43,50 @@ export const useBrandingStore = create<BusinessBrandingState>((set) => ({
   currencySymbol: '₹',
   primaryColor: '#0284c7',
   secondaryColor: '#0f172a',
+  updatedAt: null,
   isLoaded: false,
 
-  setBranding: (data) => set((state) => ({ ...state, ...data })),
+  setBranding: (data) => {
+    set((state) => {
+      const next = { ...state, ...data };
+      if (typeof document !== 'undefined') {
+        if (data.name) {
+          document.title = `${data.name} — Pharmacy ERP & POS`;
+        }
+        if (data.primaryColor) {
+          document.documentElement.style.setProperty('--color-primary', data.primaryColor);
+        }
+        if (data.secondaryColor) {
+          document.documentElement.style.setProperty('--color-secondary', data.secondaryColor);
+        }
+      }
+      return next;
+    });
+  },
+
+  updateLogoImmediately: (newLogoUrl: string) => {
+    set((state) => ({
+      ...state,
+      logo: newLogoUrl,
+      updatedAt: new Date().toISOString(),
+    }));
+  },
 
   fetchBranding: async () => {
     try {
       const res = await apiClient.get('/settings/public');
       const data = res.data?.data || res.data || {};
 
+      let logoUrl = data.logo || null;
+      if (logoUrl && !logoUrl.startsWith('data:') && !logoUrl.includes('?v=')) {
+        const v = data.updatedAt ? new Date(data.updatedAt).getTime() : Date.now();
+        logoUrl = `${logoUrl}${logoUrl.includes('?') ? '&' : '?'}v=${v}`;
+      }
+
       set({
         name: data.name || 'MedCare Pharmacy',
-        logo: data.logo || null,
+        logo: logoUrl,
+        favicon: data.favicon || null,
         phone: data.phone || '',
         altPhone: data.altPhone || null,
         email: data.email || null,
@@ -64,11 +100,15 @@ export const useBrandingStore = create<BusinessBrandingState>((set) => ({
         currencySymbol: data.currencySymbol || '₹',
         primaryColor: data.primaryColor || '#0284c7',
         secondaryColor: data.secondaryColor || '#0f172a',
+        updatedAt: data.updatedAt || null,
         isLoaded: true,
       });
 
-      // Dynamically apply CSS root variables for themes
+      // Dynamically apply CSS root variables for themes and document title
       if (typeof document !== 'undefined') {
+        if (data.name) {
+          document.title = `${data.name} — Pharmacy ERP & POS`;
+        }
         document.documentElement.style.setProperty('--color-primary', data.primaryColor || '#0284c7');
         document.documentElement.style.setProperty('--color-secondary', data.secondaryColor || '#0f172a');
       }

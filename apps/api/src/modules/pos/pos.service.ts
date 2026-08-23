@@ -47,7 +47,7 @@ export class PosService {
   ) {}
 
   /**
-   * Smart Product Search across Name, Generic, Brand, SKU, Barcode, Manufacturer
+   * Smart Product Search across Name, Generic, Brand, SKU, Barcode, Composition, HSN, Manufacturer
    */
   async search(query: string, branchId: string) {
     const q = (query || '').trim();
@@ -62,13 +62,15 @@ export class PosService {
           { name: { contains: q, mode: 'insensitive' } },
           { genericName: { contains: q, mode: 'insensitive' } },
           { brandName: { contains: q, mode: 'insensitive' } },
+          { composition: { contains: q, mode: 'insensitive' } },
           { sku: { contains: q, mode: 'insensitive' } },
           { barcode: { contains: q, mode: 'insensitive' } },
+          { hsnCode: { contains: q, mode: 'insensitive' } },
           { manufacturer: { name: { contains: q, mode: 'insensitive' } } },
           { barcodes: { some: { barcodeValue: { contains: q, mode: 'insensitive' } } } },
         ],
       },
-      take: 25,
+      take: 30,
       include: {
         baseUnit: true,
         category: true,
@@ -85,60 +87,81 @@ export class PosService {
       },
     });
 
-    return medicines.map((med) => {
-      const totalStock = med.batches.reduce((sum, b) => sum + b.currentQty, 0);
-      const fefoBatch = med.batches[0] || null;
+    const calculateScore = (target: string | null | undefined, term: string): number => {
+      if (!target || !term) return 0;
+      const t = target.toLowerCase();
+      const s = term.toLowerCase();
+      if (t === s) return 100;
+      if (t.startsWith(s)) return 80;
+      if (t.includes(s)) return 50;
+      return 0;
+    };
 
-      return {
-        id: med.id,
-        name: med.name,
-        genericName: med.genericName,
-        brandName: med.brandName,
-        composition: med.composition,
-        dosageForm: med.dosageForm,
-        sku: med.sku,
-        barcode: med.barcode,
-        hsnCode: med.hsnCode,
-        mrp: med.mrp,
-        defaultSellingPrice: med.defaultSellingPrice,
-        taxPercent: med.taxPercent,
-        baseUnit: med.baseUnit?.abbreviation || 'PCS',
-        prescriptionRequired: Boolean(
-          med.prescriptionRequired ||
-          med.isScheduleH ||
-          med.isScheduleH1 ||
-          med.isScheduleX ||
-          med.drugSchedule !== 'OTC'
-        ),
-        drugSchedule: med.drugSchedule,
-        isScheduleH: med.isScheduleH,
-        isScheduleH1: med.isScheduleH1,
-        isScheduleX: med.isScheduleX,
-        manufacturer: med.manufacturer?.name || 'Unknown',
-        availableStock: totalStock,
-        fefoBatch: fefoBatch
-          ? {
-              id: fefoBatch.id,
-              batchNumber: fefoBatch.batchNumber,
-              expiryDate: fefoBatch.expiryDate,
-              mrp: fefoBatch.mrp,
-              sellingPrice: fefoBatch.sellingPrice,
-              currentQty: fefoBatch.currentQty,
-              taxPercent: fefoBatch.taxPercent,
-            }
-          : null,
-        batches: med.batches.map((b) => ({
-          id: b.id,
-          batchNumber: b.batchNumber,
-          mfgDate: b.mfgDate,
-          expiryDate: b.expiryDate,
-          mrp: b.mrp,
-          sellingPrice: b.sellingPrice,
-          currentQty: b.currentQty,
-          taxPercent: b.taxPercent,
-        })),
-      };
-    });
+    return medicines
+      .map((med) => {
+        const totalStock = med.batches.reduce((sum, b) => sum + b.currentQty, 0);
+        const fefoBatch = med.batches[0] || null;
+        const score = Math.max(
+          calculateScore(med.name, q),
+          calculateScore(med.genericName, q) * 0.9,
+          calculateScore(med.brandName, q) * 0.9,
+          calculateScore(med.sku, q) * 0.95,
+          calculateScore(med.barcode, q) * 0.95,
+          calculateScore(med.composition, q) * 0.85
+        );
+
+        return {
+          id: med.id,
+          name: med.name,
+          genericName: med.genericName,
+          brandName: med.brandName,
+          composition: med.composition,
+          dosageForm: med.dosageForm,
+          sku: med.sku,
+          barcode: med.barcode,
+          hsnCode: med.hsnCode,
+          mrp: med.mrp,
+          defaultSellingPrice: med.defaultSellingPrice,
+          taxPercent: med.taxPercent,
+          baseUnit: med.baseUnit?.abbreviation || med.baseUnit?.name || 'PCS',
+          prescriptionRequired: Boolean(
+            med.prescriptionRequired ||
+            med.isScheduleH ||
+            med.isScheduleH1 ||
+            med.isScheduleX ||
+            med.drugSchedule !== 'OTC'
+          ),
+          drugSchedule: med.drugSchedule,
+          isScheduleH: med.isScheduleH,
+          isScheduleH1: med.isScheduleH1,
+          isScheduleX: med.isScheduleX,
+          manufacturer: med.manufacturer?.name || 'Unknown',
+          availableStock: totalStock,
+          score,
+          fefoBatch: fefoBatch
+            ? {
+                id: fefoBatch.id,
+                batchNumber: fefoBatch.batchNumber,
+                expiryDate: fefoBatch.expiryDate,
+                mrp: fefoBatch.mrp,
+                sellingPrice: fefoBatch.sellingPrice,
+                currentQty: fefoBatch.currentQty,
+                taxPercent: fefoBatch.taxPercent,
+              }
+            : null,
+          batches: med.batches.map((b) => ({
+            id: b.id,
+            batchNumber: b.batchNumber,
+            mfgDate: b.mfgDate,
+            expiryDate: b.expiryDate,
+            mrp: b.mrp,
+            sellingPrice: b.sellingPrice,
+            currentQty: b.currentQty,
+            taxPercent: b.taxPercent,
+          })),
+        };
+      })
+      .sort((a, b) => b.score - a.score);
   }
 
   /**

@@ -33,6 +33,16 @@ export class AiAssistantController {
   @HttpCode(HttpStatus.OK)
   async chat(@Body() dto: ChatMessageDto, @CurrentUser() user: any) {
     const message = dto?.message || (dto as any)?.prompt || (dto as any)?.text || '';
-    return this.aiService.processChat(message, dto?.history);
+    return this.aiService.processChat(message, dto?.history, user?.id, user?.branchId);
+  }
+
+  @Post('action')
+  @HttpCode(HttpStatus.OK)
+  async executeAction(
+    @Body('action') action: string,
+    @Body('payload') payload: any,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.aiService.executeActionTool(action, payload, userId);
   }
 }

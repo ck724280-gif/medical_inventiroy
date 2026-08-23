@@ -5,6 +5,9 @@ interface UiState {
   toggleMobileSidebar: () => void;
   closeMobileSidebar: () => void;
   openMobileSidebar: () => void;
+  isSidebarCollapsed: boolean;
+  toggleSidebarCollapsed: () => void;
+  setSidebarCollapsed: (v: boolean) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -12,4 +15,8 @@ export const useUiStore = create<UiState>((set) => ({
   toggleMobileSidebar: () => set((s) => ({ isMobileSidebarOpen: !s.isMobileSidebarOpen })),
   closeMobileSidebar: () => set({ isMobileSidebarOpen: false }),
   openMobileSidebar: () => set({ isMobileSidebarOpen: true }),
+  isSidebarCollapsed: false,
+  toggleSidebarCollapsed: () => set((s) => ({ isSidebarCollapsed: !s.isSidebarCollapsed })),
+  setSidebarCollapsed: (v: boolean) => set({ isSidebarCollapsed: v }),
 }));
+

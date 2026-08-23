@@ -4,21 +4,33 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { motion } from 'framer-motion';
 import { loginSchema } from '@medical-inventory/validation';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { useBrandingStore } from '../../stores/branding-store';
 import { useThemeStore } from '../../stores/theme-store';
-import { Lock, Mail, AlertCircle, ArrowRight, Shield, Sun, Moon } from 'lucide-react';
+import { Input, Button } from '../../components/ui';
+import {
+  Lock,
+  Mail,
+  AlertCircle,
+  ArrowRight,
+  ShieldCheck,
+  Sun,
+  Moon,
+  Eye,
+  EyeOff,
+  Activity,
+} from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const loginStore = useAuthStore((s) => s.login);
-  const { name: storeName } = useBrandingStore();
+  const { name: storeName, logo: storeLogo } = useBrandingStore();
   const { theme, toggleTheme, initializeTheme } = useThemeStore();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     initializeTheme();
@@ -52,143 +64,183 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#090d16] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
-      {/* ── Theme Toggle Button in Top-Right Corner ────────────────── */}
-      <div className="absolute top-5 right-5 z-20">
+    <div className="min-h-screen w-full flex flex-col md:flex-row bg-surface-page text-text-primary relative overflow-hidden font-sans transition-colors duration-200">
+      {/* ── Floating Theme Toggle ────────────────── */}
+      <div className="absolute top-4 right-4 z-30">
         <button
           type="button"
           onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 shadow-md transition-all duration-200 flex items-center gap-2 text-xs font-semibold"
+          aria-label="Toggle theme"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-surface-base/90 backdrop-blur-sm text-xs font-semibold text-text-secondary shadow-sm hover:bg-surface-hover hover:text-text-primary transition cursor-pointer"
         >
           {theme === 'dark' ? (
             <>
               <Sun className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">Light Mode</span>
+              <span className="hidden sm:inline">Light</span>
             </>
           ) : (
             <>
-              <Moon className="w-4 h-4 text-slate-700" />
-              <span className="hidden sm:inline">Dark Mode</span>
+              <Moon className="w-4 h-4 text-text-secondary" />
+              <span className="hidden sm:inline">Dark</span>
             </>
           )}
         </button>
       </div>
 
-      {/* ── Ambient Background Glow ───────────────────────── */}
-      <div
-        className="absolute -top-32 -left-32 w-96 h-96 rounded-full blur-[100px] pointer-events-none opacity-30 dark:opacity-20"
-        style={{ background: 'rgba(56, 189, 248, 0.4)' }}
-      />
-      <div
-        className="absolute -bottom-32 -right-32 w-[28rem] h-[28rem] rounded-full blur-[120px] pointer-events-none opacity-30 dark:opacity-20"
-        style={{ background: 'rgba(14, 165, 233, 0.3)' }}
-      />
+      {/* ── Left Branding Panel (Desktop 40% md+) ────────────────── */}
+      <div className="hidden md:flex md:w-[40%] bg-accent p-10 flex-col justify-between relative overflow-hidden text-accent-foreground select-none">
+        {/* Background glow & subtle patterns */}
+        <div
+          className="absolute -top-24 -left-24 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-25"
+          style={{ background: '#ffffff' }}
+        />
+        <div
+          className="absolute -bottom-24 -right-24 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-20"
+          style={{ background: 'rgba(0, 0, 0, 0.4)' }}
+        />
 
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0"
-      >
-        {/* Brand Header */}
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl text-white font-bold text-2xl mb-4 relative shadow-lg shadow-sky-600/30 bg-sky-600 dark:bg-sky-500/20 overflow-hidden border border-sky-500/30">
-            {useBrandingStore.getState().logo ? (
-              <img src={useBrandingStore.getState().logo!} alt="Logo" className="w-full h-full object-contain p-1 bg-white dark:bg-slate-900" />
+        {/* Top brand icon */}
+        <div className="relative z-10 flex items-center gap-2 text-accent-foreground/90 font-mono text-xs uppercase tracking-wider">
+          <Activity className="w-4 h-4" />
+          <span>Healthcare Cloud Platform</span>
+        </div>
+
+        {/* Center brand presentation */}
+        <div className="relative z-10 my-auto py-12 text-center max-w-sm mx-auto">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-white text-accent font-bold text-3xl mb-6 shadow-xl overflow-hidden border-2 border-white/20">
+            {storeLogo ? (
+              <img
+                src={storeLogo}
+                alt={storeName || 'Logo'}
+                className="w-full h-full object-contain p-2"
+              />
             ) : (
-              <span className="font-bold text-white text-2xl">
-                {storeName ? storeName.charAt(0).toUpperCase() : '+'}
-              </span>
+              <span>{storeName ? storeName.charAt(0).toUpperCase() : '+'}</span>
             )}
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            {storeName || 'MedCare Pharmacy & Healthcare'}
-          </h2>
-          <p className="mt-1 text-xs sm:text-sm text-sky-600 dark:text-sky-400 font-mono font-semibold">
-            Medical ERP &amp; Pharmacy POS System
+
+          <h1 className="text-3xl font-extrabold text-white tracking-tight leading-tight mb-2">
+            {storeName || 'Pharmacy & Healthcare'}
+          </h1>
+          <p className="text-accent-foreground/90 font-mono text-sm font-semibold tracking-wide">
+            Medical ERP &amp; POS
+          </p>
+
+          <p className="mt-4 text-xs text-accent-foreground/80 leading-relaxed max-w-xs mx-auto">
+            FEFO-enforced batch dispensing, GST compliance, multi-tender POS billing, and real-time inventory management.
           </p>
         </div>
 
-        {/* Login Box */}
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="py-8 px-6 sm:px-10 rounded-2xl relative bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-2xl">
+        {/* Bottom security pill */}
+        <div className="relative z-10 flex items-center justify-center gap-2 text-xs text-accent-foreground/80 font-medium">
+          <ShieldCheck className="w-4 h-4 text-accent-foreground" />
+          <span>256-Bit Encrypted Pharmacy Workspace</span>
+        </div>
+      </div>
+
+      {/* ── Right Login Form Panel (Desktop 60%, Mobile Full Width) ── */}
+      <div className="w-full md:w-[60%] flex flex-col justify-center items-center px-4 py-12 sm:px-8 lg:px-16 relative z-10 min-h-screen md:min-h-0 bg-surface-page">
+        {/* Mobile Header (<md) */}
+        <div className="md:hidden text-center mb-8 max-w-xs">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-accent text-accent-foreground font-bold text-2xl mb-3 shadow-md overflow-hidden">
+            {storeLogo ? (
+              <img
+                src={storeLogo}
+                alt={storeName || 'Logo'}
+                className="w-full h-full object-contain p-1.5 bg-surface-base"
+              />
+            ) : (
+              <span>{storeName ? storeName.charAt(0).toUpperCase() : '+'}</span>
+            )}
+          </div>
+          <h2 className="text-xl font-bold text-text-primary tracking-tight">
+            {storeName || 'Pharmacy & Healthcare'}
+          </h2>
+          <p className="text-xs text-accent font-mono font-semibold mt-0.5">
+            Medical ERP &amp; POS
+          </p>
+        </div>
+
+        {/* Login Card */}
+        <div className="w-full max-w-md bg-surface-base border border-border rounded-2xl shadow-card p-6 sm:p-8 animate-fade-in">
+          <div className="mb-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-text-primary tracking-tight">
+              Sign In
+            </h2>
+            <p className="text-xs sm:text-sm text-text-muted mt-1">
+              Enter your credentials to access your store counter
+            </p>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
+            <div>
+              <Input
+                label="Email or Mobile"
+                type="text"
+                placeholder="admin@medcare.com"
+                disabled={loading}
+                leftIcon={<Mail className="w-4 h-4" />}
+                error={errors.email?.message as string}
+                {...register('email')}
+              />
+            </div>
+
+            <div>
+              <Input
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                disabled={loading}
+                leftIcon={<Lock className="w-4 h-4" />}
+                rightIcon={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex={-1}
+                    className="text-text-muted hover:text-text-primary focus:outline-none transition-colors"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                }
+                error={errors.password?.message as string}
+                {...register('password')}
+              />
+            </div>
+
+            {/* Inline Error Message Banner */}
             {errorMessage && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="mb-5 p-3 rounded-xl text-red-700 dark:text-red-300 text-xs flex items-center gap-2 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800"
-              >
-                <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-500" />
+              <div className="p-3 rounded-xl text-status-error text-xs flex items-center gap-2 bg-status-error-bg border border-status-error-border animate-fade-in">
+                <AlertCircle className="w-4 h-4 shrink-0 text-status-error" />
                 <span>{errorMessage}</span>
-              </motion.div>
+              </div>
             )}
 
-            <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Email or Mobile
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <input
-                    {...register('email')}
-                    type="text"
-                    placeholder="admin@medcare.com"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm transition-all duration-200 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20"
-                  />
-                </div>
-                {errors.email && (
-                  <p className="mt-1 text-xs text-red-500">{errors.email.message as string}</p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-                  Password
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <input
-                    {...register('password')}
-                    type="password"
-                    placeholder="••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 text-sm transition-all duration-200 focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/20"
-                  />
-                </div>
-                {errors.password && (
-                  <p className="mt-1 text-xs text-red-500">{errors.password.message as string}</p>
-                )}
-              </div>
-
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-lg shadow-sky-600/30 cursor-pointer transition-all duration-200 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <div className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Authenticating...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <span>Sign In to Workspace</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
+            <div className="pt-2">
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                isLoading={loading}
+                disabled={loading}
+                className="w-full font-semibold shadow-sm"
+                rightIcon={!loading ? <ArrowRight className="w-4 h-4" /> : undefined}
+              >
+                Sign In to Workspace
+              </Button>
+            </div>
+          </form>
         </div>
-      </motion.div>
+
+        {/* Footer Subtext */}
+        <p className="text-center text-xs text-text-muted mt-6">
+          Authorized personnel only. Protected by medical role-based access control.
+        </p>
+      </div>
     </div>
   );
 }
-

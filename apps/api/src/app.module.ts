@@ -7,6 +7,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { PermissionsGuard } from './common/guards/permissions.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
+import { PerformanceLoggingInterceptor } from './common/interceptors/performance-logging.interceptor';
+import { ResponseTransformInterceptor } from './common/interceptors/response-transform.interceptor';
 import { GlobalHttpExceptionFilter } from './common/filters/http-exception.filter';
 import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 
@@ -41,6 +43,17 @@ import { BackupModule } from './modules/backup/backup.module';
 import { ImportExportModule } from './modules/import-export/import-export.module';
 import { PartyPricingModule } from './modules/party-pricing/party-pricing.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
+import { AppCacheModule } from './modules/cache/cache.module';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.module';
+import { CashRegistersModule } from './modules/cash-registers/cash-registers.module';
+import { SearchModule } from './modules/search/search.module';
+
+// P6 New Modules
+import { ApprovalsModule } from './modules/approvals/approvals.module';
+import { FeatureFlagsModule } from './modules/feature-flags/feature-flags.module';
+import { BackgroundJobsModule } from './modules/jobs/background-jobs.module';
+import { SystemModule } from './modules/system/system.module';
 
 @Module({
   imports: [
@@ -54,6 +67,10 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
         limit: 100, // 100 requests per minute
       },
     ]),
+    AppCacheModule,
+    SuperAdminModule,
+    StockTransfersModule,
+    CashRegistersModule,
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -86,6 +103,12 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
     BackupModule,
     ImportExportModule,
     AiAssistantModule,
+    SearchModule,
+    // P6 New Modules
+    ApprovalsModule,
+    FeatureFlagsModule,
+    BackgroundJobsModule,
+    SystemModule,
   ],
   providers: [
     // 1. Global Auth Guard (all routes protected by default unless @Public())
@@ -108,7 +131,17 @@ import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
       provide: APP_INTERCEPTOR,
       useClass: AuditInterceptor,
     },
-    // 5. Global Exception Filters
+    // 5. Global Performance Interceptor (§42: generates X-Request-ID)
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: PerformanceLoggingInterceptor,
+    },
+    // 6. Global Response Transform Interceptor (§73: standard response shape, §42: requestId)
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ResponseTransformInterceptor,
+    },
+    // 7. Global Exception Filters
     {
       provide: APP_FILTER,
       useClass: GlobalHttpExceptionFilter,

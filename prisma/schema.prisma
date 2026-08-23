@@ -39,6 +39,10 @@ model User {
   uploads               FileUpload[]
   createdPurchaseOrders PurchaseOrder[]    @relation("POCreator")
   shifts                CashierShift[]     @relation("UserShifts")
+  approvalRequests      ApprovalRequest[]  @relation("ApprovalRequester")
+  approvalDecisions     ApprovalRequest[]  @relation("ApprovalApprover")
+  backgroundJobs        BackgroundJob[]
+  branchSwitchLogs      BranchSwitchLog[]
 
   @@map("users")
 }
@@ -148,6 +152,11 @@ model BusinessSettings {
   timeFormat      String   @default("12h") @map("time_format")
   defaultLanguage String   @default("en") @map("default_language")
   businessHours   String?  @map("business_hours")
+  geminiApiKey    String?  @map("gemini_api_key")
+  aiModelName     String   @default("gemini-1.5-flash") @map("ai_model_name")
+  aiEnabled       Boolean  @default(true) @map("ai_enabled")
+  aiTemperature   Float    @default(0.2) @map("ai_temperature")
+  aiSystemPrompt  String?  @map("ai_system_prompt")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   @@map("business_settings")
@@ -187,14 +196,22 @@ model Branch {
   sales           SalesInvoice[]
   movements       StockMovement[]
   adjustments     StockAdjustment[]
-  transfersFrom   StockTransfer[]    @relation("FromBranch")
-  transfersTo     StockTransfer[]    @relation("ToBranch")
+  transfersFrom   StockTransfer[]            @relation("FromBranch")
+  transfersTo     StockTransfer[]            @relation("ToBranch")
   expenses        Expense[]
   printers        PrinterSetting[]
   salesReturns    SalesReturn[]
   purchaseReturns PurchaseReturn[]
   purchaseOrders  PurchaseOrder[]
   shifts          CashierShift[]
+  approvalRequests         ApprovalRequest[]
+  featureFlags             BranchFeatureFlag[]
+  supplierRelations        SupplierBranchRelation[]
+  customerRelations        CustomerBranchRelation[]
+  customerCredits          CustomerCredit[]
+  centralPurchaseAllocations CentralPurchaseAllocation[]
+  switchFromLogs           BranchSwitchLog[]   @relation("SwitchFrom")
+  switchToLogs             BranchSwitchLog[]   @relation("SwitchTo")
 
   @@map("branches")
 }
@@ -334,6 +351,7 @@ model Medicine {
   salesReturnItems    SalesReturnItem[]
   partyPrices         PartyItemPrice[]
   purchaseOrderItems  PurchaseOrderItem[]
+  centralAllocations  CentralPurchaseAllocation[]
 
   @@index([name])
   @@index([genericName])
@@ -503,6 +521,7 @@ model Supplier {
   returns        PurchaseReturn[]
   partyPrices    PartyItemPrice[]
   purchaseOrders PurchaseOrder[]
+  branchRelations SupplierBranchRelation[]
 
   @@map("suppliers")
 }
@@ -525,6 +544,8 @@ model Customer {
   sales          SalesInvoice[]
   returns        SalesReturn[]
   PartyItemPrice PartyItemPrice[]
+  branchRelations CustomerBranchRelation[]
+  credits        CustomerCredit[]
 
   @@index([name])
   @@index([mobile])
@@ -561,6 +582,7 @@ model PurchaseInvoice {
   returns         PurchaseReturn[]
   purchaseOrderId String?           @map("purchase_order_id")
   purchaseOrder   PurchaseOrder?    @relation(fields: [purchaseOrderId], references: [id], onDelete: SetNull)
+  centralAllocations CentralPurchaseAllocation[]
 
   @@map("purchase_invoices")
 }
@@ -677,6 +699,7 @@ model SalesInvoice {
   shift              CashierShift?       @relation("ShiftSales", fields: [shiftId], references: [id], onDelete: SetNull)
   idempotencyKey     String?             @unique @map("idempotency_key")
   isReprint          Boolean             @default(false) @map("is_reprint")
+  customerCredits    CustomerCredit[]
 
   @@index([invoiceNumber])
   @@index([createdAt])
@@ -1055,5 +1078,211 @@ model BackupConfig {
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@map("backup_configs")
+}
+
+// ============================================================
+// P6 NEW MODELS — Enterprise ERP Upgrade
+// ============================================================
+
+// §12 Approval Workflow
+model ApprovalRequest {
+  id              String    @id @default(uuid())
+  organizationId  String?   @map("organization_id")
+  branchId        String    @map("branch_id")
+  requestedBy     String    @map("requested_by")
+  approvedBy      String?   @map("approved_by")
+  action          String    // PURCHASE_APPROVAL | STOCK_ADJUST | INVOICE_CANCEL | HIGH_DISCOUNT | EXPENSE | SUPPLIER_PAYMENT | LARGE_REFUND | MANUAL_STOCK_IN | MANUAL_STOCK_OUT
+  entityType      String    @map("entity_type")
+  entityId        String?   @map("entity_id")
+  requestedValue  String?   @map("requested_value")
+  approvedValue   String?   @map("approved_value")
+  reason          String?
+  notes           String?
+  status          String    @default("PENDING") // PENDING | APPROVED | REJECTED | CANCELLED
+  requestedAt     DateTime  @default(now()) @map("requested_at")
+  resolvedAt      DateTime? @map("resolved_at")
+
+  branch      Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  requester   User   @relation("ApprovalRequester", fields: [requestedBy], references: [id], onDelete: Restrict)
+  approver    User?  @relation("ApprovalApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@index([branchId, status])
+  @@index([requestedBy])
+  @@index([requestedAt])
+  @@map("approval_requests")
+}
+
+// §13 Discount Policy per Role
+model DiscountPolicy {
+  id                     String   @id @default(uuid())
+  branchId               String?  @map("branch_id") // null = org-wide default
+  roleName               String   @map("role_name") // CASHIER | MANAGER | PHARMACIST | SUPER_ADMIN
+  maxDiscountPercent     Float    @default(5) @map("max_discount_percent")
+  requiresApprovalAbove  Float?   @map("requires_approval_above") // If discount > this, needs approval
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@unique([branchId, roleName])
+  @@map("discount_policies")
+}
+
+// §20 Feature Flags per Branch
+model BranchFeatureFlag {
+  id         String   @id @default(uuid())
+  branchId   String   @map("branch_id")
+  featureKey String   @map("feature_key") // POS | CREDIT_SALE | WHOLESALE | STOCK_TRANSFER | EXPENSE | CENTRAL_PURCHASE | REPORTS | IMPORT_EXPORT
+  isEnabled  Boolean  @default(true) @map("is_enabled")
+  updatedBy  String?  @map("updated_by")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, featureKey])
+  @@index([branchId])
+  @@map("branch_feature_flags")
+}
+
+// §49 Customer Credit / Receivable Management
+model CustomerCredit {
+  id              String    @id @default(uuid())
+  customerId      String    @map("customer_id")
+  branchId        String    @map("branch_id")
+  invoiceId       String?   @map("invoice_id")
+  creditAmount    Float     @default(0) @map("credit_amount")
+  paidAmount      Float     @default(0) @map("paid_amount")
+  outstandingAmount Float   @default(0) @map("outstanding_amount")
+  paymentDate     DateTime? @map("payment_date")
+  paymentMethod   String?   @map("payment_method") // CASH | UPI | CARD | BANK
+  collectedBy     String?   @map("collected_by")
+  reference       String?
+  notes           String?
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  customer  Customer     @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  branch    Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  invoice   SalesInvoice? @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([customerId, branchId])
+  @@index([branchId, outstandingAmount])
+  @@map("customer_credits")
+}
+
+// §4 Supplier Branch Relation (org-level supplier master)
+model SupplierBranchRelation {
+  id              String   @id @default(uuid())
+  supplierId      String   @map("supplier_id")
+  branchId        String   @map("branch_id")
+  branchLedgerBalance Float @default(0) @map("branch_ledger_balance")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([supplierId, branchId])
+  @@index([supplierId])
+  @@index([branchId])
+  @@map("supplier_branch_relations")
+}
+
+// §5 Customer Branch Relation (org-level customer with branch context)
+model CustomerBranchRelation {
+  id           String   @id @default(uuid())
+  customerId   String   @map("customer_id")
+  branchId     String   @map("branch_id")
+  localNotes   String?  @map("local_notes")
+  creditLimit  Float    @default(0) @map("credit_limit")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  branch   Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, branchId])
+  @@index([customerId])
+  @@index([branchId])
+  @@map("customer_branch_relations")
+}
+
+// §29 Background Job System
+model BackgroundJob {
+  id          String    @id @default(uuid())
+  jobType     String    @map("job_type") // REPORT_EXPORT | PDF_GENERATE | BULK_IMPORT | NOTIFICATION | ANALYTICS
+  status      String    @default("PENDING") // PENDING | RUNNING | COMPLETED | FAILED
+  requestedBy String    @map("requested_by")
+  branchId    String?   @map("branch_id")
+  payload     String?   // JSON params
+  resultUrl   String?   @map("result_url")
+  errorMessage String?  @map("error_message")
+  progress    Int       @default(0) // 0-100
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  requester User @relation(fields: [requestedBy], references: [id], onDelete: Restrict)
+
+  @@index([requestedBy, status])
+  @@index([createdAt])
+  @@map("background_jobs")
+}
+
+// §41 Error Log / Error Monitoring
+model ErrorLog {
+  id             String   @id @default(uuid())
+  requestId      String?  @map("request_id")
+  endpoint       String?
+  userId         String?  @map("user_id")
+  organizationId String?  @map("organization_id")
+  branchId       String?  @map("branch_id")
+  errorCategory  String?  @map("error_category")
+  safeMessage    String   @map("safe_message")
+  stackTrace     String?  @map("stack_trace") // server-only, never sent to client
+  statusCode     Int?     @map("status_code")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([userId])
+  @@map("error_logs")
+}
+
+// §3 Central Purchase Allocation (for Super Admin central purchase)
+model CentralPurchaseAllocation {
+  id              String   @id @default(uuid())
+  purchaseId      String   @map("purchase_id")
+  branchId        String   @map("branch_id")
+  medicineId      String   @map("medicine_id")
+  allocatedQty    Int      @map("allocated_qty")
+  receivedQty     Int      @default(0) @map("received_qty")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  purchase  PurchaseInvoice @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  branch    Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  medicine  Medicine        @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+
+  @@index([purchaseId])
+  @@index([branchId])
+  @@map("central_purchase_allocations")
+}
+
+// §37 Branch Access Switching Log (extends audit trail for Super Admin switches)
+model BranchSwitchLog {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  fromBranchId    String?  @map("from_branch_id")
+  toBranchId      String   @map("to_branch_id")
+  reason          String?
+  ipAddress       String?  @map("ip_address")
+  switchedAt      DateTime @default(now()) @map("switched_at")
+
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fromBranch Branch? @relation("SwitchFrom", fields: [fromBranchId], references: [id], onDelete: SetNull)
+  toBranch   Branch  @relation("SwitchTo", fields: [toBranchId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([switchedAt])
+  @@map("branch_switch_logs")
 }
 

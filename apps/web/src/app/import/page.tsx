@@ -22,6 +22,7 @@ import {
 
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
+import { PageHeader } from '../../components/ui';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
@@ -291,97 +292,111 @@ export default function ImportPage() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
+    <div className="flex h-screen bg-surface-page text-text-primary overflow-hidden font-sans">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
         <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
-          {/* Header & Actions */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                Opening Stock &amp; CSV Migration Wizard
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Bulk upload existing medicine catalogue, initial batch quantities, purchase rates, and MRPs into your store.
-              </p>
-            </div>
+          {/* Page Header */}
+          <PageHeader
+            title="Opening Stock Import"
+            description="Bulk import medicines and opening inventory via spreadsheet or manual entry."
+            actions={
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={handleDownloadSampleCsv}
+                  className="px-3 py-2 bg-surface-base hover:bg-surface-raised text-text-secondary rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-border-default shadow-sm transition cursor-pointer"
+                >
+                  <Download className="w-4 h-4 text-text-muted" />
+                  CSV Sample Template
+                </button>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={handleDownloadSampleCsv}
-                className="px-3 py-2 bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 dark:border-slate-800 shadow-sm transition cursor-pointer"
-              >
-                <Download className="w-4 h-4 text-slate-500 dark:text-slate-400" />
-                CSV Sample Template
-              </button>
+                <button
+                  onClick={() => setShowPasteModal(true)}
+                  className="px-3 py-2 bg-surface-base hover:bg-surface-raised text-text-secondary rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-border-default shadow-sm transition cursor-pointer"
+                >
+                  <ClipboardPaste className="w-4 h-4 text-indigo-500" />
+                  Paste from Excel
+                </button>
 
-              <button
-                onClick={() => setShowPasteModal(true)}
-                className="px-3 py-2 bg-white dark:bg-[#0f172a] hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 dark:border-slate-800 shadow-sm transition cursor-pointer"
-              >
-                <ClipboardPaste className="w-4 h-4 text-indigo-500" />
-                Paste from Excel
-              </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleCsvUpload}
+                  className="hidden"
+                />
 
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={handleCsvUpload}
-                className="hidden"
-              />
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-3.5 py-2 bg-surface-raised hover:bg-surface-hover text-text-primary rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-border-strong shadow transition cursor-pointer"
+                >
+                  <Upload className="w-4 h-4 text-accent-primary" />
+                  Upload CSV File
+                </button>
 
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="px-3.5 py-2 bg-slate-800 dark:bg-slate-700 hover:bg-slate-700 dark:hover:bg-slate-600 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow transition cursor-pointer"
-              >
-                <Upload className="w-4 h-4 text-sky-400" />
-                Upload CSV File
-              </button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={importMutation.isPending || stats.totalItems === 0}
+                  className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition cursor-pointer disabled:opacity-50 active:scale-95"
+                >
+                  {importMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {importMutation.isPending ? 'Committing...' : `Commit Opening Stock (${stats.totalItems})`}
+                </button>
+              </div>
+            }
+          />
 
-              <button
-                onClick={handleSubmit}
-                disabled={importMutation.isPending || stats.totalItems === 0}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-sky-600/20 transition cursor-pointer disabled:opacity-50 active:scale-95"
-              >
-                {importMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {importMutation.isPending ? 'Committing...' : `Commit Opening Stock (${stats.totalItems})`}
-              </button>
-            </div>
+          {/* File Drop Zone */}
+          <div
+            className="border-2 border-dashed border-border-strong rounded-xl p-10 text-center bg-surface-base hover:bg-surface-raised transition cursor-pointer"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <FileSpreadsheet className="text-text-muted w-10 h-10 mx-auto mb-3" />
+            <p className="text-text-primary font-semibold text-base mb-1">Drop your CSV file here</p>
+            <p className="text-text-muted text-sm mb-4">
+              Or click to browse — supports .csv files with Medicine Name, Batch, Expiry, Qty, Cost, MRP columns
+            </p>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold transition"
+            >
+              <Upload className="w-4 h-4" />
+              Choose CSV File
+            </button>
           </div>
 
           {/* Live Valuation KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold block">Valid Items in Grid</span>
-              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">
+            <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+              <span className="text-[11px] text-text-muted font-semibold block">Valid Items in Grid</span>
+              <div className="text-xl font-bold font-mono text-text-primary mt-1">
                 {stats.totalItems} Medicines
               </div>
-              <span className="text-[10px] text-slate-400">{rows.length} total rows in table</span>
+              <span className="text-[10px] text-text-muted">{rows.length} total rows in table</span>
             </div>
 
-            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold block">Total Stock Units</span>
+            <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+              <span className="text-[11px] text-text-muted font-semibold block">Total Stock Units</span>
               <div className="text-xl font-bold font-mono text-sky-600 dark:text-sky-400 mt-1">
                 {stats.totalUnits} Units
               </div>
-              <span className="text-[10px] text-slate-400">Total batch quantity</span>
+              <span className="text-[10px] text-text-muted">Total batch quantity</span>
             </div>
 
-            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold block">Total Purchase Cost</span>
-              <div className="text-xl font-bold font-mono text-slate-900 dark:text-white mt-1">
+            <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+              <span className="text-[11px] text-text-muted font-semibold block">Total Purchase Cost</span>
+              <div className="text-xl font-bold font-mono text-text-primary mt-1">
                 {formatCurrency(stats.totalCost)}
               </div>
-              <span className="text-[10px] text-slate-400">Inventory investment</span>
+              <span className="text-[10px] text-text-muted">Inventory investment</span>
             </div>
 
-            <div className="bg-white dark:bg-[#0f172a] p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold block">Total MRP Valuation</span>
+            <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+              <span className="text-[11px] text-text-muted font-semibold block">Total MRP Valuation</span>
               <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
                 {formatCurrency(stats.totalMrp)}
               </div>
@@ -396,19 +411,19 @@ export default function ImportPage() {
             <div
               className={`p-4 rounded-2xl border text-xs flex items-start gap-3 shadow-sm ${
                 resultStatus.success
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-300'
-                  : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800/60 text-red-900 dark:text-red-300'
+                  ? 'bg-status-success-bg border-status-success-border text-status-success'
+                  : 'bg-status-error-bg border-status-error-border text-status-error'
               }`}
             >
               {resultStatus.success ? (
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
+                <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
               ) : (
-                <AlertCircle className="w-5 h-5 flex-shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
               )}
               <div className="flex-1">
                 <p className="font-bold text-xs">{resultStatus.message}</p>
                 {(Array.isArray(resultStatus.errors) ? resultStatus.errors : []).map((err: any, idx: number) => (
-                  <p key={idx} className="text-[11px] text-red-600 dark:text-red-400 mt-0.5">
+                  <p key={idx} className="text-[11px] text-status-error mt-0.5">
                     Row {err.row}: {err.error}
                   </p>
                 ))}
@@ -417,18 +432,18 @@ export default function ImportPage() {
           )}
 
           {/* Opening Stock Wizard Table */}
-          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden space-y-3 p-4">
+          <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm overflow-hidden space-y-3 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="font-bold text-xs text-slate-900 dark:text-white">Live Opening Stock Table</span>
-                <span className="text-[11px] text-slate-400">({rows.length} rows)</span>
+                <span className="font-bold text-xs text-text-primary">Live Opening Stock Table</span>
+                <span className="text-[11px] text-text-muted">({rows.length} rows)</span>
               </div>
 
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={() => handleAddRow(1)}
-                  className="px-2.5 py-1.5 bg-sky-50 dark:bg-sky-950/50 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                  className="px-2.5 py-1.5 bg-accent-subtle hover:bg-accent-subtle/70 text-accent-primary rounded-lg text-xs font-semibold flex items-center gap-1 transition"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   Add Row
@@ -436,7 +451,7 @@ export default function ImportPage() {
                 <button
                   type="button"
                   onClick={() => handleAddRow(5)}
-                  className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                  className="px-2.5 py-1.5 bg-surface-raised hover:bg-surface-hover text-text-secondary rounded-lg text-xs font-semibold flex items-center gap-1 transition"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   +5 Rows
@@ -444,7 +459,7 @@ export default function ImportPage() {
                 <button
                   type="button"
                   onClick={handleClearGrid}
-                  className="px-2.5 py-1.5 bg-red-50 dark:bg-red-950/40 hover:bg-red-100 dark:hover:bg-red-900/50 text-red-700 dark:text-red-300 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                  className="px-2.5 py-1.5 bg-status-error-bg hover:bg-red-100 dark:hover:bg-red-900/50 text-status-error rounded-lg text-xs font-semibold flex items-center gap-1 transition"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Clear Grid
@@ -452,9 +467,9 @@ export default function ImportPage() {
               </div>
             </div>
 
-            <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/80 rounded-xl">
+            <div className="overflow-x-auto border border-border-default rounded-xl">
               <table className="w-full text-left border-collapse text-xs min-w-[950px]">
-                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
+                <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="py-2.5 px-3">#</th>
                     <th className="py-2.5 px-3 min-w-[200px]">Medicine Name *</th>
@@ -469,10 +484,10 @@ export default function ImportPage() {
                     <th className="py-2.5 px-2 text-center w-10"></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tbody className="divide-y divide-border-default">
                   {rows.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                      <td className="py-2 px-3 text-slate-400 font-mono text-[11px]">{idx + 1}</td>
+                    <tr key={idx} className="hover:bg-surface-raised">
+                      <td className="py-2 px-3 text-text-muted font-mono text-[11px]">{idx + 1}</td>
                       <td className="py-2 px-3">
                         <input
                           type="text"
@@ -483,7 +498,7 @@ export default function ImportPage() {
                             setRows(updated);
                           }}
                           placeholder="e.g. Paracetamol 650mg"
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-medium focus:outline-none focus:border-sky-500 text-xs"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg text-text-primary font-medium focus:outline-none focus:border-[var(--border-focus)] text-xs"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -496,7 +511,7 @@ export default function ImportPage() {
                             setRows(updated);
                           }}
                           placeholder="SKU Code"
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-[11px] text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -509,7 +524,7 @@ export default function ImportPage() {
                             setRows(updated);
                           }}
                           placeholder="B2026-01"
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-[11px] text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -521,7 +536,7 @@ export default function ImportPage() {
                             updated[idx].expiryDate = e.target.value;
                             setRows(updated);
                           }}
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-[11px] text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                         />
                       </td>
                       <td className="py-2 px-3 text-center">
@@ -535,7 +550,7 @@ export default function ImportPage() {
                             updated[idx].qty = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
                             setRows(updated);
                           }}
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-center text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-bold"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-center text-text-primary focus:outline-none focus:border-[var(--border-focus)] font-bold"
                         />
                       </td>
                       <td className="py-2 px-3 text-right">
@@ -550,7 +565,7 @@ export default function ImportPage() {
                             updated[idx].purchasePrice = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                             setRows(updated);
                           }}
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-right text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-right text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                         />
                       </td>
                       <td className="py-2 px-3 text-right">
@@ -565,7 +580,7 @@ export default function ImportPage() {
                             updated[idx].sellingPrice = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                             setRows(updated);
                           }}
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-right text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-right text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                         />
                       </td>
                       <td className="py-2 px-3 text-right">
@@ -580,7 +595,7 @@ export default function ImportPage() {
                             updated[idx].mrp = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
                             setRows(updated);
                           }}
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-right text-emerald-600 dark:text-emerald-400 font-bold focus:outline-none focus:border-sky-500"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-right text-emerald-600 dark:text-emerald-400 font-bold focus:outline-none focus:border-[var(--border-focus)]"
                         />
                       </td>
                       <td className="py-2 px-3">
@@ -593,14 +608,14 @@ export default function ImportPage() {
                             setRows(updated);
                           }}
                           placeholder="A1 / Shelf-2"
-                          className="w-full px-2 py-1 bg-white dark:bg-[#090d16] border border-slate-300 dark:border-slate-700 rounded-lg text-[11px] text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg text-[11px] text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                         />
                       </td>
                       <td className="py-2 px-2 text-center">
                         <button
                           type="button"
                           onClick={() => removeRow(idx)}
-                          className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition"
+                          className="p-1 text-text-muted hover:text-status-error rounded-lg transition"
                           title="Remove row"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -617,16 +632,16 @@ export default function ImportPage() {
               <button
                 type="button"
                 onClick={() => handleAddRow(1)}
-                className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                className="px-3 py-1.5 bg-surface-raised hover:bg-surface-hover text-text-secondary rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
               >
-                <Plus className="w-4 h-4 text-sky-500" />
+                <Plus className="w-4 h-4 text-accent-primary" />
                 Add Another Row
               </button>
 
               <button
                 onClick={handleSubmit}
                 disabled={importMutation.isPending || stats.totalItems === 0}
-                className="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition disabled:opacity-50"
+                className="px-5 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition disabled:opacity-50"
               >
                 {importMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
                 {importMutation.isPending ? 'Committing...' : `Commit Opening Stock (${stats.totalItems})`}
@@ -635,18 +650,18 @@ export default function ImportPage() {
           </div>
 
           {/* Recent Opening Stock Audit History */}
-          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-4">
+          <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-5 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                <h3 className="font-bold text-sm text-slate-900 dark:text-white">Recent Opening Stock Batches Audit</h3>
+                <History className="w-4 h-4 text-accent-primary" />
+                <h3 className="font-bold text-sm text-text-primary">Recent Opening Stock Batches Audit</h3>
               </div>
-              <span className="text-xs text-slate-500 dark:text-slate-400">Latest imported stock batches</span>
+              <span className="text-xs text-text-muted">Latest imported stock batches</span>
             </div>
 
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs min-w-[700px]">
-                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase">
+                <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase">
                   <tr>
                     <th className="py-2.5 px-3">Date &amp; Time</th>
                     <th className="py-2.5 px-3">Medicine Name</th>
@@ -658,38 +673,38 @@ export default function ImportPage() {
                     <th className="py-2.5 px-3">Imported By</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tbody className="divide-y divide-border-default">
                   {loadingRecent ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-text-muted">
                         Loading recent opening stock...
                       </td>
                     </tr>
                   ) : (recentImports || []).length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
+                      <td colSpan={8} className="py-8 text-center text-text-muted">
                         No opening stock records found yet.
                       </td>
                     </tr>
                   ) : (
                     recentImports.map((m: any) => (
-                      <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                        <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400">{formatDate(m.createdAt)}</td>
-                        <td className="py-2.5 px-3 font-bold text-slate-900 dark:text-white">{m.medicineName}</td>
-                        <td className="py-2.5 px-3 font-mono text-sky-600 dark:text-sky-400">{m.batchNumber}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-500 dark:text-slate-400">
+                      <tr key={m.id} className="hover:bg-surface-raised">
+                        <td className="py-2.5 px-3 font-mono text-text-muted">{formatDate(m.createdAt)}</td>
+                        <td className="py-2.5 px-3 font-bold text-text-primary">{m.medicineName}</td>
+                        <td className="py-2.5 px-3 font-mono text-accent-primary">{m.batchNumber}</td>
+                        <td className="py-2.5 px-3 font-mono text-text-muted">
                           {m.expiryDate ? formatDate(m.expiryDate) : '—'}
                         </td>
-                        <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-900 dark:text-white">
+                        <td className="py-2.5 px-3 text-center font-mono font-bold text-text-primary">
                           +{m.qty}
                         </td>
-                        <td className="py-2.5 px-3 text-right font-mono text-slate-600 dark:text-slate-400">
+                        <td className="py-2.5 px-3 text-right font-mono text-text-secondary">
                           {formatCurrency(m.purchasePrice)}
                         </td>
                         <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
                           {formatCurrency(m.mrp)}
                         </td>
-                        <td className="py-2.5 px-3 text-slate-600 dark:text-slate-300">{m.userName}</td>
+                        <td className="py-2.5 px-3 text-text-secondary">{m.userName}</td>
                       </tr>
                     ))
                   )}
@@ -703,21 +718,21 @@ export default function ImportPage() {
       {/* Paste from Excel Modal */}
       {showPasteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full p-5 space-y-4">
+          <div className="bg-surface-overlay rounded-2xl border border-border-default shadow-2xl max-w-lg w-full p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <h3 className="font-bold text-sm text-text-primary flex items-center gap-2">
                 <ClipboardPaste className="w-4 h-4 text-indigo-500" />
                 Paste Rows from Excel / Spreadsheet
               </h3>
               <button
                 onClick={() => setShowPasteModal(false)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+                className="text-text-muted hover:text-text-primary text-sm font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-xs text-text-muted">
               Copy columns from Excel (e.g. <b>Medicine Name, Batch, Expiry, Qty, Cost, Selling, MRP</b>) and paste below:
             </p>
 
@@ -726,20 +741,20 @@ export default function ImportPage() {
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
               placeholder={`Paracetamol 650mg\tB2026-01\t2027-12-31\t100\t1.20\t2.00\t2.50\nAmoxicillin 500mg\tB2026-02\t2026-10-31\t50\t5.50\t8.50\t10.00`}
-              className="w-full p-3 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl font-mono text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+              className="w-full p-3 bg-surface-page border border-border-strong rounded-xl font-mono text-xs text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
             />
 
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowPasteModal(false)}
-                className="px-3 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold"
+                className="px-3 py-2 bg-surface-raised text-text-secondary rounded-xl text-xs font-semibold hover:bg-surface-hover"
               >
                 Cancel
               </button>
               <button
                 onClick={handleProcessPaste}
                 disabled={!pasteText.trim()}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-semibold disabled:opacity-50"
+                className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold disabled:opacity-50"
               >
                 Import Pasted Rows
               </button>
@@ -750,4 +765,3 @@ export default function ImportPage() {
     </div>
   );
 }
-

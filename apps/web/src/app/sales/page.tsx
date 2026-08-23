@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Receipt,
-  Search,
   Printer,
   FileDown,
   MessageCircle,
@@ -16,20 +15,32 @@ import {
   CreditCard,
   User,
   FileText,
-  Plus,
   Send,
-  AlertCircle,
-  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
+import {
+  PageHeader,
+  DataTable,
+  Column,
+  Badge,
+  Button,
+  Card,
+  Input,
+  Select,
+  Modal,
+} from '../../components/ui';
+import { SmartAutocomplete } from '../../components/ui/smart-autocomplete';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
+import { useBrandingStore } from '../../stores/branding-store';
 import { formatDate, formatCurrency, buildWhatsAppUrl } from '@medical-inventory/shared-utils';
 import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview';
 
 export default function SalesPage() {
   const { selectedBranchId, isSuperAdmin } = useAuthStore();
+  const { name: storeName } = useBrandingStore();
   const [search, setSearch] = useState('');
   const [activeReceipt, setActiveReceipt] = useState<any | null>(null);
 
@@ -105,6 +116,7 @@ export default function SalesPage() {
       return;
     }
 
+    const currentStore = storeName || 'Pharmacy & Healthcare';
     const grandTotal = Number(sale.totalAmount || 0);
     const paidAmount = (sale.payments || []).reduce((s: number, p: any) => s + Number(p.amount || 0), 0);
     const balanceDue = Math.max(0, grandTotal - paidAmount);
@@ -112,34 +124,29 @@ export default function SalesPage() {
 
     let message = '';
     if (balanceDue > 0) {
-      message = `🏥 *MEDCARE PHARMACY - PAYMENT REMINDER & INVOICE*
-----------------------------------------
-📄 *Invoice:* #${sale.invoiceNumber}
-📅 *Date:* ${formatDate(sale.createdAt)}
-👤 *Customer:* ${sale.customer?.name || 'Valued Customer'}
-💵 *Total Bill:* Rs. ${grandTotal.toFixed(2)}
-✅ *Paid Amount:* Rs. ${paidAmount.toFixed(2)}
-⚠️ *Pending Balance Due:* Rs. ${balanceDue.toFixed(2)}
-
-Please pay the remaining balance of *Rs. ${balanceDue.toFixed(2)}* via UPI / Cash at your earliest convenience.
-
-📥 *View & Download Digital Tax Receipt:*
-${receiptUrl}
-
-Thank you! Get Well Soon.`;
+      message = `🏥 *${currentStore.toUpperCase()} - PAYMENT REMINDER & INVOICE*\n` +
+        `----------------------------------------\n` +
+        `📄 *Invoice:* #${sale.invoiceNumber}\n` +
+        `📅 *Date:* ${formatDate(sale.createdAt)}\n` +
+        `👤 *Customer:* ${sale.customer?.name || 'Valued Customer'}\n` +
+        `💵 *Total Bill:* Rs. ${grandTotal.toFixed(2)}\n` +
+        `✅ *Paid Amount:* Rs. ${paidAmount.toFixed(2)}\n` +
+        `⚠️ *Pending Balance Due:* Rs. ${balanceDue.toFixed(2)}\n\n` +
+        `Please pay the remaining balance of *Rs. ${balanceDue.toFixed(2)}* via UPI / Cash at your earliest convenience.\n\n` +
+        `📥 *View & Download Digital Tax Receipt:*\n` +
+        `${receiptUrl}\n\n` +
+        `Thank you for choosing ${currentStore}! Get Well Soon.`;
     } else {
-      message = `🏥 *MEDCARE PHARMACY - TAX INVOICE*
-----------------------------------------
-📄 *Invoice:* #${sale.invoiceNumber}
-📅 *Date:* ${formatDate(sale.createdAt)}
-👤 *Customer:* ${sale.customer?.name || 'Valued Customer'}
-💵 *Total Amount:* Rs. ${grandTotal.toFixed(2)}
-✅ *Payment Status:* PAID IN FULL
-
-📥 *View & Download Digital Tax Receipt:*
-${receiptUrl}
-
-Thank you for choosing MedCare Pharmacy! Get Well Soon.`;
+      message = `🏥 *${currentStore.toUpperCase()} - TAX INVOICE*\n` +
+        `----------------------------------------\n` +
+        `📄 *Invoice:* #${sale.invoiceNumber}\n` +
+        `📅 *Date:* ${formatDate(sale.createdAt)}\n` +
+        `👤 *Customer:* ${sale.customer?.name || 'Valued Customer'}\n` +
+        `💵 *Total Amount:* Rs. ${grandTotal.toFixed(2)}\n` +
+        `✅ *Payment Status:* PAID IN FULL\n\n` +
+        `📥 *View & Download Digital Tax Receipt:*\n` +
+        `${receiptUrl}\n\n` +
+        `Thank you for choosing ${currentStore}! Get Well Soon.`;
     }
 
     const waUrl = buildWhatsAppUrl(phone.trim(), message);
@@ -251,213 +258,244 @@ Thank you for choosing MedCare Pharmacy! Get Well Soon.`;
 
   const isUserSuperAdmin = isSuperAdmin();
 
+  const columns: Column<any>[] = [
+    {
+      key: 'invoiceNumber',
+      header: 'Invoice #',
+      accessor: (row) => (
+        <span className="font-mono font-bold text-accent hover:underline cursor-pointer">
+          {row.invoiceNumber}
+        </span>
+      ),
+    },
+    {
+      key: 'createdAt',
+      header: 'Date & Time',
+      accessor: (row) => (
+        <span className="font-mono text-text-secondary text-xs">
+          {formatDate(row.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: 'customer',
+      header: 'Customer',
+      render: (row) => (
+        <div>
+          <p className="font-medium text-text-primary">
+            {row.customer?.name || 'Walk-in Customer'}
+          </p>
+          {row.customer?.mobile && (
+            <p className="text-[11px] text-text-muted font-mono">{row.customer.mobile}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'items',
+      header: 'Items',
+      align: 'center',
+      accessor: (row) => (
+        <span className="font-mono text-text-secondary">
+          {row._count?.items || row.items?.length || 0}
+        </span>
+      ),
+    },
+    {
+      key: 'taxAmount',
+      header: 'Tax (₹)',
+      align: 'right',
+      accessor: (row) => (
+        <span className="font-mono text-text-secondary">
+          ₹{Number(row.taxAmount || 0).toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      key: 'totalAmount',
+      header: 'Total Amount',
+      align: 'right',
+      accessor: (row) => (
+        <span className="font-mono font-bold text-text-primary">
+          {formatCurrency(row.totalAmount || 0)}
+        </span>
+      ),
+    },
+    {
+      key: 'paymentStatus',
+      header: 'Payment Status',
+      align: 'center',
+      render: (row) => {
+        const isPaid = row.paymentStatus === 'PAID';
+        const isPartial = row.paymentStatus === 'PARTIAL';
+        return (
+          <Badge
+            variant={isPaid ? 'success' : isPartial ? 'warning' : 'error'}
+            size="sm"
+            dot
+          >
+            {row.paymentStatus || 'PAID'}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: 'Actions',
+      align: 'center',
+      render: (row) => (
+        <div className="flex items-center justify-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleWhatsAppShare(row)}
+            title="Send WhatsApp Invoice & Link"
+            className="w-7 h-7 p-0 text-status-success hover:bg-status-success-bg"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handlePrintThermal(row.id)}
+            title="Print Thermal POS Receipt"
+            className="w-7 h-7 p-0 text-text-secondary hover:text-text-primary"
+          >
+            <Printer className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => handleDownloadPdf(row.id)}
+            title="View / Download Printable Tax Invoice PDF"
+            className="w-7 h-7 p-0 text-accent hover:bg-accent-subtle"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+          </Button>
+          {isUserSuperAdmin && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => startEdit(row)}
+                title="Super Admin Edit Invoice"
+                className="w-7 h-7 p-0 text-status-warning hover:bg-status-warning-bg"
+              >
+                <Edit className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDeleteInvoice(row.id, row.invoiceNumber)}
+                title="Delete Invoice & Restore Stock"
+                className="w-7 h-7 p-0 text-status-error hover:bg-status-error-bg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
+    <div className="flex h-screen bg-surface-page text-text-primary font-sans transition-colors duration-200 overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
-        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6 pb-16 lg:pb-0 animate-fade-in">
           {/* Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">
-                Sales Invoices &amp; Billing History
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                View customer tax bills, send WhatsApp receipts with secure links, reprint thermal receipts, and export PDF records.
-              </p>
-            </div>
-          </div>
+          <PageHeader
+            title="Sales & Invoices"
+            description="View customer tax bills, send WhatsApp receipts with secure links, reprint thermal receipts, and export PDF records."
+            badge={
+              <Badge variant="outline" size="sm" className="font-mono">
+                {sales.length} Invoices
+              </Badge>
+            }
+          />
 
           {/* Search Bar */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-sm dark:shadow-xl flex items-center gap-3">
-            <div className="flex-1 relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                <Search className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by Invoice Number, Customer Name or Mobile..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
-              />
-            </div>
-          </div>
+          <Card elevation="flat" className="p-3">
+            <SmartAutocomplete
+              placeholder="Search by Invoice Number, Customer Name, Mobile (e.g. 98...)... (First char instant)"
+              value={search}
+              onChange={(val) => setSearch(val)}
+              onClear={() => setSearch('')}
+              fetchResults={async (q, signal) => {
+                const res = await apiClient.get('/search/invoices', {
+                  params: { q, branchId: selectedBranchId || undefined, limit: 12 },
+                  signal,
+                });
+                const list = res.data || [];
+                return list.map((inv: any) => ({
+                  id: inv.id,
+                  title: inv.invoiceNumber,
+                  subtitle: `${inv.customer?.name || 'Walk-in'} ${inv.customer?.mobile ? `(${inv.customer.mobile})` : ''} • Total: ₹${(inv.totalAmount || 0).toFixed(2)}`,
+                  badge: inv.paymentStatus,
+                  metadata: inv,
+                }));
+              }}
+              onSelect={(item) => {
+                setSearch(item.title);
+              }}
+              inputClassName="!py-2 !text-xs !rounded-lg"
+            />
+          </Card>
 
           {/* Sales Table */}
-          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs min-w-[750px]">
-                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Invoice #</th>
-                    <th className="py-3 px-4">Date &amp; Time</th>
-                    <th className="py-3 px-4">Customer</th>
-                    <th className="py-3 px-4 text-center">Items</th>
-                    <th className="py-3 px-4 text-right">Tax (₹)</th>
-                    <th className="py-3 px-4 text-right">Total Amount</th>
-                    <th className="py-3 px-4 text-center">Payment Status</th>
-                    <th className="py-3 px-4 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                        Loading sales invoices...
-                      </td>
-                    </tr>
-                  ) : sales.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                        No sales invoices recorded yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    sales.map((sale: any) => (
-                      <tr key={sale.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                        <td className="py-3 px-4 font-mono font-bold text-sky-600 dark:text-sky-400">
-                          {sale.invoiceNumber}
-                        </td>
-                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono">
-                          {formatDate(sale.createdAt)}
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="font-semibold text-slate-900 dark:text-white">
-                            {sale.customer?.name || 'Walk-in Customer'}
-                          </p>
-                          {sale.customer?.mobile && (
-                            <p className="text-[10px] text-slate-400 font-mono">{sale.customer.mobile}</p>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-center font-mono text-slate-700 dark:text-slate-300">
-                          {sale._count?.items || sale.items?.length || 0}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono text-slate-600 dark:text-slate-400">
-                          ₹{Number(sale.taxAmount || 0).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                          {formatCurrency(sale.totalAmount || 0)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
-                              sale.paymentStatus === 'PAID'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                                : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-                            }`}
-                          >
-                            {sale.paymentStatus}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            <button
-                              onClick={() => handleWhatsAppShare(sale)}
-                              title="Send WhatsApp Invoice &amp; Link"
-                              className="p-1.5 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg transition"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handlePrintThermal(sale.id)}
-                              title="Print Thermal POS Receipt"
-                              className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition"
-                            >
-                              <Printer className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDownloadPdf(sale.id)}
-                              title="View / Download Printable Tax Invoice PDF"
-                              className="p-1.5 bg-sky-50 dark:bg-slate-800 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg transition"
-                            >
-                              <FileDown className="w-3.5 h-3.5" />
-                            </button>
-                            {isUserSuperAdmin && (
-                              <>
-                                <button
-                                  onClick={() => startEdit(sale)}
-                                  title="Super Admin Edit Invoice"
-                                  className="p-1.5 bg-amber-50 dark:bg-slate-800 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-slate-700 rounded-lg transition"
-                                >
-                                  <Edit className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteInvoice(sale.id, sale.invoiceNumber)}
-                                  title="Delete Invoice &amp; Restore Stock"
-                                  className="p-1.5 bg-red-50 dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-slate-700 rounded-lg transition"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            columns={columns}
+            data={sales}
+            isLoading={isLoading}
+            emptyTitle="No sales invoices recorded"
+            emptyDescription="There are no sales records matching your search or filters."
+            compact
+          />
         </main>
 
         {/* WhatsApp Mobile Prompt Modal */}
         {whatsAppModal && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] max-w-sm w-full p-5 space-y-4 shadow-2xl text-xs text-slate-900 dark:text-slate-100">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-                  <MessageCircle className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">Send WhatsApp Receipt</h3>
-                </div>
-                <button
-                  onClick={() => setWhatsAppModal(null)}
-                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white"
+          <Modal
+            isOpen={Boolean(whatsAppModal)}
+            onClose={() => setWhatsAppModal(null)}
+            title={
+              <div className="flex items-center gap-2 text-status-success">
+                <MessageCircle className="w-5 h-5" />
+                <span>Send WhatsApp Receipt</span>
+              </div>
+            }
+            description={`Enter the customer's 10-digit WhatsApp number to send invoice #${whatsAppModal.invoiceNumber}`}
+            footer={
+              <div className="flex justify-end gap-2 w-full">
+                <Button variant="secondary" onClick={() => setWhatsAppModal(null)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  className="bg-status-success hover:opacity-90"
+                  onClick={() => triggerWhatsAppRedirect(whatsAppModal, targetPhone)}
+                  leftIcon={<Send className="w-3.5 h-3.5" />}
                 >
-                  <X className="w-4 h-4" />
-                </button>
+                  Send to WhatsApp
+                </Button>
               </div>
-
-              <div className="space-y-3">
-                <p className="text-slate-600 dark:text-slate-300">
-                  Enter the customer&apos;s 10-digit WhatsApp number to send invoice <strong>#{whatsAppModal.invoiceNumber}</strong>:
-                </p>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
-                    WhatsApp Mobile Number *
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="9876543210"
-                    autoFocus
-                    value={targetPhone}
-                    onChange={(e) => setTargetPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono text-sm focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-                <div className="pt-2 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setWhatsAppModal(null)}
-                    className="px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => triggerWhatsAppRedirect(whatsAppModal, targetPhone)}
-                    className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5 shadow"
-                  >
-                    <Send className="w-3.5 h-3.5" /> Send to WhatsApp
-                  </button>
-                </div>
-              </div>
+            }
+          >
+            <div className="space-y-3 py-2">
+              <Input
+                label="WhatsApp Mobile Number *"
+                type="tel"
+                placeholder="9876543210"
+                autoFocus
+                value={targetPhone}
+                onChange={(e) => setTargetPhone(e.target.value)}
+              />
             </div>
-          </div>
+          </Modal>
         )}
 
         {/* Thermal Receipt Preview & Print Modal */}
@@ -467,274 +505,225 @@ Thank you for choosing MedCare Pharmacy! Get Well Soon.`;
 
         {/* Super Admin Comprehensive Edit Invoice Modal */}
         {editingInvoice && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] max-w-3xl w-full p-6 space-y-4 shadow-2xl text-xs overflow-y-auto max-h-[92vh] text-slate-900 dark:text-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
-                  <Edit className="w-5 h-5" />
-                  <div>
-                    <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                      Super Admin Edit Invoice #{editingInvoice.invoiceNumber}
-                    </h3>
-                    <p className="text-[11px] text-slate-500">
-                      Full override for invoice number, items, pricing, date, and payment ledger.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setEditingInvoice(null)}
-                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white transition"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+          <Modal
+            isOpen={Boolean(editingInvoice)}
+            onClose={() => setEditingInvoice(null)}
+            size="xl"
+            title={
+              <div className="flex items-center gap-2 text-accent">
+                <Edit className="w-5 h-5" />
+                <span>Super Admin Edit Invoice #{editingInvoice.invoiceNumber}</span>
+              </div>
+            }
+            description="Full override for invoice number, items, pricing, date, and payment ledger."
+          >
+            <form onSubmit={handleEditSubmit} className="space-y-4 pt-2">
+              {/* Top Row: Invoice #, Date, Customer */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Input
+                  label="Invoice #"
+                  required
+                  value={editForm.invoiceNumber}
+                  onChange={(e) => setEditForm({ ...editForm, invoiceNumber: e.target.value })}
+                />
+
+                <Input
+                  label="Date & Time"
+                  type="datetime-local"
+                  leftIcon={<Calendar className="w-3.5 h-3.5" />}
+                  value={editForm.createdAt}
+                  onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
+                />
+
+                <Select
+                  label="Customer"
+                  value={editForm.customerId}
+                  onChange={(e) => setEditForm({ ...editForm, customerId: e.target.value })}
+                  options={[
+                    { label: 'Walk-in Customer (General)', value: '' },
+                    ...customers.map((cust: any) => ({
+                      label: `${cust.name} (${cust.mobile || 'No Mobile'})`,
+                      value: cust.id,
+                    })),
+                  ]}
+                />
               </div>
 
-              <form onSubmit={handleEditSubmit} className="space-y-4">
-                {/* Top Row: Invoice #, Date, Customer */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Invoice #
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={editForm.invoiceNumber}
-                      onChange={(e) => setEditForm({ ...editForm, invoiceNumber: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
+              {/* Patient & Doctor */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Patient Name"
+                  placeholder="e.g. Rahul Kumar"
+                  value={editForm.patientName}
+                  onChange={(e) => setEditForm({ ...editForm, patientName: e.target.value })}
+                />
+                <Input
+                  label="Doctor Name"
+                  placeholder="e.g. Dr. A. K. Verma"
+                  value={editForm.doctorName}
+                  onChange={(e) => setEditForm({ ...editForm, doctorName: e.target.value })}
+                />
+              </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                      <Calendar className="w-3.5 h-3.5" /> Date &amp; Time
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={editForm.createdAt}
-                      onChange={(e) => setEditForm({ ...editForm, createdAt: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white font-mono focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
+              {/* Items Breakdown Table */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-text-primary text-xs">Invoice Items:</span>
+                </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                      <User className="w-3.5 h-3.5" /> Customer
-                    </label>
-                    <select
-                      value={editForm.customerId}
-                      onChange={(e) => setEditForm({ ...editForm, customerId: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {editForm.items.map((item: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 bg-surface-raised rounded-lg border border-border grid grid-cols-12 gap-2 items-center text-xs"
                     >
-                      <option value="">Walk-in Customer (General)</option>
-                      {customers.map((cust: any) => (
-                        <option key={cust.id} value={cust.id}>
-                          {cust.name} ({cust.mobile || 'No Mobile'})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                {/* Patient & Doctor */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Patient Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Rahul Kumar"
-                      value={editForm.patientName}
-                      onChange={(e) => setEditForm({ ...editForm, patientName: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                      Doctor Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Dr. A. K. Verma"
-                      value={editForm.doctorName}
-                      onChange={(e) => setEditForm({ ...editForm, doctorName: e.target.value })}
-                      className="w-full px-3 py-1.5 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                </div>
-
-                {/* Items Breakdown Table */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-800 dark:text-slate-200">Invoice Items:</span>
-                  </div>
-
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {editForm.items.map((item: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="p-2.5 bg-slate-50 dark:bg-[#090d16] rounded-xl border border-slate-200 dark:border-slate-800 grid grid-cols-12 gap-2 items-center text-xs"
-                      >
-                        <div className="col-span-12 sm:col-span-4">
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Medicine Name</label>
-                          <input
-                            type="text"
-                            disabled
-                            value={`${item.medicineName} (${item.batchNumber})`}
-                            className="w-full px-2 py-1 bg-slate-200/50 dark:bg-slate-800/50 rounded-lg text-slate-700 dark:text-slate-300 text-xs"
-                          />
-                        </div>
-
-                        <div className="col-span-3 sm:col-span-2">
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Qty</label>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.qty}
-                            onChange={(e) => handleEditItemChange(idx, 'qty', parseInt(e.target.value) || 1)}
-                            className="w-full px-2 py-1 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-center text-slate-900 dark:text-white"
-                          />
-                        </div>
-
-                        <div className="col-span-3 sm:col-span-2">
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Rate (₹)</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={item.rate}
-                            onChange={(e) => handleEditItemChange(idx, 'rate', parseFloat(e.target.value) || 0)}
-                            className="w-full px-2 py-1 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-right text-slate-900 dark:text-white"
-                          />
-                        </div>
-
-                        <div className="col-span-2 sm:col-span-1">
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Disc %</label>
-                          <input
-                            type="number"
-                            value={item.discountPercent}
-                            onChange={(e) =>
-                              handleEditItemChange(idx, 'discountPercent', parseFloat(e.target.value) || 0)
-                            }
-                            className="w-full px-2 py-1 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg font-mono text-center text-slate-900 dark:text-white"
-                          />
-                        </div>
-
-                        <div className="col-span-3 sm:col-span-2 text-right">
-                          <label className="text-[10px] text-slate-500 block mb-0.5">Line Total</label>
-                          <span className="font-mono font-bold text-slate-900 dark:text-white">
-                            ₹{Number(item.lineTotal || 0).toFixed(2)}
-                          </span>
-                        </div>
-
-                        <div className="col-span-1 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={() => removeEditItemRow(idx)}
-                            className="p-1 text-slate-400 hover:text-red-600 rounded-lg"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                      <div className="col-span-12 sm:col-span-4">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Medicine Name</label>
+                        <input
+                          type="text"
+                          disabled
+                          value={`${item.medicineName} (${item.batchNumber})`}
+                          className="w-full px-2 py-1 bg-surface-sunken rounded-md text-text-secondary text-xs border border-border cursor-not-allowed"
+                        />
                       </div>
-                    ))}
-                  </div>
+
+                      <div className="col-span-3 sm:col-span-2">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Qty</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.qty}
+                          onChange={(e) => handleEditItemChange(idx, 'qty', parseInt(e.target.value) || 1)}
+                          className="w-full px-2 py-1 bg-surface-base border border-border rounded-md font-mono text-center text-text-primary focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div className="col-span-3 sm:col-span-2">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Rate (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.rate}
+                          onChange={(e) => handleEditItemChange(idx, 'rate', parseFloat(e.target.value) || 0)}
+                          className="w-full px-2 py-1 bg-surface-base border border-border rounded-md font-mono text-right text-text-primary focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div className="col-span-2 sm:col-span-1">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Disc %</label>
+                        <input
+                          type="number"
+                          value={item.discountPercent}
+                          onChange={(e) =>
+                            handleEditItemChange(idx, 'discountPercent', parseFloat(e.target.value) || 0)
+                          }
+                          className="w-full px-2 py-1 bg-surface-base border border-border rounded-md font-mono text-center text-text-primary focus:outline-none focus:border-accent"
+                        />
+                      </div>
+
+                      <div className="col-span-3 sm:col-span-2 text-right">
+                        <label className="text-[10px] text-text-muted block mb-0.5">Line Total</label>
+                        <span className="font-mono font-bold text-text-primary">
+                          ₹{Number(item.lineTotal || 0).toFixed(2)}
+                        </span>
+                      </div>
+
+                      <div className="col-span-1 flex justify-end">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          type="button"
+                          onClick={() => removeEditItemRow(idx)}
+                          className="w-6 h-6 p-0 text-status-error hover:bg-status-error-bg"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              </div>
 
-                {/* Payments & Financial Adjustment */}
-                <div className="p-3 bg-slate-50 dark:bg-[#090d16] rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
-                  <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                    <CreditCard className="w-4 h-4 text-sky-600" />
-                    Payment &amp; Ledger Adjustment
-                  </span>
+              {/* Payments & Financial Adjustment */}
+              <Card elevation="flat" className="p-3 space-y-3 bg-surface-raised">
+                <span className="font-semibold text-text-primary text-xs flex items-center gap-1.5">
+                  <CreditCard className="w-4 h-4 text-accent" />
+                  Payment &amp; Ledger Adjustment
+                </span>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Paid Amount (₹)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={editForm.paidAmount}
-                        onChange={(e) =>
-                          setEditForm({ ...editForm, paidAmount: parseFloat(e.target.value) || 0 })
-                        }
-                        className="w-full px-3 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono"
-                      />
-                    </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Input
+                    label="Paid Amount (₹)"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={editForm.paidAmount}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, paidAmount: parseFloat(e.target.value) || 0 })
+                    }
+                  />
 
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Payment Mode
-                      </label>
-                      <select
-                        value={editForm.paymentMode}
-                        onChange={(e) => setEditForm({ ...editForm, paymentMode: e.target.value })}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                      >
-                        <option value="CASH">CASH</option>
-                        <option value="UPI">UPI</option>
-                        <option value="CARD">CARD</option>
-                        <option value="BANK_TRANSFER">BANK TRANSFER</option>
-                        <option value="CHEQUE">CHEQUE</option>
-                      </select>
-                    </div>
+                  <Select
+                    label="Payment Mode"
+                    value={editForm.paymentMode}
+                    onChange={(e) => setEditForm({ ...editForm, paymentMode: e.target.value })}
+                    options={[
+                      { label: 'CASH', value: 'CASH' },
+                      { label: 'UPI', value: 'UPI' },
+                      { label: 'CARD', value: 'CARD' },
+                      { label: 'BANK TRANSFER', value: 'BANK_TRANSFER' },
+                      { label: 'CHEQUE', value: 'CHEQUE' },
+                    ]}
+                  />
 
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                        Payment Status
-                      </label>
-                      <select
-                        value={editForm.paymentStatus}
-                        onChange={(e) => setEditForm({ ...editForm, paymentStatus: e.target.value })}
-                        className="w-full px-3 py-1.5 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                      >
-                        <option value="PAID">PAID</option>
-                        <option value="PARTIAL">PARTIAL</option>
-                        <option value="UNPAID">UNPAID</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Notes/Remarks */}
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-1">
-                    <FileText className="w-3.5 h-3.5" /> Notes / Audit Reason
-                  </label>
-                  <textarea
-                    placeholder="Reason for Super Admin modification..."
-                    value={editForm.notes}
-                    onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                    rows={2}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 transition resize-none"
+                  <Select
+                    label="Payment Status"
+                    value={editForm.paymentStatus}
+                    onChange={(e) => setEditForm({ ...editForm, paymentStatus: e.target.value })}
+                    options={[
+                      { label: 'PAID', value: 'PAID' },
+                      { label: 'PARTIAL', value: 'PARTIAL' },
+                      { label: 'UNPAID', value: 'UNPAID' },
+                    ]}
                   />
                 </div>
+              </Card>
 
-                {/* Actions */}
-                <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setEditingInvoice(null)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg flex items-center gap-1.5 transition active:scale-95"
-                  >
-                    <Save className="w-4 h-4" /> Save Super Admin Changes
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+              {/* Notes/Remarks */}
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1 flex items-center gap-1">
+                  <FileText className="w-3.5 h-3.5" /> Notes / Audit Reason
+                </label>
+                <textarea
+                  placeholder="Reason for Super Admin modification..."
+                  value={editForm.notes}
+                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                  rows={2}
+                  className="w-full px-3 py-2 bg-surface-base border border-border rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent transition resize-none"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="pt-3 flex justify-end gap-2 border-t border-border">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setEditingInvoice(null)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  type="submit"
+                  leftIcon={<Save className="w-4 h-4" />}
+                >
+                  Save Super Admin Changes
+                </Button>
+              </div>
+            </form>
+          </Modal>
         )}
       </div>
     </div>
   );
 }
-

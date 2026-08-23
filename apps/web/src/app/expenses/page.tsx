@@ -26,6 +26,8 @@ import {
 
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
+import { PageHeader } from '../../components/ui';
+import { SmartAutocomplete } from '../../components/ui/smart-autocomplete';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { ExpenseCategory, PaymentMode } from '@medical-inventory/shared-types';
@@ -197,48 +199,42 @@ export default function ExpensesPage() {
   };
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
+    <div className="flex h-screen bg-surface-page text-text-primary overflow-hidden font-sans">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
         <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
-          {/* Header Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
-                  <Wallet className="w-5 h-5 text-sky-600 dark:text-sky-400" />
-                  Business Expenses &amp; Payouts
-                </h2>
-                {canManage && (
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono text-[10px] font-semibold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Master Ledger
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Record and audit operational expenses, payee details, UTR numbers, payment dates, and cash/bank debit vouchers.
-              </p>
-            </div>
-
-            {canManage && (
-              <button
-                onClick={handleOpenCreate}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg transition cursor-pointer active:scale-95"
-              >
-                <Plus className="w-4 h-4" />
-                Record Expense / Payout
-              </button>
-            )}
-          </div>
+          {/* Page Header */}
+          <PageHeader
+            title="Business Expenses & Payouts"
+            description="Record and audit operational expenses, payee details, UTR numbers, payment dates, and cash/bank debit vouchers."
+            badge={
+              canManage ? (
+                <span className="px-2 py-0.5 rounded-md bg-status-success-bg border border-status-success-border text-status-success font-mono text-[10px] font-semibold flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3" /> Master Ledger
+                </span>
+              ) : undefined
+            }
+            actions={
+              canManage ? (
+                <button
+                  onClick={handleOpenCreate}
+                  className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg transition cursor-pointer active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  Record Expense / Payout
+                </button>
+              ) : undefined
+            }
+          />
 
           {/* Top KPI Metrics Bar */}
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-surface-base border border-border-default shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Total Expenses (Filtered)</p>
+                <p className="text-[11px] font-semibold text-text-muted">Total Expenses (Filtered)</p>
                 <p className="text-xl font-black text-red-600 dark:text-red-400 font-mono mt-0.5">
                   {formatCurrency(totalAmount)}
                 </p>
@@ -248,10 +244,10 @@ export default function ExpensesPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-surface-base border border-border-default shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Today&apos;s Payouts</p>
-                <p className="text-xl font-black text-slate-900 dark:text-white font-mono mt-0.5">
+                <p className="text-[11px] font-semibold text-text-muted">Today&apos;s Payouts</p>
+                <p className="text-xl font-black text-text-primary font-mono mt-0.5">
                   {formatCurrency(todayAmount)}
                 </p>
               </div>
@@ -260,9 +256,9 @@ export default function ExpensesPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-surface-base border border-border-default shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Cash Payouts</p>
+                <p className="text-[11px] font-semibold text-text-muted">Cash Payouts</p>
                 <p className="text-xl font-black text-amber-600 dark:text-amber-400 font-mono mt-0.5">
                   {formatCurrency(cashAmount)}
                 </p>
@@ -272,9 +268,9 @@ export default function ExpensesPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 shadow-sm flex items-center justify-between">
+            <div className="p-4 rounded-2xl bg-surface-base border border-border-default shadow-sm flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">UPI / Bank Payouts</p>
+                <p className="text-[11px] font-semibold text-text-muted">UPI / Bank Payouts</p>
                 <p className="text-xl font-black text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
                   {formatCurrency(onlineAmount)}
                 </p>
@@ -286,17 +282,31 @@ export default function ExpensesPage() {
           </div>
 
           {/* Search & Category Filter Bar */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-sm flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-[240px] relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                <Search className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
+          <div className="p-3.5 rounded-2xl border border-border-default bg-surface-base shadow-sm flex flex-wrap items-center gap-3">
+            <div className="flex-1 min-w-[240px]">
+              <SmartAutocomplete
+                placeholder="Search by Payee Name, UTR Number, Voucher #, or Notes... (First char instant)"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by Payee Name, UTR Number, Voucher #, or Notes..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
+                onChange={(val) => setSearch(val)}
+                onClear={() => setSearch('')}
+                fetchResults={async (q, signal) => {
+                  const res = await apiClient.get('/expenses', {
+                    params: { search: q, limit: 10 },
+                    signal,
+                  });
+                  const list = Array.isArray(res.data) ? res.data : res.data?.data || [];
+                  return list.map((exp: any) => ({
+                    id: exp.id,
+                    title: `${exp.payeeName || 'Expense'} (₹${exp.amount})`,
+                    subtitle: `${exp.category} • ${exp.voucherNumber || ''} ${exp.notes || ''}`,
+                    badge: exp.paymentMode,
+                    metadata: exp,
+                  }));
+                }}
+                onSelect={(item) => {
+                  setSearch(item.metadata?.payeeName || item.metadata?.voucherNumber || item.title);
+                }}
+                inputClassName="!py-2 !text-xs !rounded-xl"
               />
             </div>
 
@@ -304,7 +314,7 @@ export default function ExpensesPage() {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full sm:w-auto px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500 font-medium"
+                className="w-full sm:w-auto px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-xs text-text-primary focus:outline-none focus:border-[var(--border-focus)] font-medium"
               >
                 <option value="">All Categories</option>
                 <option value="STORE_RENT">STORE RENT</option>
@@ -323,10 +333,10 @@ export default function ExpensesPage() {
           </div>
 
           {/* Master Expenses Table */}
-          <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-xl overflow-hidden">
+          <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm dark:shadow-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse text-xs min-w-[850px]">
-                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
+                <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase tracking-wider">
                   <tr>
                     <th className="py-3 px-4">Date &amp; Time</th>
                     <th className="py-3 px-4">Voucher #</th>
@@ -338,47 +348,47 @@ export default function ExpensesPage() {
                     <th className="py-3 px-4 text-center">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                <tbody className="divide-y divide-border-default">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                      <td colSpan={8} className="py-12 text-center text-text-muted">
                         Loading expenses...
                       </td>
                     </tr>
                   ) : expenses.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
+                      <td colSpan={8} className="py-12 text-center text-text-muted">
                         No expense records found. Click &quot;Record Expense / Payout&quot; to add one.
                       </td>
                     </tr>
                   ) : (
                     expenses.map((exp: any) => (
-                      <tr key={exp.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                        <td className="py-3 px-4 text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                      <tr key={exp.id} className="hover:bg-surface-raised transition">
+                        <td className="py-3 px-4 text-text-muted font-mono text-[11px]">
                           <div>{formatDate(exp.date)}</div>
-                          <div className="text-[10px] text-slate-400">
+                          <div className="text-[10px] text-text-muted">
                             {formatDateTime(exp.date).split(' ').slice(1).join(' ')}
                           </div>
                         </td>
-                        <td className="py-3 px-4 font-mono font-bold text-sky-600 dark:text-sky-400">
+                        <td className="py-3 px-4 font-mono font-bold text-accent-primary">
                           {exp.voucherNumber || '—'}
                         </td>
                         <td className="py-3 px-4">
-                          <div className="font-bold text-slate-900 dark:text-white">{exp.payeeName || '—'}</div>
+                          <div className="font-bold text-text-primary">{exp.payeeName || '—'}</div>
                           {exp.payeePhone && (
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                            <div className="text-[10px] text-text-muted font-mono">
                               {exp.payeePhone}
                             </div>
                           )}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-surface-raised text-text-secondary border border-border-default">
                             {exp.category?.replace(/_/g, ' ')}
                           </span>
                         </td>
                         <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                            <CreditCard className="w-3 h-3 text-slate-400" />
+                          <div className="font-semibold text-text-primary flex items-center gap-1">
+                            <CreditCard className="w-3 h-3 text-text-muted" />
                             {exp.paymentMethod || 'CASH'}
                           </div>
                           {exp.utrNumber && (
@@ -387,7 +397,7 @@ export default function ExpensesPage() {
                             </div>
                           )}
                         </td>
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-300 max-w-xs truncate">
+                        <td className="py-3 px-4 text-text-secondary max-w-xs truncate">
                           {exp.description || '—'}
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-red-600 dark:text-red-400 text-sm">
@@ -398,7 +408,7 @@ export default function ExpensesPage() {
                             <button
                               onClick={() => handlePrintVoucher(exp.id)}
                               title="Print Debit Payment Voucher"
-                              className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                              className="p-1.5 text-text-muted hover:text-accent-primary hover:bg-surface-raised rounded-lg transition"
                             >
                               <Printer className="w-3.5 h-3.5" />
                             </button>
@@ -406,7 +416,7 @@ export default function ExpensesPage() {
                               <button
                                 onClick={() => handleOpenEdit(exp)}
                                 title="Edit Expense"
-                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                                className="p-1.5 text-text-muted hover:text-amber-600 dark:hover:text-amber-400 hover:bg-surface-raised rounded-lg transition"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
@@ -415,7 +425,7 @@ export default function ExpensesPage() {
                               <button
                                 onClick={() => handleDelete(exp)}
                                 title="Delete Expense"
-                                className="p-1.5 text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition"
+                                className="p-1.5 text-text-muted hover:text-status-error hover:bg-surface-raised rounded-lg transition"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -434,17 +444,17 @@ export default function ExpensesPage() {
         {/* Modal: Create / Edit Expense */}
         {showModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 max-w-xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh] shadow-2xl text-slate-900 dark:text-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
+            <div className="bg-surface-overlay rounded-2xl border border-border-default max-w-xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh] shadow-2xl text-text-primary">
+              <div className="flex items-center justify-between pb-3 border-b border-border-default">
+                <div className="flex items-center gap-2 text-accent-primary">
                   <Wallet className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                  <h3 className="font-bold text-sm text-text-primary">
                     {editingExpense ? 'Edit Business Expense' : 'Record New Expense / Payout'}
                   </h3>
                 </div>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg"
+                  className="p-1 text-text-muted hover:text-text-primary rounded-lg"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -453,7 +463,7 @@ export default function ExpensesPage() {
               <form onSubmit={handleSubmit} className="space-y-3.5">
                 <div className="grid grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       Paid To (Payee / Vendor / Staff) *
                     </label>
                     <input
@@ -462,12 +472,12 @@ export default function ExpensesPage() {
                       placeholder="e.g. Ramesh Electrician / BESCOM"
                       value={formData.payeeName}
                       onChange={(e) => setFormData({ ...formData, payeeName: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       Payee Mobile Number
                     </label>
                     <input
@@ -475,18 +485,18 @@ export default function ExpensesPage() {
                       placeholder="9876543210"
                       value={formData.payeePhone}
                       onChange={(e) => setFormData({ ...formData, payeePhone: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl font-mono text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       Expense Category *
                     </label>
                     <select
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                     >
                       <option value="STORE_RENT">STORE RENT</option>
                       <option value="ELECTRICITY_WATER">ELECTRICITY &amp; WATER BILLS</option>
@@ -503,7 +513,7 @@ export default function ExpensesPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       Expense Amount (₹) *
                     </label>
                     <input
@@ -513,18 +523,18 @@ export default function ExpensesPage() {
                       placeholder="0.00"
                       value={formData.amount}
                       onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono font-bold text-red-600 dark:text-red-400 focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl font-mono font-bold text-red-600 dark:text-red-400 focus:outline-none focus:border-[var(--border-focus)]"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       Payment Mode *
                     </label>
                     <select
                       value={formData.paymentMethod}
                       onChange={(e) => setFormData({ ...formData, paymentMethod: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 font-semibold"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-[var(--border-focus)] font-semibold"
                     >
                       <option value="CASH">CASH (Physical Cash Box)</option>
                       <option value="UPI">UPI / QR Code Scan</option>
@@ -535,7 +545,7 @@ export default function ExpensesPage() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       UTR / UPI Ref / Cheque #
                     </label>
                     <input
@@ -543,12 +553,12 @@ export default function ExpensesPage() {
                       placeholder="e.g. 423512398412 or Cheque # 001248"
                       value={formData.utrNumber}
                       onChange={(e) => setFormData({ ...formData, utrNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl font-mono text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       Voucher / Bill #
                     </label>
                     <input
@@ -556,12 +566,12 @@ export default function ExpensesPage() {
                       placeholder="e.g. VCH-001248 or EB-AUG-26"
                       value={formData.voucherNumber}
                       onChange={(e) => setFormData({ ...formData, voucherNumber: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl font-mono text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                     />
                   </div>
 
                   <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       Payment Date &amp; Time *
                     </label>
                     <input
@@ -569,12 +579,12 @@ export default function ExpensesPage() {
                       type="datetime-local"
                       value={formData.date}
                       onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl font-mono text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
                     />
                   </div>
 
                   <div className="col-span-2">
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    <label className="block font-semibold text-text-secondary mb-1">
                       Description / Purpose Remarks
                     </label>
                     <textarea
@@ -582,23 +592,23 @@ export default function ExpensesPage() {
                       placeholder="Detailed reason for expenditure..."
                       value={formData.notes}
                       onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-300 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 resize-none"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-[var(--border-focus)] resize-none"
                     />
                   </div>
                 </div>
 
-                <div className="pt-3 flex justify-end gap-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="pt-3 flex justify-end gap-2 border-t border-border-default">
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold"
+                    className="px-4 py-2 rounded-xl bg-surface-raised text-text-secondary hover:bg-surface-hover font-semibold"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={expenseMutation.isPending}
-                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition active:scale-95"
+                    className="px-5 py-2 rounded-xl bg-accent-primary hover:bg-accent-hover font-bold text-white shadow-lg transition active:scale-95"
                   >
                     {expenseMutation.isPending
                       ? 'Saving...'
@@ -615,15 +625,15 @@ export default function ExpensesPage() {
         {/* Printable Payment Voucher Modal */}
         {activeVoucher && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-6 space-y-4 shadow-2xl text-slate-900 dark:text-slate-100">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400 font-bold">
+            <div className="bg-surface-overlay rounded-2xl border border-border-default max-w-lg w-full p-6 space-y-4 shadow-2xl text-text-primary">
+              <div className="flex items-center justify-between pb-3 border-b border-border-default">
+                <div className="flex items-center gap-2 text-accent-primary font-bold">
                   <Receipt className="w-5 h-5" />
                   <h3>Debit Payment Voucher</h3>
                 </div>
                 <button
                   onClick={() => setActiveVoucher(null)}
-                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg"
+                  className="p-1 text-text-muted hover:text-text-primary rounded-lg"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -718,7 +728,7 @@ export default function ExpensesPage() {
                 <button
                   type="button"
                   onClick={() => setActiveVoucher(null)}
-                  className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold"
+                  className="px-4 py-2 rounded-xl bg-surface-raised text-text-secondary hover:bg-surface-hover font-semibold"
                 >
                   Close
                 </button>
@@ -751,7 +761,7 @@ export default function ExpensesPage() {
                       win.document.close();
                     }
                   }}
-                  className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition flex items-center gap-1.5 active:scale-95"
+                  className="px-5 py-2 rounded-xl bg-accent-primary hover:bg-accent-hover font-bold text-white shadow-lg transition flex items-center gap-1.5 active:scale-95"
                 >
                   <Printer className="w-4 h-4" /> Print Voucher Slip
                 </button>

@@ -59,6 +59,11 @@ export class BranchesService {
   }
 
   async create(dto: CreateBranchDto) {
+    const count = await this.prisma.branch.count();
+    if (count >= 50) {
+      throw new BadRequestException('You have reached the maximum limit of 50 branches.');
+    }
+
     const existingCode = await this.prisma.branch.findUnique({
       where: { code: dto.code },
     });

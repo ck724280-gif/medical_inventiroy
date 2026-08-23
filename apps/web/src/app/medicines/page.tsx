@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus,
-  Search,
   Filter,
   Pill,
   Edit2,
@@ -14,9 +13,22 @@ import {
   X,
   Layers,
   ShieldAlert,
+  Boxes,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
+import {
+  PageHeader,
+  DataTable,
+  Column,
+  Badge,
+  Button,
+  Card,
+  Input,
+  Select,
+  Modal,
+} from '../../components/ui';
+import { SmartAutocomplete } from '../../components/ui/smart-autocomplete';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { DosageForm } from '@medical-inventory/shared-types';
@@ -147,16 +159,12 @@ export default function MedicinesPage() {
       alert('You do not have permission to delete medicines.');
       return;
     }
-    if (confirm(`Are you sure you want to remove "${med.name}" from the active medicine catalog?`)) {
+    if (confirm(`Are you sure you want to delete ${med.name}? This will remove it from future billing.`)) {
       deleteMutation.mutate(med.id);
     }
   };
 
   const handleOpenCreate = () => {
-    if (!canManage) {
-      alert('You do not have permission to add new medicines.');
-      return;
-    }
     setEditingMedicine(null);
     setFormData({
       name: '',
@@ -164,7 +172,7 @@ export default function MedicinesPage() {
       brandName: '',
       dosageForm: DosageForm.TABLET,
       categoryId: categories[0]?.id || '',
-      sku: `MED-${Date.now().toString().slice(-6)}`,
+      sku: '',
       barcode: '',
       baseUnitId: units[0]?.id || '',
       taxPercent: 12,
@@ -180,10 +188,6 @@ export default function MedicinesPage() {
   };
 
   const handleOpenEdit = (med: any) => {
-    if (!canManage) {
-      alert('You do not have permission to edit medicines.');
-      return;
-    }
     setEditingMedicine(med);
     setFormData({
       name: med.name,
@@ -193,475 +197,517 @@ export default function MedicinesPage() {
       categoryId: med.categoryId || '',
       sku: med.sku || '',
       barcode: med.barcode || '',
-      baseUnitId: med.baseUnitId || units[0]?.id || '',
+      baseUnitId: med.baseUnitId || '',
       taxPercent: med.taxPercent || 12,
       mrp: med.mrp || 0,
       defaultPurchasePrice: med.defaultPurchasePrice || 0,
       defaultSellingPrice: med.defaultSellingPrice || 0,
       stripsPerBox: med.stripsPerBox || 10,
       tabletsPerStrip: med.tabletsPerStrip || 10,
-      drugSchedule: med.drugSchedule || (med.isScheduleH ? 'SCHEDULE_H' : med.isScheduleH1 ? 'SCHEDULE_H1' : 'OTC'),
-      prescriptionRequired: med.prescriptionRequired || false,
+      drugSchedule: med.drugSchedule || (med.isScheduleH ? 'SCHEDULE_H' : med.isScheduleH1 ? 'SCHEDULE_H1' : med.isScheduleX ? 'SCHEDULE_X' : 'OTC'),
+      prescriptionRequired: Boolean(med.prescriptionRequired),
     });
     setShowCreateModal(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.name.trim()) {
-      alert('Please enter medicine name.');
-      return;
-    }
-    createMutation.mutate(formData);
-  };
+  const columns: Column<any>[] = [
+    {
+      key: 'name',
+      header: 'Medicine / Brand',
+      render: (med) => (
+        <div>
+          <div className="font-bold text-text-primary">{med.name}</div>
+          {med.brandName && (
+            <div className="text-[11px] text-text-muted font-medium">Brand: {med.brandName}</div>
+          )}
+          <div className="font-mono text-[10px] text-text-disabled">SKU: {med.sku}</div>
+        </div>
+      ),
+    },
+    {
+      key: 'genericName',
+      header: 'Generic Molecule',
+      render: (med) => (
+        <span className="text-text-secondary text-xs truncate max-w-xs block">
+          {med.genericName || med.composition || '—'}
+        </span>
+      ),
+    },
+    {
+      key: 'dosage',
+      header: 'Dosage / Unit',
+      render: (med) => (
+        <div>
+          <Badge variant="default" size="sm">
+            {med.dosageForm}
+          </Badge>
+          <div className="text-[10px] text-text-muted mt-0.5">
+            {med.baseUnit?.abbreviation || 'PCS'}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'packaging',
+      header: 'Packaging (Box➔Strip➔Tab)',
+      render: (med) => (
+        <div className="font-mono text-[11px] text-accent">
+          1 Box = {med.stripsPerBox || 10} Strips
+          <div className="text-[10px] text-text-muted">
+            1 Strip = {med.tabletsPerStrip || 10} Tabs
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'schedule',
+      header: 'Schedule / Rx',
+      render: (med) => {
+        const schedule = med.drugSchedule || (med.isScheduleH ? 'SCHEDULE_H' : med.isScheduleH1 ? 'SCHEDULE_H1' : med.isScheduleX ? 'SCHEDULE_X' : 'OTC');
+        const isControlled = schedule !== 'OTC';
+        return (
+          <Badge
+            variant={isControlled ? 'error' : 'success'}
+            size="sm"
+          >
+            {schedule}
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'stockStatus',
+      header: 'Stock Status',
+      render: (med) => {
+        const totalStock = Number(med.totalStock ?? 0);
+        if (totalStock > 10) {
+          return (
+            <Badge variant="success" size="sm" dot>
+              In Stock ({totalStock})
+            </Badge>
+          );
+        }
+        if (totalStock > 0) {
+          return (
+            <Badge variant="warning" size="sm" dot>
+              Low ({totalStock})
+            </Badge>
+          );
+        }
+        return (
+          <Badge variant="error" size="sm" dot>
+            Out of Stock
+          </Badge>
+        );
+      },
+    },
+    {
+      key: 'mrp',
+      header: 'MRP',
+      align: 'right',
+      accessor: (med) => (
+        <span className="font-mono text-text-secondary">
+          {formatCurrency(med.mrp || 0)}
+        </span>
+      ),
+    },
+    {
+      key: 'defaultSellingPrice',
+      header: 'Selling Price',
+      align: 'right',
+      accessor: (med) => (
+        <span className="font-mono font-bold text-text-primary">
+          {formatCurrency(med.defaultSellingPrice || 0)}
+        </span>
+      ),
+    },
+    {
+      key: 'actions',
+      header: 'Action',
+      align: 'center',
+      render: (med) => {
+        if (!canManage && !canDelete) {
+          return <span className="text-[10px] text-text-disabled italic">Locked</span>;
+        }
+
+        return (
+          <div className="flex items-center justify-center gap-1">
+            {canManage && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleOpenEdit(med)}
+                title="Edit Medicine"
+                className="w-7 h-7 p-0 text-text-secondary hover:text-accent"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+              </Button>
+            )}
+            {canDelete && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleDelete(med)}
+                title="Delete Medicine"
+                className="w-7 h-7 p-0 text-status-error hover:bg-status-error-bg"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-[#090d16] text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
+    <div className="flex h-screen bg-surface-page text-text-primary font-sans transition-colors duration-200 overflow-hidden">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <Header />
 
-        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
-          {/* Header Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Medicine Master</h2>
-                {canManage ? (
-                  <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-mono text-[10px] font-semibold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> Super Admin Access
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-mono text-[10px] font-medium flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> Read Only (Staff)
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Manage pharmacy product master, unit conversions, and drug schedules.
-              </p>
-            </div>
-
-            {canManage && (
-              <button
-                onClick={handleOpenCreate}
-                className="px-4 py-2 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                Add Medicine
-              </button>
-            )}
-          </div>
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6 pb-16 lg:pb-0 animate-fade-in">
+          {/* Header */}
+          <PageHeader
+            title="Medicine Master"
+            description="Master pharmaceutical catalog, formulations, schedules, packaging units, and standard pricing."
+            badge={
+              canManage ? (
+                <Badge variant="success" size="sm" icon={<ShieldCheck className="w-3 h-3" />}>
+                  Manager Access
+                </Badge>
+              ) : (
+                <Badge variant="outline" size="sm" icon={<Lock className="w-3 h-3" />}>
+                  Read Only
+                </Badge>
+              )
+            }
+            actions={
+              canManage ? (
+                <Button
+                  variant="primary"
+                  onClick={handleOpenCreate}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                >
+                  Add Medicine
+                </Button>
+              ) : undefined
+            }
+          />
 
           {/* Filters Bar */}
-          <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-sm dark:shadow-xl flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-[220px] relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 dark:text-slate-500">
-                <Search className="w-4 h-4" />
+          <Card elevation="flat" className="p-3">
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="flex-1 w-full">
+                <SmartAutocomplete
+                  placeholder="Search Medicine name, Generic, Composition, Barcode, HSN... (First char instant)"
+                  value={search}
+                  onChange={(val) => {
+                    setSearch(val);
+                    setPage(1);
+                  }}
+                  onClear={() => {
+                    setSearch('');
+                    setPage(1);
+                  }}
+                  fetchResults={async (q, signal) => {
+                    const res = await apiClient.get('/search/medicines', {
+                      params: { q, limit: 12 },
+                      signal,
+                    });
+                    const list = res.data || [];
+                    return list.map((m: any) => ({
+                      id: m.id,
+                      title: m.name,
+                      subtitle: `${m.genericName || m.brandName || ''} • SKU: ${m.sku}`,
+                      badge: m.totalStock > 0 ? `Stock: ${m.totalStock}` : 'No stock',
+                      metadata: m,
+                    }));
+                  }}
+                  onSelect={(item) => {
+                    setSearch(item.title);
+                    if (item.metadata) {
+                      handleOpenEdit(item.metadata);
+                    }
+                  }}
+                  createNewAction={{
+                    label: 'Add Medicine',
+                    onClick: (val) => {
+                      setEditingMedicine(null);
+                      setFormData((prev) => ({ ...prev, name: val.trim() }));
+                      setShowCreateModal(true);
+                    },
+                  }}
+                  inputClassName="!py-2 !text-xs !rounded-lg"
+                />
               </div>
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search Medicine name, Generic, SKU or Barcode..."
-                className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
-              />
-            </div>
 
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500" />
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium text-slate-900 dark:text-slate-200 focus:outline-none focus:border-sky-500"
-              >
-                <option value="">All Categories</option>
-                {categories.map((cat: any) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
+              <div className="w-full sm:w-64">
+                <Select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  options={[
+                    { label: 'All Categories', value: '' },
+                    ...categories.map((cat: any) => ({
+                      label: cat.name,
+                      value: cat.id,
+                    })),
+                  ]}
+                />
+              </div>
             </div>
-          </div>
+          </Card>
 
           {/* Medicines Table */}
-          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] overflow-hidden shadow-sm dark:shadow-xl">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs min-w-[700px]">
-                <thead className="bg-slate-100/80 dark:bg-[#0c1322] text-slate-600 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase tracking-wider">
-                  <tr>
-                    <th className="py-3 px-4">Medicine / Brand</th>
-                    <th className="py-3 px-4">Generic Molecule</th>
-                    <th className="py-3 px-4">Dosage / Unit</th>
-                    <th className="py-3 px-4">Packaging (Box➔Strip➔Tab)</th>
-                    <th className="py-3 px-4">Schedule / Rx</th>
-                    <th className="py-3 px-4 text-right">MRP</th>
-                    <th className="py-3 px-4 text-right">Selling Price</th>
-                    <th className="py-3 px-4 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                        Loading medicines catalogue...
-                      </td>
-                    </tr>
-                  ) : medicines.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-12 text-center text-slate-400 dark:text-slate-500">
-                        No medicines found.
-                      </td>
-                    </tr>
-                  ) : (
-                    medicines.map((med: any) => {
-                      const schedule = med.drugSchedule || (med.isScheduleH ? 'SCHEDULE_H' : med.isScheduleH1 ? 'SCHEDULE_H1' : 'OTC');
-                      const isControlled = schedule !== 'OTC';
-
-                      return (
-                        <tr key={med.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
-                          <td className="py-3 px-4">
-                            <div className="font-bold text-slate-900 dark:text-white">{med.name}</div>
-                            {med.brandName && (
-                              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Brand: {med.brandName}</div>
-                            )}
-                            <div className="font-mono text-[10px] text-slate-400 dark:text-slate-500">SKU: {med.sku}</div>
-                          </td>
-                          <td className="py-3 px-4 text-slate-600 dark:text-slate-300 max-w-xs truncate">
-                            {med.genericName || med.composition || '—'}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded font-medium text-[10px]">
-                              {med.dosageForm}
-                            </span>
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                              {med.baseUnit?.abbreviation || 'PCS'}
-                            </div>
-                          </td>
-                          <td className="py-3 px-4 font-mono text-[11px] text-sky-600 dark:text-sky-400">
-                            1 Box = {med.stripsPerBox || 10} Strips
-                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                              1 Strip = {med.tabletsPerStrip || 10} Tabs
-                            </div>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                isControlled
-                                  ? 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-800'
-                                  : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-                              }`}
-                            >
-                              {schedule}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-semibold text-slate-700 dark:text-slate-300">
-                            {formatCurrency(med.mrp || 0)}
-                          </td>
-                          <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
-                            {formatCurrency(med.defaultSellingPrice || 0)}
-                          </td>
-
-                          {/* Action Buttons */}
-                          <td className="py-3 px-4 text-center">
-                            {canManage || canDelete ? (
-                              <div className="flex items-center justify-center gap-2">
-                                {canManage && (
-                                  <button
-                                    onClick={() => handleOpenEdit(med)}
-                                    title="Edit Medicine"
-                                    className="p-1.5 text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
-                                  >
-                                    <Edit2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                                {canDelete && (
-                                  <button
-                                    onClick={() => handleDelete(med)}
-                                    title="Delete Medicine"
-                                    className="p-1.5 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-[10px] text-slate-400 italic">Locked</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <DataTable
+            columns={columns}
+            data={medicines}
+            isLoading={isLoading}
+            emptyTitle="No medicines found"
+            emptyDescription="There are no items matching your search query or selected category."
+            compact
+            pagination={{
+              page,
+              pageSize: 20,
+              totalItems: medicines.length >= 20 ? (page + 1) * 20 : page * 20,
+              onPageChange: (p) => setPage(p),
+            }}
+          />
         </main>
 
         {/* Create / Edit Medicine Modal */}
-        {showCreateModal && canManage && (
-          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-[#0f172a] rounded-2xl border border-slate-200 dark:border-slate-800 max-w-2xl w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh] shadow-2xl">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2 text-sky-600 dark:text-sky-400">
-                  <Pill className="w-5 h-5" />
-                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
-                    {editingMedicine ? 'Edit Medicine Master' : 'Add New Medicine'}
-                  </h3>
+        {showCreateModal && (
+          <Modal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            size="xl"
+            title={
+              <div className="flex items-center gap-2 text-accent">
+                <Pill className="w-5 h-5" />
+                <span>{editingMedicine ? 'Edit Medicine Formulation' : 'Add New Medicine Formulation'}</span>
+              </div>
+            }
+            description="Enter brand name, active molecule, dosage format, regulatory schedule, and pricing."
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                createMutation.mutate(formData);
+              }}
+              className="space-y-4 pt-2"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Brand Name / Commercial Title *"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g. Paracip 500 Tablet"
+                  />
                 </div>
-                <button
-                  onClick={() => setShowCreateModal(false)}
-                  className="p-1 text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg transition"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+                <div>
+                  <Input
+                    label="Parent Brand / Trademark"
+                    value={formData.brandName}
+                    onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
+                    placeholder="e.g. Cipla"
+                  />
+                </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Medicine Name *</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <Input
+                    label="Generic / Salt Composition *"
+                    value={formData.genericName}
+                    onChange={(e) => setFormData({ ...formData, genericName: e.target.value })}
+                    placeholder="e.g. Paracetamol IP 500mg"
+                  />
+                </div>
+                <div>
+                  <Select
+                    label="Category"
+                    value={formData.categoryId}
+                    onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+                    options={[
+                      { label: 'Select Category...', value: '' },
+                      ...categories.map((c: any) => ({ label: c.name, value: c.id })),
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <Select
+                    label="Dosage Form"
+                    value={formData.dosageForm}
+                    onChange={(e: any) => setFormData({ ...formData, dosageForm: e.target.value })}
+                    options={Object.values(DosageForm).map((df) => ({
+                      label: df,
+                      value: df,
+                    }))}
+                  />
+                </div>
+                <div>
+                  <Select
+                    label="Base Unit"
+                    value={formData.baseUnitId}
+                    onChange={(e) => setFormData({ ...formData, baseUnitId: e.target.value })}
+                    options={units.map((u: any) => ({
+                      label: `${u.name} (${u.abbreviation})`,
+                      value: u.id,
+                    }))}
+                  />
+                </div>
+                <div>
+                  <Input
+                    label="SKU Code"
+                    value={formData.sku}
+                    onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+                    placeholder="e.g. PARA-500"
+                  />
+                </div>
+                <div>
+                  <Input
+                    label="Barcode / EAN"
+                    value={formData.barcode}
+                    onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
+                    placeholder="8901234567890"
+                  />
+                </div>
+              </div>
+
+              {/* Multi-Level Packaging Units */}
+              <Card elevation="flat" className="p-3 bg-surface-raised space-y-2">
+                <span className="font-semibold text-text-primary text-xs flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-accent" />
+                  Multi-Level Packaging Multipliers (Box ➔ Strip ➔ Tablet)
+                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Strips per Box"
+                    type="number"
+                    min="1"
+                    value={formData.stripsPerBox}
+                    onChange={(e) => setFormData({ ...formData, stripsPerBox: parseInt(e.target.value) || 1 })}
+                  />
+                  <Input
+                    label="Tablets / Units per Strip"
+                    type="number"
+                    min="1"
+                    value={formData.tabletsPerStrip}
+                    onChange={(e) => setFormData({ ...formData, tabletsPerStrip: parseInt(e.target.value) || 1 })}
+                  />
+                </div>
+              </Card>
+
+              {/* Regulatory & Prescription Schedule */}
+              <Card elevation="flat" className="p-3 bg-surface-raised space-y-2">
+                <span className="font-semibold text-text-primary text-xs flex items-center gap-1.5">
+                  <ShieldAlert className="w-4 h-4 text-status-warning" />
+                  Drug Schedule &amp; Regulatory Compliance
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                  <Select
+                    label="Drug Schedule"
+                    value={formData.drugSchedule}
+                    onChange={(e) => {
+                      const sched = e.target.value;
+                      const isControlled = sched !== 'OTC';
+                      setFormData({
+                        ...formData,
+                        drugSchedule: sched,
+                        prescriptionRequired: isControlled ? true : formData.prescriptionRequired,
+                      });
+                    }}
+                    options={[
+                      { label: 'OTC (Over The Counter)', value: 'OTC' },
+                      { label: 'Schedule H (Prescription Required)', value: 'SCHEDULE_H' },
+                      { label: 'Schedule H1 (Controlled Antibiotic / Habit Forming)', value: 'SCHEDULE_H1' },
+                      { label: 'Schedule X (Narcotic / Strict Audit)', value: 'SCHEDULE_X' },
+                    ]}
+                  />
+
+                  <div className="flex items-center gap-2 pt-4">
                     <input
-                      required
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="e.g. Augmentin 625 Duo"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
+                      type="checkbox"
+                      id="rxRequired"
+                      checked={formData.prescriptionRequired || formData.drugSchedule !== 'OTC'}
+                      disabled={formData.drugSchedule !== 'OTC'}
+                      onChange={(e) => setFormData({ ...formData, prescriptionRequired: e.target.checked })}
+                      className="w-4 h-4 text-accent border-border rounded focus:ring-accent"
                     />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Generic Composition</label>
-                    <input
-                      type="text"
-                      value={formData.genericName}
-                      onChange={(e) => setFormData({ ...formData, genericName: e.target.value })}
-                      placeholder="e.g. Amoxicillin & Potassium Clavulanate"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Brand Name</label>
-                    <input
-                      type="text"
-                      value={formData.brandName}
-                      onChange={(e) => setFormData({ ...formData, brandName: e.target.value })}
-                      placeholder="e.g. GSK"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Dosage Form *</label>
-                    <select
-                      value={formData.dosageForm}
-                      onChange={(e) => setFormData({ ...formData, dosageForm: e.target.value as DosageForm })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    >
-                      {Object.values(DosageForm).map((df) => (
-                        <option key={df} value={df} className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">
-                          {df}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Category</label>
-                    <select
-                      value={formData.categoryId}
-                      onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    >
-                      <option value="" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Select Category</option>
-                      {categories.map((cat: any) => (
-                        <option key={cat.id} value={cat.id} className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">SKU Code *</label>
-                    <input
-                      required
-                      type="text"
-                      value={formData.sku}
-                      onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                      placeholder="MED-AUG-625"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Barcode / EAN-13</label>
-                    <input
-                      type="text"
-                      value={formData.barcode}
-                      onChange={(e) => setFormData({ ...formData, barcode: e.target.value })}
-                      placeholder="8901234567890"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Base Packaging Unit *</label>
-                    <select
-                      required
-                      value={formData.baseUnitId}
-                      onChange={(e) => setFormData({ ...formData, baseUnitId: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    >
-                      <option value="" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Select Unit</option>
-                      {units.map((u: any) => (
-                        <option key={u.id} value={u.id} className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">
-                          {u.name} ({u.abbreviation})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">GST Tax Rate (%)</label>
-                    <input
-                      type="number"
-                      placeholder="0"
-                      value={formData.taxPercent === 0 ? '' : formData.taxPercent}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => {
-                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                        setFormData({ ...formData, taxPercent: val });
-                      }}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    />
-                  </div>
-
-                  {/* Multi-Level Packaging Unit Conversion */}
-                  <div className="col-span-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                    <div className="font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
-                      <Layers className="w-4 h-4" />
-                      <span>Packaging Ratio (Box ➔ Strip ➔ Tablets)</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block font-medium text-slate-550 dark:text-slate-400 mb-1">Strips per Box</label>
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="1"
-                          value={formData.stripsPerBox === 0 ? '' : formData.stripsPerBox}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
-                            setFormData({ ...formData, stripsPerBox: val });
-                          }}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                        />
-                      </div>
-                      <div>
-                        <label className="block font-medium text-slate-550 dark:text-slate-400 mb-1">Tablets per Strip</label>
-                        <input
-                          type="number"
-                          min="1"
-                          placeholder="1"
-                          value={formData.tabletsPerStrip === 0 ? '' : formData.tabletsPerStrip}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 1;
-                            setFormData({ ...formData, tabletsPerStrip: val });
-                          }}
-                          className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Pricing Fields */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 col-span-2">
-                    <div>
-                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">MRP *</label>
-                      <input
-                        required
-                        type="number"
-                        step="0.01"
-                        placeholder="0"
-                        value={formData.mrp === 0 ? '' : formData.mrp}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Purchase Price *</label>
-                      <input
-                        required
-                        type="number"
-                        step="0.01"
-                        placeholder="0"
-                        value={formData.defaultPurchasePrice === 0 ? '' : formData.defaultPurchasePrice}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setFormData({ ...formData, defaultPurchasePrice: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Selling Price *</label>
-                      <input
-                        required
-                        type="number"
-                        step="0.01"
-                        placeholder="0"
-                        value={formData.defaultSellingPrice === 0 ? '' : formData.defaultSellingPrice}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setFormData({ ...formData, defaultSellingPrice: parseFloat(e.target.value) || 0 })}
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl font-mono text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Schedule Selection */}
-                  <div className="col-span-2">
-                    <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">Drug Regulatory Schedule</label>
-                    <select
-                      value={formData.drugSchedule}
-                      onChange={(e) => setFormData({ ...formData, drugSchedule: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-[#090d16] border border-slate-250 dark:border-slate-800 rounded-xl text-slate-900 dark:text-white focus:outline-none focus:border-sky-500 dark:focus:border-sky-400 transition"
-                    >
-                      <option value="OTC" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">OTC (Over The Counter - No Rx required)</option>
-                      <option value="SCHEDULE_H" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Schedule H (Requires Registered Medical Doctor Rx)</option>
-                      <option value="SCHEDULE_H1" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Schedule H1 (High-Risk Antibiotic / 3-Year Register)</option>
-                      <option value="SCHEDULE_X" className="text-slate-900 dark:text-white bg-white dark:bg-[#090d16]">Schedule X (Narcotics &amp; Psychotropic Substances)</option>
-                    </select>
+                    <label htmlFor="rxRequired" className="text-xs font-medium text-text-secondary cursor-pointer select-none">
+                      Doctor Prescription Mandatory (Rx Required)
+                    </label>
                   </div>
                 </div>
+              </Card>
 
-                <div className="pt-3 flex justify-end gap-2 border-t border-slate-100 dark:border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createMutation.isPending}
-                    className="px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 font-bold text-white shadow-lg transition"
-                  >
-                    {createMutation.isPending ? 'Saving...' : editingMedicine ? 'Update Medicine' : 'Save Medicine'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+              {/* Pricing & GST */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Input
+                  label="MRP (₹) *"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={formData.mrp}
+                  onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
+                />
+                <Input
+                  label="Default Cost Price (₹)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.defaultPurchasePrice}
+                  onChange={(e) => setFormData({ ...formData, defaultPurchasePrice: parseFloat(e.target.value) || 0 })}
+                />
+                <Input
+                  label="Default Selling Price (₹) *"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  value={formData.defaultSellingPrice}
+                  onChange={(e) => setFormData({ ...formData, defaultSellingPrice: parseFloat(e.target.value) || 0 })}
+                />
+                <Input
+                  label="Tax (GST %)"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={formData.taxPercent}
+                  onChange={(e) => setFormData({ ...formData, taxPercent: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="pt-3 border-t border-border flex justify-end gap-3">
+                <Button
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  type="submit"
+                  disabled={createMutation.isPending}
+                  leftIcon={<Plus className="w-4 h-4" />}
+                >
+                  {createMutation.isPending
+                    ? 'Saving...'
+                    : editingMedicine
+                    ? 'Update Medicine'
+                    : 'Save Medicine'}
+                </Button>
+              </div>
+            </form>
+          </Modal>
         )}
       </div>
     </div>

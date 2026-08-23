@@ -212,6 +212,9 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
 
               <div className="invoice-header flex justify-between items-start mb-6">
                 <div className="store-details">
+                  {data?.logo && (
+                    <img src={data.logo} alt={data.storeName || 'Logo'} className="h-10 max-w-[140px] object-contain mb-1.5" />
+                  )}
                   <h2 className={`font-bold ${layout === 'A5' ? 'text-xl' : 'text-2xl'} m-0`}>
                     {data?.storeName || 'MedCare Pharmacy'}
                   </h2>
@@ -340,6 +343,11 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
             >
               {/* Thermal Render */}
               <div className="text-center pb-2">
+                {data?.logo && (
+                  <div className="flex justify-center mb-1">
+                    <img src={data.logo} alt={data.storeName || 'Logo'} className="h-8 max-w-[100px] object-contain" />
+                  </div>
+                )}
                 {data?.isReprint && (
                   <div className="border border-black py-0.5 mb-1.5 font-bold text-[10px] tracking-widest uppercase">
                     *** DUPLICATE / REPRINT ***

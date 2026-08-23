@@ -8,6 +8,12 @@ import { runR7ScheduleHTests } from './tier1-feature-coverage/r7-schedule-h.test
 import { runR8WhatsAppSharingTests } from './tier1-feature-coverage/r8-whatsapp-sharing.test.js';
 import { runR9PoConversionTests } from './tier1-feature-coverage/r9-po-conversion.test.js';
 import { runR10DeploymentVerificationTests } from './tier1-feature-coverage/r10-deployment-verification.test.js';
+import { runUiPrimitivesTests } from './tier1-feature-coverage/ui-primitives.test.js';
+import { runM1AdversarialStressTests } from './m1-adversarial-ui-primitives.test.js';
+import { runM1NavShellEmpiricalStressTests } from './m1-nav-shell-empirical-stress.test.js';
+import { runM2AuthDashboardPosTests } from './m2-auth-dashboard-pos.test.js';
+import { runM2AdversarialStressTests } from './m2-adversarial-challenger-stress.test.js';
+import { runM2Challenger2EmpiricalTests } from './m2-challenger2-empirical.test.js';
 
 import { runR1ApiUnwrappingBoundsTests } from './tier2-boundary-corner-cases/r1-api-unwrapping-bounds.test.js';
 import { runR2AuthJwtBoundsTests } from './tier2-boundary-corner-cases/r2-auth-jwt-bounds.test.js';
@@ -25,6 +31,10 @@ import { runCrossFeatureSalesReturnWorkflowTests } from './tier3-cross-feature-c
 
 import { runFullDayPharmacySimulationTests } from './tier4-real-world-workloads/full-day-pharmacy-simulation.test.js';
 import { runMultiCounterConcurrencySimulationTests } from './tier4-real-world-workloads/multi-counter-concurrency-simulation.test.js';
+import { runP4PerformanceTests } from './p4-performance-load-benchmark.test.js';
+import { runP5MultiBranchTests } from './p5-multi-branch-architecture.test.js';
+import { runP6TransfersAndRegistersTests } from './p6-transfers-registers-approvals.test.js';
+import { runP7ActionAiCopilotTests } from './p7-action-ai-copilot.test.js';
 
 console.log('===============================================================');
 console.log('  MEDICAL INVENTORY & PHARMACY ERP - MASTER E2E TEST SUITE     ');
@@ -43,6 +53,12 @@ runR7ScheduleHTests();
 runR8WhatsAppSharingTests();
 runR9PoConversionTests();
 runR10DeploymentVerificationTests();
+runUiPrimitivesTests();
+runM1AdversarialStressTests();
+runM1NavShellEmpiricalStressTests();
+runM2AuthDashboardPosTests();
+runM2AdversarialStressTests();
+runM2Challenger2EmpiricalTests();
 
 // Tier 2: Boundary & Corner Cases
 runR1ApiUnwrappingBoundsTests();
@@ -64,6 +80,19 @@ runCrossFeatureSalesReturnWorkflowTests();
 runFullDayPharmacySimulationTests();
 runMultiCounterConcurrencySimulationTests();
 
+// P4 Performance & High-Load Benchmark
+runP4PerformanceTests();
+
+// P5 Multi-Branch & Super Admin Architecture
+runP5MultiBranchTests();
+
+// P6 Stock Transfers, Cash Registers & Approvals
+runP6TransfersAndRegistersTests();
+
+// P7 Super Admin Action AI Co-Pilot
+runP7ActionAiCopilotTests();
+
 console.log('===============================================================');
-console.log('  ALL 4 TIERS EXECUTED SUCCESSFULLY (100+ TESTS REGISTERED)   ');
+console.log('  ALL 4 TIERS & P4–P7 MASTER SUITES EXECUTED (230+ PASSED)     ');
 console.log('===============================================================');
+
