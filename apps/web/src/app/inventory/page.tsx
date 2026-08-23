@@ -13,7 +13,12 @@ import {
   ShieldCheck,
   RotateCcw,
   Plus,
+  Edit2,
+  Check,
+  X,
+  ShoppingCart,
 } from 'lucide-react';
+import Link from 'next/link';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
 import {
@@ -44,6 +49,9 @@ export default function InventoryPage() {
   const [adjustmentModal, setAdjustmentModal] = useState<any | null>(null);
   const [adjustmentQty, setAdjustmentQty] = useState<number>(0);
   const [adjustmentReason, setAdjustmentReason] = useState<string>(AdjustmentReason.PHYSICAL_MISMATCH);
+
+  // Editable Reorder Threshold State
+  const [editingThreshold, setEditingThreshold] = useState<{ id: string; value: number | string } | null>(null);
 
   // 1. Batches Query
   const { data: batchesData, isLoading: batchesLoading } = useQuery({
@@ -136,6 +144,22 @@ export default function InventoryPage() {
       notes: `Manual stock adjustment from ${existingQty} to ${targetQty}`,
     });
   };
+
+  const updateThresholdMutation = useMutation({
+    mutationFn: async ({ medicineId, reorderLevel }: { medicineId: string; reorderLevel: number }) => {
+      const res = await apiClient.patch(`/medicines/${medicineId}`, { reorderLevel });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['inventory-low-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['medicines-list'] });
+      setEditingThreshold(null);
+      alert('Minimum threshold updated successfully!');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to update threshold.');
+    },
+  });
 
   const reorderList = [
     ...(Array.isArray(reorderData?.outOfStock) ? reorderData.outOfStock : []),
@@ -359,41 +383,148 @@ export default function InventoryPage() {
   const reorderColumns: Column<any>[] = [
     {
       key: 'medicine',
-      header: 'Medicine',
-      accessor: (item) => (
-        <span className="font-bold text-text-primary">
-          {item.name}
-        </span>
+      header: 'Medicine / SKU',
+      render: (item) => (
+        <div>
+          <span className="font-bold text-text-primary block">
+            {item.name}
+          </span>
+          <span className="text-[10px] text-text-muted font-mono">
+            {item.sku || 'SKU-GEN'}
+          </span>
+        </div>
       ),
     },
     {
       key: 'totalStock',
       header: 'Current Total Stock',
       align: 'center',
-      accessor: (item) => (
-        <span className="font-mono font-bold text-status-error">
-          {item.totalStock}
-        </span>
-      ),
+      render: (item) => {
+        const stock = Number(item.currentStock ?? 0);
+        return (
+          <div className="flex flex-col items-center">
+            <span
+              className={`font-mono font-bold text-sm ${
+                stock === 0 ? 'text-status-error' : 'text-status-warning'
+              }`}
+            >
+              {stock}
+            </span>
+            <span className="text-[10px] text-text-muted">
+              {item.baseUnit?.abbreviation || 'Units'}
+            </span>
+          </div>
+        );
+      },
     },
     {
       key: 'minStock',
-      header: 'Min Threshold',
+      header: 'Min Threshold (Reorder Level)',
       align: 'center',
-      accessor: (item) => (
-        <span className="font-mono text-text-secondary">
-          {item.minStock || 10}
-        </span>
-      ),
+      render: (item) => {
+        const isEditing = editingThreshold?.id === item.id;
+        const currentLevel = item.reorderLevel ?? item.minStock ?? 10;
+
+        if (isEditing && editingThreshold) {
+          return (
+            <div className="flex items-center justify-center gap-1">
+              <input
+                type="number"
+                min="1"
+                value={editingThreshold.value}
+                onChange={(e) =>
+                  setEditingThreshold({ id: item.id, value: Number(e.target.value) })
+                }
+                className="w-16 px-1.5 py-0.5 text-xs text-center font-mono font-bold bg-surface-page border border-accent-primary rounded"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    updateThresholdMutation.mutate({
+                      medicineId: item.id,
+                      reorderLevel: Number(editingThreshold.value),
+                    });
+                  } else if (e.key === 'Escape') {
+                    setEditingThreshold(null);
+                  }
+                }}
+              />
+              <button
+                onClick={() =>
+                  updateThresholdMutation.mutate({
+                    medicineId: item.id,
+                    reorderLevel: Number(editingThreshold.value),
+                  })
+                }
+                disabled={updateThresholdMutation.isPending}
+                className="p-1 rounded hover:bg-surface-raised text-status-success"
+                title="Save Threshold"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setEditingThreshold(null)}
+                className="p-1 rounded hover:bg-surface-raised text-text-muted hover:text-status-error"
+                title="Cancel"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex items-center justify-center gap-1.5 group">
+            <span className="font-mono font-bold text-text-primary text-xs bg-surface-raised px-2 py-0.5 rounded border border-border-default">
+              {currentLevel}
+            </span>
+            {canManage && (
+              <button
+                onClick={() =>
+                  setEditingThreshold({ id: item.id, value: currentLevel })
+                }
+                title="Edit Minimum Threshold"
+                className="text-text-muted hover:text-accent-primary p-1 rounded transition opacity-80 group-hover:opacity-100 cursor-pointer"
+              >
+                <Edit2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'suggestedQty',
       header: 'Suggested PO Qty',
       align: 'center',
-      accessor: (item) => (
-        <span className="font-mono font-bold text-accent">
-          {Math.max((item.minStock || 10) * 2 - item.totalStock, 10)}
-        </span>
+      render: (item) => {
+        const minThreshold = Number(item.reorderLevel ?? item.minStock ?? 10);
+        const current = Number(item.currentStock ?? 0);
+        const suggested =
+          Number(item.suggestedReorderQty) ||
+          Math.max(minThreshold * 2 - current, minThreshold);
+
+        return (
+          <div className="flex flex-col items-center">
+            <span className="font-mono font-bold text-accent-primary text-sm">
+              +{suggested}
+            </span>
+            <span className="text-[10px] text-text-muted">units suggested</span>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'actions',
+      header: 'Action',
+      align: 'right',
+      render: (item) => (
+        <Link
+          href={`/purchases?medicineId=${item.id}`}
+          className="inline-flex items-center gap-1 px-2.5 py-1 bg-accent-primary hover:bg-accent-hover text-white rounded-lg text-xs font-semibold shadow transition"
+        >
+          <ShoppingCart className="w-3 h-3" />
+          Create PO
+        </Link>
       ),
     },
   ];

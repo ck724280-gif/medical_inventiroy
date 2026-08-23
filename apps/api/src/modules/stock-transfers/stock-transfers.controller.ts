@@ -40,6 +40,25 @@ export class StockTransfersController {
     return this.stockTransfersService.create(dto, userId);
   }
 
+  @Post(':id/approve')
+  @HttpCode(HttpStatus.OK)
+  async approve(
+    @Param('id', UUIDValidationPipe) id: string,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.stockTransfersService.approve(id, userId);
+  }
+
+  @Post(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  async reject(
+    @Param('id', UUIDValidationPipe) id: string,
+    @Body('reason') reason: string,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.stockTransfersService.reject(id, userId, reason);
+  }
+
   @Post(':id/dispatch')
   @HttpCode(HttpStatus.OK)
   async dispatch(

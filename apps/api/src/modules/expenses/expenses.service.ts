@@ -71,7 +71,9 @@ export class ExpensesService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (query?.branchId) where.branchId = query.branchId;
+    if (query?.branchId) {
+      where.OR = [{ branchId: query.branchId }, { branchId: null }];
+    }
     if (query?.category && query.category.trim()) where.category = query.category.trim();
     if (query?.startDate || query?.endDate) {
       where.date = {};

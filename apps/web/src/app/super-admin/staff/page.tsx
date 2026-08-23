@@ -314,10 +314,10 @@ export default function SuperAdminStaffPage() {
                             </div>
                           </td>
 
-                          {/* Login Email */}
+                          {/* Login Email & Mobile */}
                           <td className="py-3 px-4">
                             <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-text-primary select-all">{user.email}</span>
+                              <span className="font-medium text-text-primary select-all text-xs">{user.email}</span>
                               <button
                                 onClick={() => copyToClipboard(user.email, `email-${user.id}`)}
                                 title="Copy Login Email"
@@ -330,7 +330,22 @@ export default function SuperAdminStaffPage() {
                                 )}
                               </button>
                             </div>
-                            <div className="text-[11px] text-text-muted">{user.mobile || 'No mobile'}</div>
+                            {user.mobile && (
+                              <div className="flex items-center gap-1.5 mt-1 text-[11px] text-text-muted font-mono">
+                                <span>📱 {user.mobile}</span>
+                                <button
+                                  onClick={() => copyToClipboard(user.mobile, `mobile-${user.id}`)}
+                                  title="Copy Mobile Number"
+                                  className="text-text-muted hover:text-accent-primary p-0.5 rounded transition cursor-pointer"
+                                >
+                                  {copiedKey === `mobile-${user.id}` ? (
+                                    <Check className="w-2.5 h-2.5 text-status-success" />
+                                  ) : (
+                                    <Copy className="w-2.5 h-2.5" />
+                                  )}
+                                </button>
+                              </div>
+                            )}
                           </td>
 
                           {/* Password */}
@@ -369,25 +384,36 @@ export default function SuperAdminStaffPage() {
                             </div>
                           </td>
 
-                          {/* Role */}
+                          {/* Role & Access Scope */}
                           <td className="py-3 px-4">
-                            <Badge variant="outline">{user.role}</Badge>
+                            <Badge variant={user.role === 'SUPER_ADMIN' || user.role === 'OWNER' ? 'info' : 'outline'}>
+                              {user.role}
+                            </Badge>
+                            <div className="text-[10px] text-text-muted mt-1">
+                              {user.role === 'SUPER_ADMIN' || user.role === 'OWNER'
+                                ? '🌐 Multi-Branch Access'
+                                : '🔒 Single Branch Only'}
+                            </div>
                           </td>
 
-                          {/* Assigned Branches */}
+                          {/* Assigned Branch (Single Branch Restriction) */}
                           <td className="py-3 px-4">
                             <div className="flex flex-wrap gap-1">
-                              {user.assignedBranches?.length > 0 ? (
+                              {user.role === 'SUPER_ADMIN' || user.role === 'OWNER' ? (
+                                <span className="px-2 py-0.5 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-md text-[10px] font-bold">
+                                  ALL BRANCHES
+                                </span>
+                              ) : user.assignedBranches?.length > 0 ? (
                                 user.assignedBranches.map((b: any) => (
                                   <span
                                     key={b.branchId}
-                                    className="px-1.5 py-0.5 bg-surface-raised border border-border-default rounded text-[10px] font-mono"
+                                    className="px-2 py-0.5 bg-surface-raised border border-border-default rounded-md text-[10px] font-mono font-bold text-text-primary"
                                   >
-                                    {b.branchCode}
+                                    📍 {b.branchCode}
                                   </span>
                                 ))
                               ) : (
-                                <span className="text-text-muted">None</span>
+                                <span className="text-text-muted">Unassigned</span>
                               )}
                             </div>
                           </td>
@@ -399,9 +425,32 @@ export default function SuperAdminStaffPage() {
                             </Badge>
                           </td>
 
-                          {/* Actions */}
+                          {/* Credentials & Web URL Actions */}
                           <td className="py-3 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* Direct Web Login URL button */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const loginUrl = `${getLoginUrl()}?email=${encodeURIComponent(user.email)}`;
+                                  copyToClipboard(loginUrl, `url-${user.id}`);
+                                }}
+                                title="Copy direct Web Login URL for this user"
+                              >
+                                {copiedKey === `url-${user.id}` ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 mr-1 text-status-success" />
+                                    <span className="text-status-success">URL Copied!</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Globe className="w-3.5 h-3.5 mr-1 text-accent-primary" />
+                                    <span>Copy URL</span>
+                                  </>
+                                )}
+                              </Button>
+
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -411,12 +460,12 @@ export default function SuperAdminStaffPage() {
                                 {copiedKey === `full-${user.id}` ? (
                                   <>
                                     <Check className="w-3.5 h-3.5 mr-1 text-status-success" />
-                                    <span className="text-status-success">Copied!</span>
+                                    <span className="text-status-success">Pack Copied!</span>
                                   </>
                                 ) : (
                                   <>
                                     <Copy className="w-3.5 h-3.5 mr-1" />
-                                    <span>Copy Login</span>
+                                    <span>Copy Pack</span>
                                   </>
                                 )}
                               </Button>

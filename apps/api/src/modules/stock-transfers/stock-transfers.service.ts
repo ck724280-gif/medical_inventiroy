@@ -133,6 +133,90 @@ export class StockTransfersService {
   }
 
   /**
+   * Approve transfer request: Marks transfer as APPROVED
+   */
+  async approve(transferId: string, userId: string) {
+    const transfer = await this.findOne(transferId);
+
+    if (transfer.status !== 'REQUESTED' && transfer.status !== 'DRAFT') {
+      throw new BadRequestException(
+        `Cannot approve transfer with status '${transfer.status}'. Only REQUESTED or DRAFT transfers can be approved.`
+      );
+    }
+
+    return this.prisma.stockTransfer.update({
+      where: { id: transferId },
+      data: {
+        status: 'APPROVED',
+        updatedAt: new Date(),
+      },
+      include: {
+        fromBranch: true,
+        toBranch: true,
+        items: {
+          include: { medicine: true, batch: true },
+        },
+      },
+    });
+  }
+
+  /**
+   * Reject / Cancel transfer request: Marks transfer as CANCELLED
+   */
+  async reject(transferId: string, userId: string, reason?: string) {
+    const transfer = await this.findOne(transferId);
+
+    if (transfer.status === 'COMPLETED' || transfer.status === 'RECEIVED') {
+      throw new BadRequestException(`Cannot reject transfer that is already completed.`);
+    }
+
+    // If already dispatched, we should restore source branch batch stock
+    if (transfer.status === 'DISPATCHED' || transfer.status === 'IN_TRANSIT') {
+      return this.prisma.$transaction(async (tx) => {
+        for (const item of transfer.items) {
+          await tx.batch.update({
+            where: { id: item.batchId },
+            data: { currentQty: { increment: item.qty } },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              medicineId: item.medicineId,
+              batchId: item.batchId,
+              branchId: transfer.fromBranchId,
+              type: 'TRANSFER_IN',
+              direction: 'IN',
+              qty: item.qty,
+              reason: `Reversal of rejected transfer #${transfer.id.slice(0, 8)}`,
+              userId,
+            },
+          });
+        }
+
+        return tx.stockTransfer.update({
+          where: { id: transferId },
+          data: {
+            status: 'CANCELLED',
+            notes: reason ? `${transfer.notes || ''} [Rejected: ${reason}]` : transfer.notes,
+            updatedAt: new Date(),
+          },
+          include: { fromBranch: true, toBranch: true, items: true },
+        });
+      });
+    }
+
+    return this.prisma.stockTransfer.update({
+      where: { id: transferId },
+      data: {
+        status: 'CANCELLED',
+        notes: reason ? `${transfer.notes || ''} [Rejected: ${reason}]` : transfer.notes,
+        updatedAt: new Date(),
+      },
+      include: { fromBranch: true, toBranch: true, items: true },
+    });
+  }
+
+  /**
    * Dispatch transfer: Deducts stock from Source Branch batches and marks DISPATCHED
    */
   async dispatch(transferId: string, userId: string) {
@@ -202,9 +286,9 @@ export class StockTransfersService {
   async receive(transferId: string, userId: string) {
     const transfer = await this.findOne(transferId);
 
-    if (transfer.status !== 'DISPATCHED') {
+    if (transfer.status !== 'DISPATCHED' && transfer.status !== 'IN_TRANSIT') {
       throw new BadRequestException(
-        `Cannot receive transfer in status '${transfer.status}'. Transfer must be DISPATCHED first.`
+        `Cannot receive transfer in status '${transfer.status}'. Transfer must be DISPATCHED or IN_TRANSIT first.`
       );
     }
 
