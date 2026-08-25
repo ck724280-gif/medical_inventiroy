@@ -60,6 +60,24 @@ export class ReportsController {
     return this.reportsService.getPurchaseReport({ branchId, supplierId, startDate, endDate });
   }
 
+  @Get('purchases/export/excel')
+  @RequirePermissions('report.export')
+  async exportPurchasesExcel(
+    @Query('branchId') branchId: string | undefined,
+    @Query('supplierId') supplierId: string | undefined,
+    @Query('startDate') startDate: string | undefined,
+    @Query('endDate') endDate: string | undefined,
+    @Res() res: Response
+  ) {
+    const buffer = await this.reportsService.exportPurchasesExcel({ branchId, supplierId, startDate, endDate });
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': 'attachment; filename="purchase-ledger-report.xlsx"',
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
   @Get('inventory')
   @RequirePermissions('report.view')
   async getInventoryValuation(@Query('branchId') branchId?: string) {

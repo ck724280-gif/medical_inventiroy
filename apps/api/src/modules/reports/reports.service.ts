@@ -63,7 +63,7 @@ export class ReportsService {
     endDate?: string;
   }) {
     const where: any = {
-      status: { in: ['CONFIRMED', 'APPROVED'] },
+      status: { not: 'CANCELLED' },
     };
 
     if (query.branchId) where.branchId = query.branchId;
@@ -601,6 +601,42 @@ export class ReportsService {
         discountAmount: Number(s.discountAmount.toFixed(2)),
         totalAmount: Number(s.totalAmount.toFixed(2)),
         status: s.status,
+      });
+    });
+
+    return Buffer.from(await workbook.xlsx.writeBuffer());
+  }
+
+  async exportPurchasesExcel(query: any): Promise<Buffer> {
+    const report = await this.getPurchaseReport(query);
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Purchase Ledger');
+
+    worksheet.columns = [
+      { header: 'Invoice / Bill No', key: 'invoiceNumber', width: 20 },
+      { header: 'Purchase Date', key: 'date', width: 15 },
+      { header: 'Supplier / Vendor', key: 'supplierName', width: 30 },
+      { header: 'GSTIN', key: 'gstin', width: 18 },
+      { header: 'Subtotal (₹)', key: 'subtotal', width: 15 },
+      { header: 'Tax / GST (₹)', key: 'taxAmount', width: 15 },
+      { header: 'Discount (₹)', key: 'discountAmount', width: 15 },
+      { header: 'Total Bill (₹)', key: 'totalAmount', width: 18 },
+      { header: 'Payment Status', key: 'paymentStatus', width: 18 },
+      { header: 'Status', key: 'status', width: 15 },
+    ];
+
+    report.purchases.forEach((p: any) => {
+      worksheet.addRow({
+        invoiceNumber: p.invoiceNumber,
+        date: new Date(p.purchaseDate || p.createdAt).toLocaleDateString(),
+        supplierName: p.supplier?.name || 'Direct Vendor',
+        gstin: p.supplier?.gstNumber || 'N/A',
+        subtotal: Number((p.subtotal || p.totalAmount).toFixed(2)),
+        taxAmount: Number((p.taxAmount || 0).toFixed(2)),
+        discountAmount: Number((p.discountAmount || 0).toFixed(2)),
+        totalAmount: Number(p.totalAmount.toFixed(2)),
+        paymentStatus: p.paymentStatus || 'PAID',
+        status: p.status,
       });
     });
 

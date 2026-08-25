@@ -18,6 +18,7 @@ import {
   Percent,
   Layers,
   Sparkles,
+  ShoppingCart,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
@@ -29,7 +30,7 @@ import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
 export default function ReportsPage() {
   const { selectedBranchId } = useAuthStore();
   const [activeTab, setActiveTab] = useState<
-    'financials' | 'sales' | 'inventory' | 'gstr1' | 'gstr3b' | 'hsn' | 'schedule-h'
+    'financials' | 'sales' | 'purchases' | 'inventory' | 'gstr1' | 'gstr3b' | 'hsn' | 'schedule-h'
   >('financials');
 
   const [dateRange, setDateRange] = useState({
@@ -88,6 +89,18 @@ export default function ReportsPage() {
       return res.data?.data || res.data;
     },
     enabled: activeTab === 'sales',
+  });
+
+  // Purchase Report Query
+  const { data: purchaseReportData, isLoading: loadingPurchases } = useQuery({
+    queryKey: ['purchases-report', selectedBranchId, dateRange],
+    queryFn: async () => {
+      const res = await apiClient.get('/reports/purchases', {
+        params: { branchId: selectedBranchId || undefined, ...dateRange },
+      });
+      return res.data?.data || res.data;
+    },
+    enabled: activeTab === 'purchases',
   });
 
   // Inventory Valuation Query
@@ -153,7 +166,7 @@ export default function ReportsPage() {
   const handleExportExcel = async (type: string, filename: string) => {
     try {
       setDownloading(type);
-      const res = await apiClient.get(`/reports/${type}/export/excel`, {
+      const res = await apiClient.get('/reports/' + type + '/export/excel', {
         params: {
           branchId: selectedBranchId || undefined,
           startDate: dateRange.startDate || undefined,
@@ -191,7 +204,7 @@ export default function ReportsPage() {
                 Reports &amp; Legal Analytics
               </h2>
               <p className="text-xs text-text-muted mt-0.5">
-                Financial P&amp;L, GST Returns (GSTR-1, GSTR-3B), HSN Summaries, and Schedule H / H1 Drug Registers.
+                Financial P&amp;L, GST Returns (GSTR-1, GSTR-3B), Purchase &amp; Sales Ledgers, and Schedule H / H1 Drug Registers.
               </p>
             </div>
 
@@ -255,6 +268,7 @@ export default function ReportsPage() {
             {[
               { id: 'financials', label: 'P&L Summary', icon: TrendingUp },
               { id: 'sales', label: 'Sales Ledger', icon: Receipt },
+              { id: 'purchases', label: 'Purchase Ledger', icon: ShoppingCart },
               { id: 'inventory', label: 'Inventory Valuation', icon: Boxes },
               { id: 'gstr1', label: 'GSTR-1 (Outward)', icon: FileText },
               { id: 'gstr3b', label: 'GSTR-3B (Tax Return)', icon: FileSpreadsheet },
@@ -267,11 +281,11 @@ export default function ReportsPage() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 ${
-                    isActive
+                  className={'flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-t-xl transition cursor-pointer border-b-2 ' +
+                    (isActive
                       ? 'bg-surface-base text-accent-primary border-sky-600 dark:border-sky-400 shadow-sm'
-                      : 'text-text-muted border-transparent hover:text-slate-900 dark:hover:text-white'
-                  }`}
+                      : 'text-text-muted border-transparent hover:text-slate-900 dark:hover:text-white')
+                  }
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
@@ -399,7 +413,7 @@ export default function ReportsPage() {
                 <button
                   onClick={() => handleExportExcel('sales', 'sales-report.xlsx')}
                   disabled={downloading === 'sales'}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95 cursor-pointer"
                 >
                   {downloading === 'sales' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Export Sales Excel (.xlsx)
@@ -453,6 +467,88 @@ export default function ReportsPage() {
             </div>
           )}
 
+          {/* TAB 2.5: Purchase Ledger */}
+          {activeTab === 'purchases' && (
+            <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-5 space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-sm text-text-primary">Purchases &amp; Inward Supplies Ledger</h3>
+                  <p className="text-xs text-text-muted">
+                    Total Bills: {purchaseReportData?.summary?.totalInvoices || 0} | Total Inward Purchases:{' '}
+                    <b className="font-mono text-accent-primary">
+                      {formatCurrency(purchaseReportData?.summary?.totalPurchasesAmount || 0)}
+                    </b>
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleExportExcel('purchases', 'purchase-ledger-report.xlsx')}
+                  disabled={downloading === 'purchases'}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95 cursor-pointer"
+                >
+                  {downloading === 'purchases' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                  Export Purchases Excel (.xlsx)
+                </button>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[750px]">
+                  <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase">
+                    <tr>
+                      <th className="py-2.5 px-3">Bill / Invoice #</th>
+                      <th className="py-2.5 px-3">Date</th>
+                      <th className="py-2.5 px-3">Supplier / Vendor</th>
+                      <th className="py-2.5 px-3">GSTIN</th>
+                      <th className="py-2.5 px-3 text-right">Subtotal</th>
+                      <th className="py-2.5 px-3 text-right">Tax (₹)</th>
+                      <th className="py-2.5 px-3 text-right">Discount</th>
+                      <th className="py-2.5 px-3 text-right">Total Amount</th>
+                      <th className="py-2.5 px-3 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-default">
+                    {loadingPurchases ? (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-slate-400">
+                          Loading purchase invoices ledger...
+                        </td>
+                      </tr>
+                    ) : (purchaseReportData?.purchases || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-12 text-center text-slate-400">
+                          No purchase invoices recorded in this date range.
+                        </td>
+                      </tr>
+                    ) : (
+                      purchaseReportData.purchases.map((p: any) => (
+                        <tr key={p.id} className="hover:bg-surface-raised">
+                          <td className="py-2.5 px-3 font-mono font-bold text-accent-primary">{p.invoiceNumber}</td>
+                          <td className="py-2.5 px-3 text-text-muted font-mono">{formatDate(p.purchaseDate || p.createdAt)}</td>
+                          <td className="py-2.5 px-3 font-semibold text-text-primary">{p.supplier?.name || 'Direct Vendor'}</td>
+                          <td className="py-2.5 px-3 font-mono text-[11px] text-text-muted">{p.supplier?.gstNumber || 'N/A'}</td>
+                          <td className="py-2.5 px-3 text-right font-mono text-text-muted">{formatCurrency(p.subtotal || p.totalAmount)}</td>
+                          <td className="py-2.5 px-3 text-right font-mono text-text-muted">{formatCurrency(p.taxAmount || 0)}</td>
+                          <td className="py-2.5 px-3 text-right font-mono text-amber-600">{formatCurrency(p.discountAmount || 0)}</td>
+                          <td className="py-2.5 px-3 text-right font-mono font-bold text-text-primary">
+                            {formatCurrency(p.totalAmount)}
+                          </td>
+                          <td className="py-2.5 px-3 text-center">
+                            <span className={'inline-block px-2 py-0.5 rounded font-mono font-bold text-[10px] ' +
+                              (p.status === 'CONFIRMED' || p.status === 'RECEIVED'
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300')
+                            }>
+                              {p.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* TAB 3: Inventory Valuation */}
           {activeTab === 'inventory' && (
             <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-5 space-y-4">
@@ -490,7 +586,7 @@ export default function ReportsPage() {
                 <button
                   onClick={() => handleExportExcel('inventory', 'inventory-valuation.xlsx')}
                   disabled={downloading === 'inventory'}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95 cursor-pointer"
                 >
                   {downloading === 'inventory' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Download Inventory Excel (.xlsx)
@@ -584,7 +680,7 @@ export default function ReportsPage() {
                 <button
                   onClick={() => handleExportExcel('gstr1', 'gstr1-report.xlsx')}
                   disabled={downloading === 'gstr1'}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95 cursor-pointer"
                 >
                   {downloading === 'gstr1' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Download GSTR-1 Excel (.xlsx)
@@ -661,7 +757,7 @@ export default function ReportsPage() {
                 <button
                   onClick={() => handleExportExcel('gstr3b', 'gstr3b-report.xlsx')}
                   disabled={downloading === 'gstr3b'}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95 cursor-pointer"
                 >
                   {downloading === 'gstr3b' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Download GSTR-3B Excel (.xlsx)
@@ -745,7 +841,7 @@ export default function ReportsPage() {
                 <button
                   onClick={() => handleExportExcel('hsn-summary', 'hsn-summary.xlsx')}
                   disabled={downloading === 'hsn-summary'}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95 cursor-pointer"
                 >
                   {downloading === 'hsn-summary' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Download HSN Summary Excel (.xlsx)
@@ -825,7 +921,7 @@ export default function ReportsPage() {
                 <button
                   onClick={() => handleExportExcel('schedule-h', 'schedule-h-register.xlsx')}
                   disabled={downloading === 'schedule-h'}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow transition active:scale-95 cursor-pointer"
                 >
                   {downloading === 'schedule-h' ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -890,7 +986,7 @@ export default function ReportsPage() {
                             </td>
                             <td className="py-2.5 px-3 font-mono text-[10px] text-text-muted">
                               {rec.items
-                                ?.map((item: any) => `B:${item.batchNumber} (Exp:${item.expiryDate ? formatDate(item.expiryDate) : 'N/A'})`)
+                                ?.map((item: any) => 'B:' + item.batchNumber + ' (Exp:' + (item.expiryDate ? formatDate(item.expiryDate) : 'N/A') + ')')
                                 .join(' | ')}
                             </td>
                             <td className="py-2.5 px-3 text-center font-bold font-mono text-text-primary">
@@ -913,4 +1009,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-
