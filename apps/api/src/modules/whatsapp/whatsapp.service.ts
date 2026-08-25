@@ -11,6 +11,7 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   WASocket,
+  Browsers,
 } from '@whiskeysockets/baileys';
 import * as QRCode from 'qrcode';
 import * as fs from 'fs';
@@ -102,17 +103,23 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   async initSocket(branchId: string, forceFresh = false): Promise<WASocket> {
     if (!branchId) throw new BadRequestException('Branch ID is required');
 
-    if (forceFresh && this.sockets.has(branchId)) {
+    const branchAuthDir = path.join(this.sessionDir, branchId);
+
+    if (forceFresh) {
+      if (this.sockets.has(branchId)) {
+        try {
+          const oldSock = this.sockets.get(branchId);
+          oldSock?.end(undefined);
+        } catch (e) {}
+        this.sockets.delete(branchId);
+      }
       try {
-        const oldSock = this.sockets.get(branchId);
-        oldSock?.end(undefined);
+        fs.rmSync(branchAuthDir, { recursive: true, force: true });
       } catch (e) {}
-      this.sockets.delete(branchId);
     } else if (this.sockets.has(branchId)) {
       return this.sockets.get(branchId)!;
     }
 
-    const branchAuthDir = path.join(this.sessionDir, branchId);
     if (!fs.existsSync(branchAuthDir)) {
       fs.mkdirSync(branchAuthDir, { recursive: true });
     }
@@ -123,7 +130,9 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: 'silent' }),
-      browser: ['MedCare Pharmacy ERP', 'Desktop', '1.0.0'],
+      browser: Browsers.ubuntu('Chrome'),
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
     });
 
     this.sockets.set(branchId, sock);
@@ -135,7 +144,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
       if (qr) {
         try {
-          const qrDataUrl = await QRCode.toDataURL(qr);
+          const qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 8 });
           await this.prisma.whatsAppSession.upsert({
             where: { branchId },
             create: {
@@ -250,8 +259,8 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
     await this.initSocket(activeBranchId, true);
 
-    // Poll for up to 3.5s waiting for QR code to be generated
-    for (let i = 0; i < 7; i++) {
+    // Poll for up to 6s waiting for QR code to be generated
+    for (let i = 0; i < 12; i++) {
       await new Promise((r) => setTimeout(r, 500));
       const s = await this.prisma.whatsAppSession.findUnique({
         where: { branchId: activeBranchId },

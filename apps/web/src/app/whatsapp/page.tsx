@@ -99,10 +99,18 @@ export default function WhatsAppHubPage() {
 
   // Connect Mutation
   const connectMutation = useMutation({
-    mutationFn: async () =>
-      apiClient.post('/whatsapp/connect', { branchId: selectedBranchId || undefined }),
-    onSuccess: () => {
+    mutationFn: async () => {
+      const res = await apiClient.post('/whatsapp/connect', { branchId: selectedBranchId || undefined });
+      return res.data?.data || res.data || {};
+    },
+    onSuccess: (data) => {
+      if (data && data.status) {
+        queryClient.setQueryData(['whatsapp-status', selectedBranchId], data);
+      }
       queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to generate WhatsApp QR.');
     },
   });
 
