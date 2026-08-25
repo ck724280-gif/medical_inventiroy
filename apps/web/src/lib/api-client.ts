@@ -23,6 +23,10 @@ apiClient.interceptors.request.use(
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+      const branchId = localStorage.getItem('medcare_branch_id');
+      if (branchId && config.headers) {
+        config.headers['x-branch-id'] = branchId;
+      }
     }
     return config;
   },

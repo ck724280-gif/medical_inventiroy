@@ -16,7 +16,7 @@ import { useAuthStore } from '../stores/auth-store';
 import { useBrandingStore } from '../stores/branding-store';
 import { useUiStore } from '../stores/ui-store';
 import { useThemeStore } from '../stores/theme-store';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api-client';
 import { GlobalCommandPalette } from './global-command-palette';
 import { SmartAutocomplete } from './ui/smart-autocomplete';
@@ -24,6 +24,7 @@ import { Badge } from './ui/badge';
 
 export function Header() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, selectedBranchId, setSelectedBranchId, logout, isSuperAdmin } = useAuthStore();
   const canSwitchBranch = isSuperAdmin();
   const { name: storeName } = useBrandingStore();
@@ -99,7 +100,11 @@ export function Header() {
             {canSwitchBranch && branches.length > 1 ? (
               <select
                 value={selectedBranchId || ''}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
+                onChange={(e) => {
+                  const newBranchId = e.target.value;
+                  setSelectedBranchId(newBranchId);
+                  queryClient.invalidateQueries();
+                }}
                 className="bg-transparent font-semibold text-text-primary focus:outline-none cursor-pointer text-xs"
               >
                 {branches.map((b: any) => (
