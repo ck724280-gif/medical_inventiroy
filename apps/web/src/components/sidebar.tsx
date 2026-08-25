@@ -190,7 +190,7 @@ export function Sidebar() {
               {section.items.map((item) => {
                 const isActive =
                   pathname === item.href ||
-                  (item.href !== '/' && pathname.startsWith(`${item.href}/`));
+                  (item.href !== '/' && item.href !== '/super-admin' && pathname.startsWith(`${item.href}/`));
                 const Icon = item.icon;
 
                 return (

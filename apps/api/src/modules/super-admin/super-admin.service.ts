@@ -222,11 +222,12 @@ export class SuperAdminService {
               },
             }
           : {}),
-        ...(branchId
+        ...(branchId && branchId !== 'all' && branchId !== 'ALL'
           ? {
-              branches: {
-                some: { branchId },
-              },
+              OR: [
+                { branches: { some: { branchId } } },
+                { roles: { some: { role: { name: { in: ['SUPER_ADMIN', 'SUPERADMIN', 'OWNER'] } } } } },
+              ],
             }
           : {}),
         ...(search

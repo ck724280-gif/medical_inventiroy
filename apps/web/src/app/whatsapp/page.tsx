@@ -97,6 +97,13 @@ export default function WhatsAppHubPage() {
     enabled: !!selectedChat?.phone && statusData?.status === 'CONNECTED',
   });
 
+  // Reset selected chat and refresh WhatsApp queries when branch changes
+  useEffect(() => {
+    setSelectedChat(null);
+    queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
+    queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
+  }, [selectedBranchId]);
+
   // Connect Mutation
   const connectMutation = useMutation({
     mutationFn: async () => {
@@ -110,7 +117,8 @@ export default function WhatsAppHubPage() {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to generate WhatsApp QR.');
+      console.warn('Connect request returned non-critical status, polling session status:', err);
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
     },
   });
 

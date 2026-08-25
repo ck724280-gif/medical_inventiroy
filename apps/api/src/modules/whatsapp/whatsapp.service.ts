@@ -39,9 +39,12 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   
   async resolveBranchId(branchId?: string): Promise<string> {
-    if (branchId && branchId.trim()) {
-      const branch = await this.prisma.branch.findUnique({
-        where: { id: branchId.trim() },
+    if (branchId && typeof branchId === 'string' && branchId.trim()) {
+      const trimmed = branchId.trim();
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          OR: [{ id: trimmed }, { code: trimmed }, { name: trimmed }],
+        },
       });
       if (branch) return branch.id;
     }
@@ -53,6 +56,34 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('No active store branch found to bind WhatsApp.');
     }
     return defaultBranch.id;
+  }
+
+  private async safeUpsertSession(branchId: string, data: { status?: string; phoneNumber?: string | null; pushName?: string | null; qrCode?: string | null; lastSeenAt?: Date | null }): Promise<any> {
+    try {
+      const existing = await this.prisma.whatsAppSession.findFirst({
+        where: { branchId },
+      });
+      if (existing) {
+        return await this.prisma.whatsAppSession.update({
+          where: { id: existing.id },
+          data,
+        });
+      } else {
+        return await this.prisma.whatsAppSession.create({
+          data: {
+            branchId,
+            status: data.status || 'DISCONNECTED',
+            phoneNumber: data.phoneNumber || null,
+            pushName: data.pushName || null,
+            qrCode: data.qrCode || null,
+            lastSeenAt: data.lastSeenAt || null,
+          },
+        });
+      }
+    } catch (err: any) {
+      this.logger.error(`safeUpsertSession error for branch ${branchId}: ${err.message}`);
+      return null;
+    }
   }
 
   constructor(private prisma: PrismaService) {
@@ -150,17 +181,9 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       if (qr) {
         try {
           const qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 8 });
-          await this.prisma.whatsAppSession.upsert({
-            where: { branchId },
-            create: {
-              branchId,
-              status: 'QR_READY',
-              qrCode: qrDataUrl,
-            },
-            update: {
-              status: 'QR_READY',
-              qrCode: qrDataUrl,
-            },
+          await this.safeUpsertSession(branchId, {
+            status: 'QR_READY',
+            qrCode: qrDataUrl,
           });
           this.logger.log(`New WhatsApp QR generated for branch: ${branchId}`);
         } catch (err: any) {
@@ -174,23 +197,12 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         const formattedPhone = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
         const pushName = sock.user?.name || (sock.user as any)?.notify || 'Store WhatsApp';
 
-        await this.prisma.whatsAppSession.upsert({
-          where: { branchId },
-          create: {
-            branchId,
-            status: 'CONNECTED',
-            phoneNumber: formattedPhone,
-            pushName,
-            qrCode: null,
-            lastSeenAt: new Date(),
-          },
-          update: {
-            status: 'CONNECTED',
-            phoneNumber: formattedPhone,
-            pushName,
-            qrCode: null,
-            lastSeenAt: new Date(),
-          },
+        await this.safeUpsertSession(branchId, {
+          status: 'CONNECTED',
+          phoneNumber: formattedPhone,
+          pushName,
+          qrCode: null,
+          lastSeenAt: new Date(),
         });
         this.logger.log(`WhatsApp connected for branch ${branchId}: ${formattedPhone} (${pushName})`);
       }
@@ -207,10 +219,9 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
             fs.rmSync(branchAuthDir, { recursive: true, force: true });
           } catch (e) {}
 
-          await this.prisma.whatsAppSession.upsert({
-            where: { branchId },
-            create: { branchId, status: 'DISCONNECTED', qrCode: null },
-            update: { status: 'DISCONNECTED', qrCode: null },
+          await this.safeUpsertSession(branchId, {
+            status: 'DISCONNECTED',
+            qrCode: null,
           });
         } else if (shouldReconnect) {
           if (this.reconnectTimeouts.has(branchId)) {
@@ -222,10 +233,9 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
           this.reconnectTimeouts.set(branchId, timeout);
         } else {
           this.sockets.delete(branchId);
-          await this.prisma.whatsAppSession.upsert({
-            where: { branchId },
-            create: { branchId, status: 'DISCONNECTED', qrCode: null },
-            update: { status: 'DISCONNECTED', qrCode: null },
+          await this.safeUpsertSession(branchId, {
+            status: 'DISCONNECTED',
+            qrCode: null,
           });
         }
       }
@@ -236,15 +246,17 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   async getSessionStatus(branchId?: string) {
     const activeBranchId = await this.resolveBranchId(branchId);
-    const session = await this.prisma.whatsAppSession.findUnique({
-      where: { branchId: activeBranchId },
-    });
-    branchId = activeBranchId;
+    let session = null;
+    try {
+      session = await this.prisma.whatsAppSession.findFirst({
+        where: { branchId: activeBranchId },
+      });
+    } catch (e) {}
 
-    const isLiveConnected = this.sockets.has(branchId) && session?.status === 'CONNECTED';
+    const isLiveConnected = this.sockets.has(activeBranchId) && session?.status === 'CONNECTED';
 
     return {
-      branchId,
+      branchId: activeBranchId,
       status: isLiveConnected ? 'CONNECTED' : (session?.status || 'DISCONNECTED'),
       phoneNumber: session?.phoneNumber || null,
       pushName: session?.pushName || null,
@@ -256,26 +268,26 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   async connectSession(branchId?: string) {
     const activeBranchId = await this.resolveBranchId(branchId);
 
-    await this.prisma.whatsAppSession.upsert({
-      where: { branchId: activeBranchId },
-      create: { branchId: activeBranchId, status: 'CONNECTING', qrCode: null },
-      update: { status: 'CONNECTING', qrCode: null },
+    await this.safeUpsertSession(activeBranchId, { status: 'CONNECTING', qrCode: null });
+
+    this.initSocket(activeBranchId, true).catch((err) => {
+      this.logger.error(`Background initSocket error for branch ${activeBranchId}: ${err.message}`);
     });
 
-    await this.initSocket(activeBranchId, true);
-
-    // Poll for up to 6s waiting for QR code to be generated
-    for (let i = 0; i < 12; i++) {
-      await new Promise((r) => setTimeout(r, 500));
-      const s = await this.prisma.whatsAppSession.findUnique({
-        where: { branchId: activeBranchId },
-      });
-      if (s?.status === 'QR_READY' && s?.qrCode) {
-        return this.getSessionStatus(activeBranchId);
-      }
-      if (s?.status === 'CONNECTED') {
-        return this.getSessionStatus(activeBranchId);
-      }
+    // Poll briefly for fast QR emission
+    for (let i = 0; i < 8; i++) {
+      await new Promise((r) => setTimeout(r, 400));
+      try {
+        const s = await this.prisma.whatsAppSession.findFirst({
+          where: { branchId: activeBranchId },
+        });
+        if (s?.status === 'QR_READY' && s?.qrCode) {
+          return this.getSessionStatus(activeBranchId);
+        }
+        if (s?.status === 'CONNECTED') {
+          return this.getSessionStatus(activeBranchId);
+        }
+      } catch (e) {}
     }
 
     return this.getSessionStatus(activeBranchId);

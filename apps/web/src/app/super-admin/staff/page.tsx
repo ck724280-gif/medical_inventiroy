@@ -77,17 +77,10 @@ Please keep your login credentials secure.`;
   const queryClient = useQueryClient();
   const { selectedBranchId } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState(selectedBranchId || '');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('');
   const [transferModalUser, setTransferModalUser] = useState<any>(null);
   const [targetBranchId, setTargetBranchId] = useState('');
-
-  // Automatically update staff filter when active branch in header changes
-  React.useEffect(() => {
-    if (selectedBranchId) {
-      setSelectedBranchFilter(selectedBranchId);
-    }
-  }, [selectedBranchId]);
   
   // State for show/hide passwords and copied feedback
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});
