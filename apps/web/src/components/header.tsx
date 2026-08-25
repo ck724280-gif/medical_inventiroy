@@ -24,7 +24,8 @@ import { Badge } from './ui/badge';
 
 export function Header() {
   const router = useRouter();
-  const { user, selectedBranchId, setSelectedBranchId, logout } = useAuthStore();
+  const { user, selectedBranchId, setSelectedBranchId, logout, isSuperAdmin } = useAuthStore();
+  const canSwitchBranch = isSuperAdmin();
   const { name: storeName } = useBrandingStore();
   const { toggleMobileSidebar } = useUiStore();
   const { theme, toggleTheme } = useThemeStore();
@@ -95,7 +96,7 @@ export function Header() {
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-surface-raised border border-border-default text-text-primary shadow-sm">
             <Building2 className="w-4 h-4 text-accent-primary flex-shrink-0" />
             <span className="text-text-muted font-medium hidden sm:inline">Branch:</span>
-            {branches.length > 1 ? (
+            {canSwitchBranch && branches.length > 1 ? (
               <select
                 value={selectedBranchId || ''}
                 onChange={(e) => setSelectedBranchId(e.target.value)}

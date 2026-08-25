@@ -22,6 +22,10 @@ export class ChatMessageDto {
     role: 'user' | 'model';
     parts: Array<{ text: string }>;
   }>;
+
+  @IsOptional()
+  @IsString()
+  branchId?: string;
 }
 
 @Controller('ai-assistant')
@@ -33,7 +37,8 @@ export class AiAssistantController {
   @HttpCode(HttpStatus.OK)
   async chat(@Body() dto: ChatMessageDto, @CurrentUser() user: any) {
     const message = dto?.message || (dto as any)?.prompt || (dto as any)?.text || '';
-    return this.aiService.processChat(message, dto?.history, user?.id, user?.branchId);
+    const branchId = dto?.branchId || (dto as any)?.branchId || user?.branchId;
+    return this.aiService.processChat(message, dto?.history, user?.id, branchId);
   }
 
   @Post('action')

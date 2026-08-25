@@ -36,7 +36,7 @@ interface Message {
 
 export function AiCopilotDrawer() {
   const pathname = usePathname();
-  const { isAuthenticated, isSuperAdmin, user } = useAuthStore();
+  const { isAuthenticated, isSuperAdmin, user, selectedBranchId } = useAuthStore();
   const [mounted, setMounted] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -45,7 +45,7 @@ export function AiCopilotDrawer() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'model',
-      text: 'Hello Super Admin! Main aapka **Action-Based AI Co-Pilot** hoon. Aap live store insights pooch sakte hain ya direct actions jaise **Stock Transfer**, **Price Update**, ya **WhatsApp Bill** execute karwa sakte hain.',
+      text: 'Namaste Super Admin Bhai! 🙏 Main aapka apna **AI Bhai & Business Advisor** hoon. Aapki pharmacy ke har branch ka live data mujhe pata hai. Sales badhani ho, inventory check karni ho ya life me koi advice chahiye ho — bejhijhak bolo bhai, har kadam par aapke saath hoon!',
     },
   ]);
 
@@ -105,6 +105,7 @@ export function AiCopilotDrawer() {
       const res = await apiClient.post('/ai-assistant/chat', {
         message: textToSend,
         history: historyPayload,
+        branchId: selectedBranchId || undefined,
       });
 
       const responseText = res.data?.data?.response || res.data?.response || 'No response generated.';

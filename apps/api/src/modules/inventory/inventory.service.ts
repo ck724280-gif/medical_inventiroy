@@ -37,8 +37,8 @@ export class InventoryService {
           category: true,
           batches: {
             where: query?.branchId
-              ? { branchId: query.branchId, currentQty: { gt: 0 } }
-              : { currentQty: { gt: 0 } },
+              ? { OR: [{ branchId: query.branchId }, { branchId: null }] }
+              : {},
             orderBy: { expiryDate: 'asc' },
           },
         },

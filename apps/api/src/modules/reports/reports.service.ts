@@ -108,10 +108,9 @@ export class ReportsService {
         category: true,
         manufacturer: true,
         batches: {
-          where: {
-            currentQty: { gt: 0 },
-            ...(branchId ? { branchId } : {}),
-          },
+          where: branchId
+            ? { OR: [{ branchId }, { branchId: null }] }
+            : {},
         },
       },
     });
