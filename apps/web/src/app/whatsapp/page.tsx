@@ -179,52 +179,52 @@ export default function WhatsAppHubPage() {
   const currentBranch = branchList.find((b) => b.id === selectedBranchId) || branchList[0];
 
   return (
-    <div className="flex h-screen bg-[#111b21] text-[#e9edef] overflow-hidden font-sans select-none">
+    <div className="flex h-screen bg-surface-page dark:bg-[#111b21] text-text-primary dark:text-[#e9edef] overflow-hidden font-sans select-none transition-colors duration-200">
       <Sidebar />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header />
 
         {/* MAIN WHATSAPP CONTAINER */}
-        <div className="flex-1 flex overflow-hidden relative bg-[#0c1317]">
+        <div className="flex-1 flex overflow-hidden relative bg-slate-100 dark:bg-[#0c1317] transition-colors duration-200">
           {/* ========================================================= */}
           {/* STATE A: NOT CONNECTED -> OFFICIAL WHATSAPP WEB LOGIN UI  */}
           {/* ========================================================= */}
           {!isConnected ? (
-            <div className="flex-1 overflow-y-auto flex flex-col items-center bg-[#111b21] p-4 sm:p-8">
+            <div className="flex-1 overflow-y-auto flex flex-col items-center bg-surface-page dark:bg-[#111b21] p-4 sm:p-8 transition-colors duration-200">
               {/* WhatsApp Web Brand Top Header */}
               <div className="w-full max-w-4xl flex items-center justify-between py-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-[#00a884] flex items-center justify-center text-white shadow-lg">
                     <MessageSquare className="w-6 h-6 fill-current" />
                   </div>
-                  <span className="font-bold text-lg sm:text-xl tracking-tight text-[#e9edef]">
+                  <span className="font-bold text-lg sm:text-xl tracking-tight text-text-primary dark:text-[#e9edef]">
                     WHATSAPP BUSINESS WEB
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#00a884] font-medium px-3 py-1 bg-[#202c33] border border-[#2a3942] rounded-xl">
+                  <span className="text-xs text-[#00a884] font-medium px-3 py-1 bg-surface-base dark:bg-[#202c33] border border-border-default dark:border-[#2a3942] rounded-xl">
                     🏢 {currentBranch ? `${currentBranch.name} (${currentBranch.code})` : 'Main Dispensary'}
                   </span>
                 </div>
               </div>
 
               {/* Login Card */}
-              <div className="w-full max-w-4xl bg-[#111b21] sm:bg-[#202c33] rounded-3xl p-6 sm:p-10 shadow-2xl border border-[#2a3942] flex flex-col lg:flex-row items-center justify-between gap-8 my-auto">
+              <div className="w-full max-w-4xl bg-surface-base dark:bg-[#202c33] rounded-3xl p-6 sm:p-10 shadow-2xl border border-border-default dark:border-[#2a3942] flex flex-col lg:flex-row items-center justify-between gap-8 my-auto transition-colors duration-200">
                 {/* Left Instructions */}
                 <div className="flex-1 space-y-6">
                   <div className="space-y-1">
-                    <h2 className="text-xl sm:text-2xl font-light text-[#e9edef]">
+                    <h2 className="text-xl sm:text-2xl font-bold text-text-primary dark:text-[#e9edef]">
                       To use WhatsApp on your computer:
                     </h2>
-                    <p className="text-xs text-[#8696a0]">
+                    <p className="text-xs text-text-muted dark:text-[#8696a0]">
                       Link your medical store phone to send bills, payment confirmations &amp; due reminders automatically.
                     </p>
                   </div>
 
-                  <ol className="space-y-4 text-sm text-[#d1d7db] font-normal leading-relaxed">
+                  <ol className="space-y-4 text-sm text-text-secondary dark:text-[#d1d7db] font-normal leading-relaxed">
                     <li className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="w-6 h-6 rounded-full bg-surface-raised dark:bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
                         1
                       </span>
                       <span>
@@ -232,7 +232,7 @@ export default function WhatsAppHubPage() {
                       </span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="w-6 h-6 rounded-full bg-surface-raised dark:bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
                         2
                       </span>
                       <span>
@@ -240,7 +240,7 @@ export default function WhatsAppHubPage() {
                       </span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="w-6 h-6 rounded-full bg-surface-raised dark:bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
                         3
                       </span>
                       <span>
@@ -248,7 +248,7 @@ export default function WhatsAppHubPage() {
                       </span>
                     </li>
                     <li className="flex items-start gap-3">
-                      <span className="w-6 h-6 rounded-full bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="w-6 h-6 rounded-full bg-surface-raised dark:bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
                         4
                       </span>
                       <span>
@@ -266,15 +266,15 @@ export default function WhatsAppHubPage() {
                       <RefreshCw className={`w-3.5 h-3.5 ${isConnecting ? 'animate-spin' : ''}`} />
                       {isConnecting ? 'Generating QR Code...' : 'Regenerate QR Code'}
                     </button>
-                    <span className="text-[#8696a0]">•</span>
-                    <span className="text-[#8696a0] flex items-center gap-1">
-                      <Lock className="w-3 h-3 text-[#8696a0]" /> End-to-end encrypted
+                    <span className="text-text-muted dark:text-[#8696a0]">•</span>
+                    <span className="text-text-muted dark:text-[#8696a0] flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-[#00a884]" /> End-to-end encrypted
                     </span>
                   </div>
                 </div>
 
                 {/* Right QR Box */}
-                <div className="flex flex-col items-center justify-center p-6 bg-[#111b21] rounded-2xl border border-[#2a3942] shadow-inner text-center min-w-[280px]">
+                <div className="flex flex-col items-center justify-center p-6 bg-surface-raised dark:bg-[#111b21] rounded-2xl border border-border-default dark:border-[#2a3942] shadow-inner text-center min-w-[280px] transition-colors duration-200">
                   {isQrReady ? (
                     <div className="space-y-4">
                       <div className="p-3 bg-white rounded-2xl shadow-xl border-4 border-white inline-block relative group">
@@ -289,26 +289,26 @@ export default function WhatsAppHubPage() {
                           <CircleDot className="w-3.5 h-3.5" />
                           Ready to Scan
                         </p>
-                        <p className="text-[11px] text-[#8696a0]">
+                        <p className="text-[11px] text-text-muted dark:text-[#8696a0]">
                           QR code refreshes automatically for security.
                         </p>
                       </div>
                     </div>
                   ) : (
                     <div className="py-8 space-y-4">
-                      <div className="w-20 h-20 bg-[#202c33] rounded-full flex items-center justify-center mx-auto text-[#00a884] border border-[#2a3942]">
+                      <div className="w-20 h-20 bg-surface-base dark:bg-[#202c33] rounded-full flex items-center justify-center mx-auto text-[#00a884] border border-border-default dark:border-[#2a3942]">
                         <QrCode className="w-10 h-10 opacity-80" />
                       </div>
                       <div>
-                        <h4 className="font-semibold text-sm text-[#e9edef]">WhatsApp Pairing Standby</h4>
-                        <p className="text-xs text-[#8696a0] mt-1 max-w-[200px]">
+                        <h4 className="font-semibold text-sm text-text-primary dark:text-[#e9edef]">WhatsApp Pairing Standby</h4>
+                        <p className="text-xs text-text-muted dark:text-[#8696a0] mt-1 max-w-[200px]">
                           Click below to start Baileys pairing and generate your store QR code.
                         </p>
                       </div>
                       <button
                         onClick={() => connectMutation.mutate()}
                         disabled={isConnecting}
-                        className="px-6 py-2.5 bg-[#00a884] hover:bg-[#02906f] active:scale-95 text-[#111b21] font-bold rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                        className="px-6 py-2.5 bg-[#00a884] hover:bg-[#02906f] active:scale-95 text-white dark:text-[#111b21] font-bold rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2 mx-auto cursor-pointer"
                       >
                         {isConnecting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
                         <span>{isConnecting ? 'Generating QR...' : 'Start WhatsApp Pairing'}</span>
@@ -319,7 +319,7 @@ export default function WhatsAppHubPage() {
               </div>
 
               {/* Bottom footer note */}
-              <div className="mt-8 text-center text-xs text-[#8696a0] flex items-center gap-1.5">
+              <div className="mt-8 text-center text-xs text-text-muted dark:text-[#8696a0] flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-[#00a884]" />
                 Official Baileys WhatsApp Web Engine for Multi-Branch Medical ERP
               </div>
@@ -330,17 +330,17 @@ export default function WhatsAppHubPage() {
             /* ========================================================= */
             <div className="flex-1 flex overflow-hidden w-full h-full">
               {/* 1. ULTRA-SLIM LEFT ICON STRIP */}
-              <div className="w-14 bg-[#202c33] border-r border-[#2a3942] flex flex-col items-center justify-between py-3 flex-shrink-0">
+              <div className="w-14 bg-surface-base dark:bg-[#202c33] border-r border-border-default dark:border-[#2a3942] flex flex-col items-center justify-between py-3 flex-shrink-0 transition-colors duration-200">
                 <div className="flex flex-col items-center gap-4">
                   <button
                     onClick={() => setActiveNavTab('chats')}
                     title="Chats"
                     className={`p-2.5 rounded-xl transition cursor-pointer relative ${
-                      activeNavTab === 'chats' ? 'bg-[#374248] text-[#00a884]' : 'text-[#aebac1] hover:bg-[#2a3942]'
+                      activeNavTab === 'chats' ? 'bg-emerald-50 dark:bg-[#374248] text-[#00a884]' : 'text-text-muted dark:text-[#aebac1] hover:bg-surface-raised dark:hover:bg-[#2a3942]'
                     }`}
                   >
                     <MessageSquare className="w-5 h-5" />
-                    <span className="w-2 h-2 bg-[#00a884] rounded-full absolute top-2 right-2 ring-2 ring-[#202c33]" />
+                    <span className="w-2 h-2 bg-[#00a884] rounded-full absolute top-2 right-2 ring-2 ring-surface-base dark:ring-[#202c33]" />
                   </button>
 
                   <button
@@ -350,7 +350,7 @@ export default function WhatsAppHubPage() {
                     }}
                     title="Customers"
                     className={`p-2.5 rounded-xl transition cursor-pointer ${
-                      activeNavTab === 'customers' ? 'bg-[#374248] text-[#00a884]' : 'text-[#aebac1] hover:bg-[#2a3942]'
+                      activeNavTab === 'customers' ? 'bg-emerald-50 dark:bg-[#374248] text-[#00a884]' : 'text-text-muted dark:text-[#aebac1] hover:bg-surface-raised dark:hover:bg-[#2a3942]'
                     }`}
                   >
                     <Users className="w-5 h-5" />
@@ -363,7 +363,7 @@ export default function WhatsAppHubPage() {
                     }}
                     title="Suppliers & Distributors"
                     className={`p-2.5 rounded-xl transition cursor-pointer ${
-                      activeNavTab === 'suppliers' ? 'bg-[#374248] text-[#00a884]' : 'text-[#aebac1] hover:bg-[#2a3942]'
+                      activeNavTab === 'suppliers' ? 'bg-emerald-50 dark:bg-[#374248] text-[#00a884]' : 'text-text-muted dark:text-[#aebac1] hover:bg-surface-raised dark:hover:bg-[#2a3942]'
                     }`}
                   >
                     <Building2 className="w-5 h-5" />
@@ -384,7 +384,7 @@ export default function WhatsAppHubPage() {
                       }
                     }}
                     title="Disconnect Session"
-                    className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-xl transition cursor-pointer"
+                    className="p-2 text-rose-500 hover:bg-rose-500/10 rounded-xl transition cursor-pointer"
                   >
                     <PowerOff className="w-4 h-4" />
                   </button>
@@ -392,15 +392,15 @@ export default function WhatsAppHubPage() {
               </div>
 
               {/* 2. CHATS SIDEBAR (340px) */}
-              <div className="w-80 sm:w-96 bg-[#111b21] border-r border-[#2a3942] flex flex-col flex-shrink-0">
+              <div className="w-80 sm:w-96 bg-surface-page dark:bg-[#111b21] border-r border-border-default dark:border-[#2a3942] flex flex-col flex-shrink-0 transition-colors duration-200">
                 {/* Header */}
-                <div className="h-14 px-4 bg-[#202c33] flex items-center justify-between border-b border-[#2a3942]">
-                  <h3 className="font-bold text-lg text-[#e9edef] tracking-tight">WhatsApp</h3>
+                <div className="h-14 px-4 bg-surface-base dark:bg-[#202c33] flex items-center justify-between border-b border-border-default dark:border-[#2a3942] transition-colors duration-200">
+                  <h3 className="font-bold text-lg text-text-primary dark:text-[#e9edef] tracking-tight">WhatsApp</h3>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setShowNewChatModal(true)}
                       title="New Chat"
-                      className="p-2 text-[#aebac1] hover:bg-[#374248] rounded-full transition cursor-pointer"
+                      className="p-2 text-text-muted dark:text-[#aebac1] hover:bg-surface-raised dark:hover:bg-[#374248] rounded-full transition cursor-pointer"
                     >
                       <Plus className="w-5 h-5" />
                     </button>
@@ -410,7 +410,7 @@ export default function WhatsAppHubPage() {
                         queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
                       }}
                       title="Refresh"
-                      className="p-2 text-[#aebac1] hover:bg-[#374248] rounded-full transition cursor-pointer"
+                      className="p-2 text-text-muted dark:text-[#aebac1] hover:bg-surface-raised dark:hover:bg-[#374248] rounded-full transition cursor-pointer"
                     >
                       <RefreshCw className="w-4 h-4" />
                     </button>
@@ -418,15 +418,15 @@ export default function WhatsAppHubPage() {
                 </div>
 
                 {/* Search Bar */}
-                <div className="p-2.5 bg-[#111b21] border-b border-[#222e35]">
-                  <div className="relative bg-[#202c33] rounded-xl flex items-center px-3 py-1.5">
-                    <Search className="w-4 h-4 text-[#8696a0] mr-2" />
+                <div className="p-2.5 bg-surface-page dark:bg-[#111b21] border-b border-border-default dark:border-[#222e35]">
+                  <div className="relative bg-surface-raised dark:bg-[#202c33] border border-border-default dark:border-transparent rounded-xl flex items-center px-3 py-1.5">
+                    <Search className="w-4 h-4 text-text-muted dark:text-[#8696a0] mr-2" />
                     <input
                       type="text"
                       placeholder="Search or start a new chat"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-transparent text-xs text-[#d1d7db] placeholder-[#8696a0] focus:outline-none"
+                      className="w-full bg-transparent text-xs text-text-primary dark:text-[#d1d7db] placeholder-text-muted dark:placeholder-[#8696a0] focus:outline-none"
                     />
                   </div>
 
@@ -439,7 +439,7 @@ export default function WhatsAppHubPage() {
                         className={`px-3 py-1 rounded-full capitalize transition whitespace-nowrap cursor-pointer ${
                           filterChip === chip
                             ? 'bg-[#00a884]/20 text-[#00a884] font-semibold border border-[#00a884]/40'
-                            : 'bg-[#202c33] text-[#8696a0] hover:bg-[#374248]'
+                            : 'bg-surface-raised dark:bg-[#202c33] text-text-muted dark:text-[#8696a0] hover:bg-surface-hover dark:hover:bg-[#374248]'
                         }`}
                       >
                         {chip}
@@ -449,15 +449,15 @@ export default function WhatsAppHubPage() {
                 </div>
 
                 {/* Chat List */}
-                <div className="flex-1 overflow-y-auto divide-y divide-[#222e35]/50">
+                <div className="flex-1 overflow-y-auto divide-y divide-border-default/40 dark:divide-[#222e35]/50">
                   {isConversationsLoading ? (
-                    <div className="p-8 text-center text-xs text-[#8696a0]">Loading conversations...</div>
+                    <div className="p-8 text-center text-xs text-text-muted dark:text-[#8696a0]">Loading conversations...</div>
                   ) : filteredConversations.length === 0 ? (
-                    <div className="p-8 text-center text-xs text-[#8696a0] space-y-2">
+                    <div className="p-8 text-center text-xs text-text-muted dark:text-[#8696a0] space-y-2">
                       <p>No conversations found.</p>
                       <button
                         onClick={() => setShowNewChatModal(true)}
-                        className="px-3 py-1 bg-[#00a884] text-[#111b21] font-bold rounded-lg text-xs cursor-pointer"
+                        className="px-3 py-1 bg-[#00a884] text-white dark:text-[#111b21] font-bold rounded-lg text-xs cursor-pointer"
                       >
                         + Start New Chat
                       </button>
@@ -472,19 +472,19 @@ export default function WhatsAppHubPage() {
                           key={c.phone}
                           onClick={() => setSelectedChat(c)}
                           className={`px-3.5 py-3 flex items-center gap-3 cursor-pointer transition relative ${
-                            isSelected ? 'bg-[#2a3942]' : 'hover:bg-[#202c33]'
+                            isSelected ? 'bg-emerald-50/70 dark:bg-[#2a3942]' : 'hover:bg-surface-hover dark:hover:bg-[#202c33]'
                           }`}
                         >
                           {/* Avatar */}
-                          <div className="w-11 h-11 rounded-full bg-[#374248] border border-[#41525d] text-[#e9edef] flex items-center justify-center font-bold text-sm flex-shrink-0">
+                          <div className="w-11 h-11 rounded-full bg-surface-raised dark:bg-[#374248] border border-border-default dark:border-[#41525d] text-text-primary dark:text-[#e9edef] flex items-center justify-center font-bold text-sm flex-shrink-0">
                             {initial}
                           </div>
 
                           {/* Chat Info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <span className="font-semibold text-xs text-[#e9edef] truncate">{c.name}</span>
-                              <span className="text-[10px] text-[#8696a0] font-mono">
+                              <span className="font-semibold text-xs text-text-primary dark:text-[#e9edef] truncate">{c.name}</span>
+                              <span className="text-[10px] text-text-muted dark:text-[#8696a0] font-mono">
                                 {new Date(c.lastMessageAt).toLocaleDateString('en-IN', {
                                   day: '2-digit',
                                   month: 'short',
@@ -492,7 +492,7 @@ export default function WhatsAppHubPage() {
                               </span>
                             </div>
 
-                            <div className="flex items-center justify-between mt-1 text-[11px] text-[#8696a0]">
+                            <div className="flex items-center justify-between mt-1 text-[11px] text-text-muted dark:text-[#8696a0]">
                               <span className="truncate max-w-[190px] flex items-center gap-1">
                                 {c.lastStatus === 'SENT' ? (
                                   <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] flex-shrink-0" />
@@ -503,7 +503,7 @@ export default function WhatsAppHubPage() {
                               </span>
 
                               {c.type && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#202c33] border border-[#2a3942] text-[#8696a0] uppercase font-bold">
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-surface-raised dark:bg-[#202c33] border border-border-default dark:border-[#2a3942] text-text-muted dark:text-[#8696a0] uppercase font-bold">
                                   {c.type}
                                 </span>
                               )}
@@ -518,26 +518,26 @@ export default function WhatsAppHubPage() {
 
               {/* 3. RIGHT MAIN CHAT PANE */}
               {selectedChat ? (
-                <div className="flex-1 flex flex-col bg-[#0b141a] relative">
+                <div className="flex-1 flex flex-col bg-slate-50 dark:bg-[#0b141a] relative transition-colors duration-200">
                   {/* Chat Top Header */}
-                  <div className="h-14 px-4 bg-[#202c33] flex items-center justify-between border-b border-[#2a3942] z-10">
+                  <div className="h-14 px-4 bg-surface-base dark:bg-[#202c33] flex items-center justify-between border-b border-border-default dark:border-[#2a3942] z-10 transition-colors duration-200">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-[#374248] text-[#e9edef] flex items-center justify-center font-bold text-sm">
+                      <div className="w-10 h-10 rounded-full bg-surface-raised dark:bg-[#374248] text-text-primary dark:text-[#e9edef] flex items-center justify-center font-bold text-sm">
                         {(selectedChat.name || 'C').charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <h4 className="font-bold text-xs text-[#e9edef] leading-none">{selectedChat.name}</h4>
-                        <span className="text-[11px] text-[#8696a0] font-mono mt-1 block">
+                        <h4 className="font-bold text-xs text-text-primary dark:text-[#e9edef] leading-none">{selectedChat.name}</h4>
+                        <span className="text-[11px] text-text-muted dark:text-[#8696a0] font-mono mt-1 block">
                           {selectedChat.phone}
                         </span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3 text-[#aebac1]">
+                    <div className="flex items-center gap-3 text-text-muted dark:text-[#aebac1]">
                       {selectedChat.customer?.id && (
                         <a
                           href={`/customers`}
-                          className="px-2.5 py-1 rounded-lg bg-[#374248] hover:bg-[#41525d] text-[11px] text-[#00a884] font-semibold flex items-center gap-1"
+                          className="px-2.5 py-1 rounded-lg bg-surface-raised dark:bg-[#374248] hover:bg-surface-hover dark:hover:bg-[#41525d] text-[11px] text-[#00a884] font-semibold flex items-center gap-1"
                         >
                           <Receipt className="w-3.5 h-3.5" />
                           View Customer
@@ -550,14 +550,15 @@ export default function WhatsAppHubPage() {
                   <div
                     className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3"
                     style={{
-                      backgroundImage: `radial-gradient(#1f2c34 1px, transparent 1px)`,
+                      backgroundImage: `radial-gradient(currentColor 1px, transparent 1px)`,
                       backgroundSize: '24px 24px',
+                      opacity: 0.95,
                     }}
                   >
                     {/* Security Disclaimer Pill */}
                     <div className="text-center my-2">
-                      <span className="px-3 py-1.5 rounded-lg bg-[#182229] border border-[#222e35] text-[11px] text-[#ffd279] inline-flex items-center gap-1.5 shadow-sm">
-                        <Lock className="w-3 h-3 text-[#ffd279]" />
+                      <span className="px-3 py-1.5 rounded-lg bg-surface-base dark:bg-[#182229] border border-border-default dark:border-[#222e35] text-[11px] text-amber-700 dark:text-[#ffd279] inline-flex items-center gap-1.5 shadow-sm">
+                        <Lock className="w-3 h-3 text-[#00a884]" />
                         Messages to this chat are routed through your store's authenticated WhatsApp session.
                       </span>
                     </div>
@@ -577,13 +578,13 @@ export default function WhatsAppHubPage() {
                           <div
                             className={`max-w-md sm:max-w-lg rounded-2xl px-3.5 py-2.5 shadow-md relative text-xs leading-relaxed ${
                               isOutgoing
-                                ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none'
-                                : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
+                                ? 'bg-emerald-600 text-white dark:bg-[#005c4b] dark:text-[#e9edef] rounded-tr-none'
+                                : 'bg-white text-slate-900 border border-slate-200 dark:border-transparent dark:bg-[#202c33] dark:text-[#e9edef] rounded-tl-none'
                             }`}
                           >
                             {/* Message Type Tag */}
                             {m.messageType && m.messageType !== 'DIRECT_CHAT' && (
-                              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-black/20 text-[#8696a0] mb-1">
+                              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-black/10 dark:bg-black/20 text-white dark:text-[#8696a0] mb-1">
                                 {m.messageType.replace('_', ' ')}
                               </span>
                             )}
@@ -592,15 +593,15 @@ export default function WhatsAppHubPage() {
                             <p className="whitespace-pre-line text-[12px]">{m.content}</p>
 
                             {/* Timestamp & Status */}
-                            <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-[#8696a0]">
+                            <div className="flex items-center justify-end gap-1 mt-1 text-[10px] opacity-80">
                               <span>{timeStr}</span>
                               {isOutgoing && (
                                 m.status === 'SENT' ? (
-                                  <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
+                                  <CheckCheck className="w-3.5 h-3.5 text-sky-300 dark:text-[#53bdeb]" />
                                 ) : m.status === 'FAILED' ? (
-                                  <span className="text-rose-400" title={m.error}>❌</span>
+                                  <span className="text-rose-300" title={m.error}>❌</span>
                                 ) : (
-                                  <Clock className="w-3 h-3 text-[#8696a0]" />
+                                  <Clock className="w-3 h-3 opacity-70" />
                                 )
                               )}
                             </div>
@@ -612,16 +613,16 @@ export default function WhatsAppHubPage() {
                   </div>
 
                   {/* Bottom Input Composer */}
-                  <div className="p-3 bg-[#202c33] border-t border-[#2a3942] space-y-2">
+                  <div className="p-3 bg-surface-base dark:bg-[#202c33] border-t border-border-default dark:border-[#2a3942] space-y-2 transition-colors duration-200">
                     {/* Pharmacy Quick Response Chips */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto text-[10px] text-[#8696a0] no-scrollbar">
-                      <span className="font-bold text-[#aebac1]">Quick:</span>
+                    <div className="flex items-center gap-1.5 overflow-x-auto text-[10px] text-text-muted dark:text-[#8696a0] no-scrollbar">
+                      <span className="font-bold text-text-primary dark:text-[#aebac1]">Quick:</span>
                       <button
                         type="button"
                         onClick={() =>
                           setInputText(`Namaste ${selectedChat.name}, your prescription order is packed and ready for billing at MedCare counter.`)
                         }
-                        className="px-2.5 py-1 bg-[#111b21] hover:bg-[#374248] rounded-lg border border-[#2a3942] text-[#d1d7db] whitespace-nowrap cursor-pointer"
+                        className="px-2.5 py-1 bg-surface-page dark:bg-[#111b21] hover:bg-surface-raised dark:hover:bg-[#374248] rounded-lg border border-border-default dark:border-[#2a3942] text-text-secondary dark:text-[#d1d7db] whitespace-nowrap cursor-pointer"
                       >
                         📦 Order Ready
                       </button>
@@ -630,7 +631,7 @@ export default function WhatsAppHubPage() {
                         onClick={() =>
                           setInputText(`Namaste ${selectedChat.name}, please share your doctor's prescription so we can verify the medicines.`)
                         }
-                        className="px-2.5 py-1 bg-[#111b21] hover:bg-[#374248] rounded-lg border border-[#2a3942] text-[#d1d7db] whitespace-nowrap cursor-pointer"
+                        className="px-2.5 py-1 bg-surface-page dark:bg-[#111b21] hover:bg-surface-raised dark:hover:bg-[#374248] rounded-lg border border-border-default dark:border-[#2a3942] text-text-secondary dark:text-[#d1d7db] whitespace-nowrap cursor-pointer"
                       >
                         📄 Request Prescription
                       </button>
@@ -639,7 +640,7 @@ export default function WhatsAppHubPage() {
                         onClick={() =>
                           setInputText(`Namaste ${selectedChat.name}, thank you for choosing MedCare Pharmacy! Wishing you a speedy recovery.`)
                         }
-                        className="px-2.5 py-1 bg-[#111b21] hover:bg-[#374248] rounded-lg border border-[#2a3942] text-[#d1d7db] whitespace-nowrap cursor-pointer"
+                        className="px-2.5 py-1 bg-surface-page dark:bg-[#111b21] hover:bg-surface-raised dark:hover:bg-[#374248] rounded-lg border border-border-default dark:border-[#2a3942] text-text-secondary dark:text-[#d1d7db] whitespace-nowrap cursor-pointer"
                       >
                         🙏 Thank You Note
                       </button>
@@ -662,13 +663,13 @@ export default function WhatsAppHubPage() {
                         placeholder="Type a message..."
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
-                        className="flex-1 bg-[#2a3942] text-xs text-[#d1d7db] placeholder-[#8696a0] px-4 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#00a884]"
+                        className="flex-1 bg-surface-page dark:bg-[#2a3942] text-xs text-text-primary dark:text-[#d1d7db] placeholder-text-muted dark:placeholder-[#8696a0] px-4 py-2.5 rounded-xl border border-border-default dark:border-transparent focus:outline-none focus:ring-1 focus:ring-[#00a884]"
                       />
 
                       <button
                         type="submit"
                         disabled={!inputText.trim() || sendMessageMutation.isPending}
-                        className="w-10 h-10 rounded-full bg-[#00a884] hover:bg-[#02906f] active:scale-95 text-[#111b21] flex items-center justify-center shadow-lg transition disabled:opacity-40 cursor-pointer flex-shrink-0"
+                        className="w-10 h-10 rounded-full bg-[#00a884] hover:bg-[#02906f] active:scale-95 text-white dark:text-[#111b21] flex items-center justify-center shadow-lg transition disabled:opacity-40 cursor-pointer flex-shrink-0"
                       >
                         <Send className="w-4 h-4 ml-0.5" />
                       </button>
@@ -677,22 +678,22 @@ export default function WhatsAppHubPage() {
                 </div>
               ) : (
                 /* WhatsApp Business Web Splash Screen */
-                <div className="flex-1 flex flex-col items-center justify-center bg-[#222e35] p-8 text-center select-none border-b-8 border-[#00a884]">
+                <div className="flex-1 flex flex-col items-center justify-center bg-surface-page dark:bg-[#222e35] p-8 text-center select-none border-b-8 border-[#00a884] transition-colors duration-200">
                   <div className="max-w-md space-y-4">
-                    <div className="w-32 h-32 mx-auto rounded-full bg-[#111b21]/40 flex items-center justify-center border border-[#2a3942]">
+                    <div className="w-32 h-32 mx-auto rounded-full bg-emerald-50 dark:bg-[#111b21]/40 flex items-center justify-center border border-emerald-200 dark:border-[#2a3942]">
                       <MessageSquare className="w-16 h-16 text-[#00a884] opacity-80" />
                     </div>
 
-                    <h2 className="text-2xl font-light text-[#e9edef] tracking-tight">
+                    <h2 className="text-2xl font-bold text-text-primary dark:text-[#e9edef] tracking-tight">
                       WhatsApp Business on Web
                     </h2>
 
-                    <p className="text-xs text-[#8696a0] leading-relaxed">
+                    <p className="text-xs text-text-muted dark:text-[#8696a0] leading-relaxed">
                       Select a customer or supplier chat on the left to review invoice receipts, prescription instructions, or start a new conversation.
                     </p>
 
-                    <div className="pt-4 flex items-center justify-center gap-1.5 text-xs text-[#8696a0]">
-                      <Lock className="w-3.5 h-3.5" /> End-to-end encrypted
+                    <div className="pt-4 flex items-center justify-center gap-1.5 text-xs text-text-muted dark:text-[#8696a0]">
+                      <Lock className="w-3.5 h-3.5 text-[#00a884]" /> End-to-end encrypted
                     </div>
                   </div>
                 </div>
@@ -704,20 +705,20 @@ export default function WhatsAppHubPage() {
         {/* New Chat Modal */}
         {showNewChatModal && (
           <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#202c33] border border-[#2a3942] rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 text-xs text-[#e9edef]">
-              <div className="flex justify-between items-center pb-3 border-b border-[#2a3942]">
-                <h3 className="font-bold text-sm text-[#e9edef] flex items-center gap-2">
+            <div className="bg-surface-base dark:bg-[#202c33] border border-border-default dark:border-[#2a3942] rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 text-xs text-text-primary dark:text-[#e9edef] transition-colors duration-200">
+              <div className="flex justify-between items-center pb-3 border-b border-border-default dark:border-[#2a3942]">
+                <h3 className="font-bold text-sm text-text-primary dark:text-[#e9edef] flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-[#00a884]" />
                   Start New WhatsApp Chat
                 </h3>
-                <button onClick={() => setShowNewChatModal(false)} className="text-[#8696a0] hover:text-white">
+                <button onClick={() => setShowNewChatModal(false)} className="text-text-muted dark:text-[#8696a0] hover:text-text-primary dark:hover:text-white">
                   ✕
                 </button>
               </div>
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[#8696a0] font-semibold mb-1">
+                  <label className="block text-text-muted dark:text-[#8696a0] font-semibold mb-1">
                     Mobile Number (10 Digits or with +91) *
                   </label>
                   <input
@@ -726,12 +727,12 @@ export default function WhatsAppHubPage() {
                     placeholder="e.g. 9876543210"
                     value={newChatPhone}
                     onChange={(e) => setNewChatPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#111b21] border border-[#2a3942] rounded-xl text-xs text-[#d1d7db] focus:outline-none focus:border-[#00a884] font-mono"
+                    className="w-full px-3 py-2 bg-surface-page dark:bg-[#111b21] border border-border-default dark:border-[#2a3942] rounded-xl text-xs text-text-primary dark:text-[#d1d7db] focus:outline-none focus:border-[#00a884] font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[#8696a0] font-semibold mb-1">
+                  <label className="block text-text-muted dark:text-[#8696a0] font-semibold mb-1">
                     Contact / Customer Name (Optional)
                   </label>
                   <input
@@ -739,16 +740,16 @@ export default function WhatsAppHubPage() {
                     placeholder="e.g. Ramesh Sharma"
                     value={newChatName}
                     onChange={(e) => setNewChatName(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#111b21] border border-[#2a3942] rounded-xl text-xs text-[#d1d7db] focus:outline-none focus:border-[#00a884]"
+                    className="w-full px-3 py-2 bg-surface-page dark:bg-[#111b21] border border-border-default dark:border-[#2a3942] rounded-xl text-xs text-text-primary dark:text-[#d1d7db] focus:outline-none focus:border-[#00a884]"
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#2a3942]">
+              <div className="flex justify-end gap-2 pt-3 border-t border-border-default dark:border-[#2a3942]">
                 <button
                   type="button"
                   onClick={() => setShowNewChatModal(false)}
-                  className="px-4 py-2 bg-[#111b21] hover:bg-[#374248] text-[#8696a0] rounded-xl font-medium"
+                  className="px-4 py-2 bg-surface-raised dark:bg-[#111b21] hover:bg-surface-hover dark:hover:bg-[#374248] text-text-muted dark:text-[#8696a0] rounded-xl font-medium"
                 >
                   Cancel
                 </button>
@@ -768,7 +769,7 @@ export default function WhatsAppHubPage() {
                     setNewChatPhone('');
                     setNewChatName('');
                   }}
-                  className="px-4 py-2 bg-[#00a884] hover:bg-[#02906f] text-[#111b21] font-bold rounded-xl flex items-center gap-1.5 shadow-sm"
+                  className="px-4 py-2 bg-[#00a884] hover:bg-[#02906f] text-white dark:text-[#111b21] font-bold rounded-xl flex items-center gap-1.5 shadow-sm"
                 >
                   <MessageSquare className="w-3.5 h-3.5" />
                   Open Chat
