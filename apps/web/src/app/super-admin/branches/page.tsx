@@ -40,6 +40,17 @@ import { apiClient } from '../../../lib/api-client';
 import { useAuthStore } from '../../../stores/auth-store';
 import { extractDataArray } from '../../../lib/utils';
 
+const INDIAN_STATES = [
+  'Jharkhand', 'Bihar', 'West Bengal', 'Uttar Pradesh', 'Maharashtra',
+  'Delhi', 'Gujarat', 'Rajasthan', 'Madhya Pradesh', 'Karnataka',
+  'Tamil Nadu', 'Telangana', 'Andhra Pradesh', 'Kerala', 'Punjab',
+  'Haryana', 'Odisha', 'Assam', 'Chhattisgarh', 'Uttarakhand',
+  'Himachal Pradesh', 'Goa', 'Tripura', 'Manipur', 'Meghalaya',
+  'Nagaland', 'Mizoram', 'Sikkim', 'Arunachal Pradesh', 'Chandigarh',
+  'Jammu and Kashmir', 'Ladakh', 'Puducherry', 'Andaman and Nicobar Islands',
+  'Dadra and Nagar Haveli and Daman and Diu', 'Lakshadweep'
+];
+
 export default function SuperAdminBranchesPage() {
   const queryClient = useQueryClient();
   const { selectedBranchId, setSelectedBranchId } = useAuthStore();
@@ -53,7 +64,7 @@ export default function SuperAdminBranchesPage() {
     code: '',
     address: '',
     city: '',
-    state: '',
+    state: 'Jharkhand',
     phone: '',
     email: '',
   });
@@ -93,7 +104,14 @@ export default function SuperAdminBranchesPage() {
 
   const createBranchMutation = useMutation({
     mutationFn: async (payload: typeof newBranch) => {
-      const res = await apiClient.post('/branches', payload);
+      const branchPayload = {
+        ...payload,
+        state: payload.state || 'Jharkhand',
+        address: payload.address || payload.city || 'Main Market Road',
+        city: payload.city || 'Giridih',
+        phone: payload.phone || '+91 9999999999',
+      };
+      const res = await apiClient.post('/branches', branchPayload);
       return res.data;
     },
     onSuccess: () => {
@@ -101,7 +119,7 @@ export default function SuperAdminBranchesPage() {
       queryClient.invalidateQueries({ queryKey: ['super-admin-overview'] });
       queryClient.invalidateQueries({ queryKey: ['super-admin-branches-matrix'] });
       setIsCreateModalOpen(false);
-      setNewBranch({ name: '', code: '', address: '', city: '', state: '', phone: '', email: '' });
+      setNewBranch({ name: '', code: '', address: '', city: '', state: 'Jharkhand', phone: '', email: '' });
       alert('Branch created successfully!');
     },
     onError: (err: any) => {
@@ -429,7 +447,7 @@ Note: When logged in, your inventory and POS are completely isolated to this bra
                       placeholder="e.g. Apollo Pharmacy North"
                       value={newBranch.name}
                       onChange={(e) => setNewBranch({ ...newBranch, name: e.target.value })}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-text-primary focus:outline-none focus:border-accent-primary"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-text-primary focus:outline-none focus:border-accent-primary font-medium"
                     />
                   </div>
                   <div>
@@ -439,7 +457,7 @@ Note: When logged in, your inventory and POS are completely isolated to this bra
                       placeholder="e.g. BR-03"
                       value={newBranch.code}
                       onChange={(e) => setNewBranch({ ...newBranch, code: e.target.value.toUpperCase() })}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-text-primary font-mono focus:outline-none focus:border-accent-primary"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-text-primary font-mono focus:outline-none focus:border-accent-primary font-bold"
                     />
                   </div>
                   <div className="col-span-2">
@@ -453,22 +471,46 @@ Note: When logged in, your inventory and POS are completely isolated to this bra
                     />
                   </div>
                   <div>
-                    <label className="block text-text-muted font-medium mb-1">City</label>
+                    <label className="block text-text-muted font-medium mb-1">City *</label>
                     <input
                       type="text"
-                      placeholder="Mumbai"
+                      placeholder="Giridih / Mumbai"
                       value={newBranch.city}
                       onChange={(e) => setNewBranch({ ...newBranch, city: e.target.value })}
                       className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-text-primary focus:outline-none focus:border-accent-primary"
                     />
                   </div>
                   <div>
-                    <label className="block text-text-muted font-medium mb-1">Phone</label>
+                    <label className="block text-text-muted font-medium mb-1">State (Indian State) *</label>
+                    <select
+                      value={newBranch.state}
+                      onChange={(e) => setNewBranch({ ...newBranch, state: e.target.value })}
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-text-primary focus:outline-none focus:border-accent-primary font-semibold"
+                    >
+                      {INDIAN_STATES.map((st) => (
+                        <option key={st} value={st} className="bg-surface-base text-text-primary">
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-text-muted font-medium mb-1">Phone Number</label>
                     <input
                       type="text"
                       placeholder="+91 98765 43210"
                       value={newBranch.phone}
                       onChange={(e) => setNewBranch({ ...newBranch, phone: e.target.value })}
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-text-primary focus:outline-none focus:border-accent-primary font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-text-muted font-medium mb-1">Email Address</label>
+                    <input
+                      type="email"
+                      placeholder="branch@medcare.com"
+                      value={newBranch.email}
+                      onChange={(e) => setNewBranch({ ...newBranch, email: e.target.value })}
                       className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-text-primary focus:outline-none focus:border-accent-primary"
                     />
                   </div>

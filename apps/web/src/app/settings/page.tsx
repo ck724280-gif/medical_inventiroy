@@ -33,6 +33,7 @@ import {
   EyeOff,
   Sliders,
   Zap,
+  Layers,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
@@ -42,10 +43,21 @@ import { useBrandingStore } from '../../stores/branding-store';
 import { PrintStudioCustomizer } from '../../components/print-studio-customizer';
 import { PaperWidth } from '@medical-inventory/shared-types';
 
+const INDIAN_STATES = [
+  'Jharkhand', 'Bihar', 'West Bengal', 'Uttar Pradesh', 'Maharashtra',
+  'Delhi', 'Gujarat', 'Rajasthan', 'Madhya Pradesh', 'Karnataka',
+  'Tamil Nadu', 'Telangana', 'Andhra Pradesh', 'Kerala', 'Punjab',
+  'Haryana', 'Odisha', 'Assam', 'Chhattisgarh', 'Uttarakhand',
+  'Himachal Pradesh', 'Goa', 'Tripura', 'Manipur', 'Meghalaya',
+  'Nagaland', 'Mizoram', 'Sikkim', 'Arunachal Pradesh', 'Chandigarh',
+  'Jammu and Kashmir', 'Ladakh', 'Puducherry', 'Andaman and Nicobar Islands',
+  'Dadra and Nagar Haveli and Daman and Diu', 'Lakshadweep'
+];
+
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { fetchBranding, updateLogoImmediately, logo: currentStoreLogo } = useBrandingStore();
-  const [activeTab, setActiveTab] = useState<'business' | 'branding' | 'receipt' | 'ai' | 'staff' | 'backup'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'branding' | 'receipt' | 'staff' | 'ai' | 'backup'>('business');
   const [savedBanner, setSavedBanner] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
@@ -67,7 +79,7 @@ export default function SettingsPage() {
     code: '',
     address: '',
     city: '',
-    state: '',
+    state: 'Jharkhand',
     phone: '',
     email: '',
     isDefault: false,
@@ -190,13 +202,21 @@ export default function SettingsPage() {
   // Branch Mutations
   const saveBranchMutation = useMutation({
     mutationFn: async (payload: any) => {
+      const branchPayload = {
+        ...payload,
+        state: payload.state || 'Jharkhand',
+        address: payload.address || payload.city || 'Main Market Road',
+        city: payload.city || 'Giridih',
+        phone: payload.phone || '+91 9999999999',
+      };
       if (editingBranch) {
-        return apiClient.patch(`/branches/${editingBranch.id}`, payload);
+        return apiClient.patch(`/branches/${editingBranch.id}`, branchPayload);
       }
-      return apiClient.post('/branches', payload);
+      return apiClient.post('/branches', branchPayload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings-branches'] });
+      queryClient.invalidateQueries({ queryKey: ['super-admin-branches-list'] });
       setBranchModalOpen(false);
       setEditingBranch(null);
       setSavedBanner(true);
@@ -505,10 +525,11 @@ export default function SettingsPage() {
           <div className="flex border-b border-border-default gap-2 overflow-x-auto">
             {[
               { id: 'business', label: 'Business Profile & Tax', icon: Building2 },
+              { id: 'branches', label: 'Store Branches', icon: Layers },
               { id: 'branding', label: 'White-Label Branding', icon: Palette },
               { id: 'receipt', label: 'Thermal & Universal Print Setup', icon: Printer },
-              { id: 'ai', label: 'AI Co-Pilot & Chatbot API', icon: Sparkles },
               { id: 'staff', label: 'Staff & User Roles', icon: Users },
+              { id: 'ai', label: 'AI Co-Pilot & Chatbot API', icon: Sparkles },
               { id: 'backup', label: 'Database Backup & Google Drive', icon: Database },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -568,261 +589,209 @@ export default function SettingsPage() {
               >
                 {/* ── 1. Store Logo & Brand Icon ───────────────────── */}
                 <div className="p-4 bg-surface-page rounded-2xl border border-border-default flex flex-wrap items-center gap-5">
-                  <div className="w-20 h-20 rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center overflow-hidden shadow-inner flex-shrink-0 relative group">
-                    {(currentStoreLogo || businessData.logo) ? (
-                      <img
-                        id="logo-preview-img"
-                        src={currentStoreLogo || businessData.logo}
-                        alt="Store Logo"
-                        className="w-full h-full object-contain p-1"
-                      />
+                  <div className="w-20 h-20 rounded-2xl bg-surface-base border-2 border-dashed border-border-strong flex items-center justify-center overflow-hidden flex-shrink-0 relative group shadow-inner">
+                    {currentStoreLogo ? (
+                      <img src={currentStoreLogo} alt="Medical Store Logo" className="w-full h-full object-contain p-1" />
                     ) : (
-                      <div id="logo-preview-img" className="text-2xl font-extrabold text-accent-primary">
-                        {businessData.name ? businessData.name.charAt(0).toUpperCase() : '+'}
-                      </div>
+                      <Building2 className="w-8 h-8 text-accent-primary opacity-60" />
                     )}
                   </div>
-
-                  <div className="space-y-2 flex-1 min-w-[240px]">
+                  <div className="space-y-1.5 flex-1 min-w-[200px]">
                     <div className="flex items-center gap-2">
-                      <label className="px-3.5 py-1.5 bg-accent-primary hover:bg-accent-hover text-white rounded-xl font-semibold transition text-xs flex items-center gap-1.5 cursor-pointer shadow-sm">
+                      <span className="font-bold text-text-primary text-sm">Official Medical Store Logo</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-100 dark:bg-sky-950/60 text-accent-primary border border-sky-200 dark:border-sky-800">
+                        Top Nav + Invoices
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-text-muted">
+                      Upload your pharmacy store emblem (PNG, JPG, SVG, WebP). This logo will instantly replace the top earth icon and appear on all thermal &amp; A4 bills.
+                    </p>
+                    <div className="flex items-center gap-3 pt-1">
+                      <label className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl font-bold cursor-pointer transition flex items-center gap-1.5 text-xs shadow-md shadow-sky-600/20 active:scale-95">
                         <Upload className="w-3.5 h-3.5" />
-                        <span>{uploadLogoMutation.isPending ? 'Uploading...' : 'Upload Store Logo'}</span>
+                        <span>{uploadLogoMutation.isPending ? 'Uploading...' : 'Upload New Logo'}</span>
                         <input
                           type="file"
                           accept="image/*"
                           className="hidden"
-                          disabled={uploadLogoMutation.isPending}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
-                            if (!file) return;
-                            if (file.size > 2 * 1024 * 1024) {
-                              alert('Image size exceeds 2MB limit. Please choose a smaller image.');
-                              return;
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                const base64 = reader.result as string;
+                                uploadLogoMutation.mutate(base64);
+                              };
+                              reader.readAsDataURL(file);
                             }
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                              const base64 = event.target?.result as string;
-                              updateLogoImmediately(base64);
-                              uploadLogoMutation.mutate(base64);
-                              const input = document.getElementById('logo-url-input') as HTMLInputElement;
-                              if (input) input.value = base64;
-                            };
-                            reader.readAsDataURL(file);
                           }}
                         />
                       </label>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          updateLogoImmediately('');
-                          uploadLogoMutation.mutate('');
-                          const input = document.getElementById('logo-url-input') as HTMLInputElement;
-                          if (input) input.value = '';
-                        }}
-                        className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-text-secondary rounded-xl font-semibold transition text-xs flex items-center gap-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Remove Logo
-                      </button>
+                      {currentStoreLogo && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm('Remove custom logo and reset to default emblem?')) {
+                              uploadLogoMutation.mutate('');
+                            }
+                          }}
+                          className="px-3 py-2 text-status-error hover:bg-status-error-bg rounded-xl font-semibold transition border border-status-error-border text-xs"
+                        >
+                          Remove Logo
+                        </button>
+                      )}
                     </div>
+                  </div>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Pharmacy / Medical Business Name *</label>
                     <input
-                      id="logo-url-input"
-                      name="logo"
-                      type="hidden"
-                      defaultValue={currentStoreLogo || businessData.logo || ''}
+                      name="name"
+                      defaultValue={businessData.name}
+                      required
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-bold"
                     />
                   </div>
-                </div>
 
-                {/* ── 2. Pharmacy Basic Information ─────────────────── */}
-                <div className="space-y-3">
-                  <h4 className="font-bold text-xs text-text-primary border-b border-slate-100 dark:border-slate-800 pb-1.5 flex items-center gap-1.5">
-                    <Building2 className="w-4 h-4 text-sky-600" />
-                    Store &amp; Pharmacy Identity
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">
-                        Pharmacy / Store Trade Name *
-                      </label>
-                      <input
-                        name="name"
-                        required
-                        defaultValue={businessData.name}
-                        placeholder="e.g. MedCare Pharmacy & Healthcare"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary font-medium focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">
-                        Tagline / Store Description
-                      </label>
-                      <input
-                        name="description"
-                        defaultValue={businessData.description || ''}
-                        placeholder="e.g. 24x7 Authentic Medicines & Diagnostic Care"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── 3. Legal Licenses & Tax Information ──────────── */}
-                <div className="space-y-3">
-                  <h4 className="font-bold text-xs text-text-primary border-b border-slate-100 dark:border-slate-800 pb-1.5 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                    Tax (GSTIN) &amp; Drug Licenses Compliance
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">
-                        GSTIN Registration Number (15 Digits)
-                      </label>
-                      <input
-                        name="gstNumber"
-                        defaultValue={businessData.gstNumber || ''}
-                        placeholder="22AAAAA0000A1Z5"
-                        maxLength={15}
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl font-mono text-text-primary focus:outline-none focus:border-sky-500 uppercase"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">
-                        Drug License # (Form 20B / Form 21B Retail D.L.)
-                      </label>
-                      <input
-                        name="pharmacyLicense"
-                        defaultValue={businessData.pharmacyLicense || ''}
-                        placeholder="DL-20B-12345 / DL-21B-12345"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl font-mono text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── 4. Contact Details ─────────────────────────────── */}
-                <div className="space-y-3">
-                  <h4 className="font-bold text-xs text-text-primary border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                    Contact &amp; Communication Channels
-                  </h4>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">
-                        Primary Phone / Mobile
-                      </label>
-                      <input
-                        name="phone"
-                        defaultValue={businessData.phone || ''}
-                        placeholder="+91 98765 43210"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">
-                        Alternate / WhatsApp Phone
-                      </label>
-                      <input
-                        name="altPhone"
-                        defaultValue={businessData.altPhone || ''}
-                        placeholder="+91 98765 00000"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">
-                        Official Contact Email
-                      </label>
-                      <input
-                        type="email"
-                        name="email"
-                        defaultValue={businessData.email || ''}
-                        placeholder="pharmacy@example.com"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">
-                        Store Website / Web Link
-                      </label>
-                      <input
-                        name="website"
-                        defaultValue={businessData.website || ''}
-                        placeholder="https://www.medcarepharmacy.com"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── 5. Physical Store Address ─────────────────────── */}
-                <div className="space-y-3">
-                  <h4 className="font-bold text-xs text-text-primary border-b border-slate-100 dark:border-slate-800 pb-1.5">
-                    Physical Store Address
-                  </h4>
-
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">
-                      Street Address / Building / Market
-                    </label>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Store Tagline / Slogan</label>
                     <input
+                      name="description"
+                      defaultValue={businessData.description || ''}
+                      placeholder="e.g. 24x7 Chemist & Druggist"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">GSTIN / Tax Identification No.</label>
+                    <input
+                      name="gstNumber"
+                      defaultValue={businessData.gstNumber || ''}
+                      placeholder="e.g. 20AAAAA0000A1Z5"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Drug License No. (DL 20B / 21B)</label>
+                    <input
+                      name="pharmacyLicense"
+                      defaultValue={businessData.pharmacyLicense || ''}
+                      placeholder="e.g. DL-JH-GIR-12345"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Primary Contact Phone *</label>
+                    <input
+                      name="phone"
+                      defaultValue={businessData.phone || ''}
+                      required
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Alternate / WhatsApp Phone</label>
+                    <input
+                      name="altPhone"
+                      defaultValue={businessData.altPhone || ''}
+                      placeholder="e.g. +91 98765 43210"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Official Email Address</label>
+                    <input
+                      name="email"
+                      type="email"
+                      defaultValue={businessData.email || ''}
+                      placeholder="info@pharmacy.com"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Website URL</label>
+                    <input
+                      name="website"
+                      defaultValue={businessData.website || ''}
+                      placeholder="https://mypharmacy.com"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="font-semibold text-text-secondary">Pharmacy Shop Street Address *</label>
+                    <textarea
                       name="address"
                       defaultValue={businessData.address || ''}
+                      rows={2}
+                      required
                       placeholder="Shop No. 4, Ground Floor, Medical Market, Main Road"
                       className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">City</label>
-                      <input
-                        name="city"
-                        defaultValue={businessData.city || ''}
-                        placeholder="City"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">City / District *</label>
+                    <input
+                      name="city"
+                      defaultValue={businessData.city || ''}
+                      required
+                      placeholder="e.g. Giridih"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
 
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">State</label>
-                      <input
-                        name="state"
-                        defaultValue={businessData.state || ''}
-                        placeholder="State"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">State (Indian State) *</label>
+                    <select
+                      name="state"
+                      defaultValue={businessData.state || 'Jharkhand'}
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-semibold"
+                    >
+                      {INDIAN_STATES.map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">PIN / Postal Code</label>
-                      <input
-                        name="pinZip"
-                        defaultValue={businessData.pinZip || ''}
-                        placeholder="560001"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl font-mono text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Postal PIN Code *</label>
+                    <input
+                      name="pinZip"
+                      defaultValue={businessData.pinZip || ''}
+                      required
+                      placeholder="e.g. 815301"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
 
-                    <div>
-                      <label className="font-semibold text-text-secondary block mb-1">Currency Symbol</label>
-                      <input
-                        name="currencySymbol"
-                        defaultValue={businessData.currencySymbol || '₹'}
-                        placeholder="₹"
-                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl font-bold font-mono text-text-primary focus:outline-none focus:border-sky-500"
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Country</label>
+                    <input
+                      name="country"
+                      defaultValue={businessData.country || 'India'}
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Currency Symbol</label>
+                    <input
+                      name="currencySymbol"
+                      defaultValue={businessData.currencySymbol || '₹'}
+                      placeholder="₹"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl font-bold font-mono text-text-primary focus:outline-none focus:border-sky-500"
+                    />
                   </div>
                 </div>
 
@@ -837,6 +806,234 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* TAB 1.5: Store Branches Management */}
+          {activeTab === 'branches' && (
+            <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm dark:shadow-xl p-6 space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border-default">
+                <div>
+                  <h3 className="font-bold text-sm text-text-primary">Multi-Branch Locations &amp; Outlets</h3>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    Manage multiple physical pharmacy locations, warehouses, sub-branches, and separate cash registers.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenAddBranch}
+                  className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 transition cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Store Branch
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {branches.map((b: any) => (
+                  <div
+                    key={b.id}
+                    className="p-4 bg-surface-page border border-border-default rounded-2xl text-xs space-y-3 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-bold text-text-primary text-sm">{b.name}</h4>
+                        <span className="font-mono bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded text-[10px] font-bold">
+                          {b.code}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditBranch(b)}
+                          title="Edit Branch"
+                          className="p-1.5 text-text-muted hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        {!b.isDefault && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteBranch(b)}
+                            title="Delete / Deactivate Branch"
+                            className="p-1.5 text-text-muted hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-text-muted space-y-0.5">
+                      <div className="flex items-center gap-1.5 py-1 text-accent-primary font-semibold">
+                        <Users className="w-3.5 h-3.5" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setStaffBranchFilter(b.id);
+                            setActiveTab('staff');
+                          }}
+                          className="hover:underline cursor-pointer"
+                        >
+                          Manage Staff &amp; Cashiers →
+                        </button>
+                      </div>
+                      <p>{b.address || 'No address configured'}, {b.city || ''}</p>
+                      <p>State: {b.state || 'Jharkhand'}</p>
+                      <p>Phone: {b.phone || 'N/A'}</p>
+                      {b.email && <p>Email: {b.email}</p>}
+                    </div>
+
+                    {b.isDefault && (
+                      <span className="inline-block px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-semibold text-[10px]">
+                        Primary Default Store
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Branch Modal */}
+              {branchModalOpen && (
+                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+                  <div className="bg-surface-base rounded-2xl shadow-2xl border border-border-default max-w-md w-full p-6 space-y-4 text-xs">
+                    <div className="flex items-center justify-between pb-3 border-b border-border-default">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-5 h-5 text-accent-primary" />
+                        <h3 className="font-bold text-sm text-text-primary">
+                          {editingBranch ? 'Edit Store Branch' : 'Add New Store Branch'}
+                        </h3>
+                      </div>
+                      <button onClick={() => setBranchModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        saveBranchMutation.mutate(branchForm);
+                      }}
+                      className="space-y-3"
+                    >
+                      <div>
+                        <label className="block font-semibold text-text-secondary mb-1">Branch Name *</label>
+                        <input
+                          required
+                          type="text"
+                          value={branchForm.name}
+                          onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
+                          placeholder="e.g. City Dispensary Unit"
+                          className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-bold"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block font-semibold text-text-secondary mb-1">Branch Code *</label>
+                          <input
+                            required
+                            type="text"
+                            value={branchForm.code}
+                            onChange={(e) => setBranchForm({ ...branchForm, code: e.target.value.toUpperCase() })}
+                            placeholder="BR-02"
+                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-text-secondary mb-1">City *</label>
+                          <input
+                            required
+                            type="text"
+                            value={branchForm.city}
+                            onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
+                            placeholder="e.g. Giridih"
+                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-text-secondary mb-1">State (Indian State) *</label>
+                        <select
+                          value={branchForm.state || 'Jharkhand'}
+                          onChange={(e) => setBranchForm({ ...branchForm, state: e.target.value })}
+                          className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-semibold"
+                        >
+                          {INDIAN_STATES.map((st) => (
+                            <option key={st} value={st}>
+                              {st}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-text-secondary mb-1">Street Address</label>
+                        <input
+                          type="text"
+                          value={branchForm.address}
+                          onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
+                          placeholder="Market Road, Opp. Hospital"
+                          className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block font-semibold text-text-secondary mb-1">Phone</label>
+                          <input
+                            type="text"
+                            value={branchForm.phone}
+                            onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
+                            placeholder="+91 98765 43210"
+                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                          />
+                        </div>
+                        <div>
+                          <label className="block font-semibold text-text-secondary mb-1">Email</label>
+                          <input
+                            type="email"
+                            value={branchForm.email}
+                            onChange={(e) => setBranchForm({ ...branchForm, email: e.target.value })}
+                            placeholder="branch@pharmacy.com"
+                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between border-t border-border-default">
+                        <label className="flex items-center gap-2 cursor-pointer text-text-primary font-semibold">
+                          <input
+                            type="checkbox"
+                            checked={branchForm.isDefault}
+                            onChange={(e) => setBranchForm({ ...branchForm, isDefault: e.target.checked })}
+                            className="rounded text-sky-600"
+                          />
+                          <span>Set as Primary Store Branch</span>
+                        </label>
+                      </div>
+
+                      <div className="pt-3 flex justify-end gap-2 border-t border-border-default">
+                        <button
+                          type="button"
+                          onClick={() => setBranchModalOpen(false)}
+                          className="px-4 py-2 rounded-xl bg-surface-raised text-text-secondary hover:bg-surface-active cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={saveBranchMutation.isPending}
+                          className="px-5 py-2 rounded-xl bg-accent-primary hover:bg-accent-hover font-bold text-white shadow-lg transition cursor-pointer"
+                        >
+                          {saveBranchMutation.isPending ? 'Saving...' : editingBranch ? 'Update Branch' : 'Create Branch'}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1169,7 +1366,23 @@ export default function SettingsPage() {
               </div>
 
               {/* Filters & Search */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-surface-page rounded-xl border border-border-default">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-surface-page rounded-xl border border-border-default">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter by Store Branch</label>
+                  <select
+                    value={staffBranchFilter}
+                    onChange={(e) => setStaffBranchFilter(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-surface-base border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-text-primary"
+                  >
+                    <option value="">All Branches (Show All)</option>
+                    {branches.map((b: any) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter by Role</label>
                   <select
@@ -1205,8 +1418,15 @@ export default function SettingsPage() {
                 ) : (
                   staffUsers
                     .filter((u: any) => {
-                      if (!staffRoleFilter) return true;
-                      return u.roles?.some((r: any) => r.name === staffRoleFilter);
+                      if (staffBranchFilter && !u.branches?.some((b: any) => b.id === staffBranchFilter)) return false;
+                      if (staffRoleFilter && !u.roles?.some((r: any) => r.name === staffRoleFilter)) return false;
+                      if (staffSearch) {
+                        const q = staffSearch.toLowerCase();
+                        const matchName = `${u.firstName} ${u.lastName}`.toLowerCase().includes(q);
+                        const matchEmail = u.email?.toLowerCase().includes(q);
+                        return matchName || matchEmail;
+                      }
+                      return true;
                     })
                     .map((user: any) => {
                       const userRoleName = user.roles?.[0]?.name || 'STAFF';
@@ -1374,6 +1594,23 @@ export default function SettingsPage() {
                           {allRoles.map((r: any) => (
                             <option key={r.id} value={r.id}>
                               {r.name} - {r.description?.slice(0, 35)}...
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block font-semibold text-text-secondary mb-1">Assigned Store Branch *</label>
+                        <select
+                          required
+                          value={staffForm.branchId}
+                          onChange={(e) => setStaffForm({ ...staffForm, branchId: e.target.value })}
+                          className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-medium"
+                        >
+                          <option value="">Select Branch...</option>
+                          {branches.map((b: any) => (
+                            <option key={b.id} value={b.id}>
+                              {b.name} ({b.code})
                             </option>
                           ))}
                         </select>

@@ -18,6 +18,8 @@ import {
   Settings,
   FileSpreadsheet,
   ClipboardList,
+  ArrowLeftRight,
+  Layers,
   ChevronLeft,
   ChevronRight,
   X,
@@ -56,6 +58,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Medicines', href: '/medicines', icon: Pill, permission: 'medicine.view' },
       { label: 'Inventory & Batches', href: '/inventory', icon: Boxes, permission: 'inventory.view' },
+      { label: 'Stock Transfers', href: '/stock-transfers', icon: ArrowLeftRight, permission: 'inventory.transfer' },
       { label: 'Purchases', href: '/purchases', icon: Truck, permission: 'purchase.view' },
       { label: 'Purchase Orders', href: '/purchase-orders', icon: ClipboardList, permission: 'purchase.view' },
       { label: 'Opening Stock / Import', href: '/import', icon: FileSpreadsheet, permission: 'inventory.adjust' },
@@ -85,6 +88,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'SUPER ADMIN',
     items: [
       { label: 'Control Center', href: '/super-admin', icon: Building2, permission: 'super_admin.access' },
+      { label: 'Branches', href: '/super-admin/branches', icon: Layers, permission: 'super_admin.access' },
       { label: 'Staff Directory', href: '/super-admin/staff', icon: Users, permission: 'super_admin.access' },
       { label: 'Org Reports', href: '/super-admin/reports', icon: BarChart3, permission: 'super_admin.access' },
     ],
