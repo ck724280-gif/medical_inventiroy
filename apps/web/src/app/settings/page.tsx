@@ -45,7 +45,7 @@ import { PaperWidth } from '@medical-inventory/shared-types';
 export default function SettingsPage() {
   const queryClient = useQueryClient();
   const { fetchBranding, updateLogoImmediately, logo: currentStoreLogo } = useBrandingStore();
-  const [activeTab, setActiveTab] = useState<'business' | 'branding' | 'receipt' | 'branches' | 'staff' | 'backup' | 'ai'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'branding' | 'receipt' | 'ai' | 'staff' | 'backup'>('business');
   const [savedBanner, setSavedBanner] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
@@ -508,8 +508,7 @@ export default function SettingsPage() {
               { id: 'branding', label: 'White-Label Branding', icon: Palette },
               { id: 'receipt', label: 'Thermal & Universal Print Setup', icon: Printer },
               { id: 'ai', label: 'AI Co-Pilot & Chatbot API', icon: Sparkles },
-              { id: 'branches', label: 'Store Branches', icon: Building2 },
-              { id: 'staff', label: 'Branch Staff & Roles', icon: Users },
+              { id: 'staff', label: 'Staff & User Roles', icon: Users },
               { id: 'backup', label: 'Database Backup & Google Drive', icon: Database },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -1145,261 +1144,23 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* TAB 4: Store Branches */}
-          {activeTab === 'branches' && (
-            <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm dark:shadow-xl p-6 space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-border-default">
-                <div>
-                  <h3 className="font-bold text-sm text-text-primary">Multi-Branch Locations &amp; Outlets</h3>
-                  <p className="text-xs text-text-muted mt-0.5">
-                    Manage multiple physical pharmacy locations, warehouses, sub-branches, and separate cash registers.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleOpenAddBranch}
-                  className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 transition cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Store Branch
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {branches.map((b: any) => (
-                  <div
-                    key={b.id}
-                    className="p-4 bg-surface-page border border-border-default rounded-2xl text-xs space-y-3 shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h4 className="font-bold text-text-primary text-sm">{b.name}</h4>
-                        <span className="font-mono bg-sky-100 dark:bg-sky-950 text-sky-700 dark:text-sky-300 px-2 py-0.5 rounded text-[10px] font-bold">
-                          {b.code}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditBranch(b)}
-                          title="Edit Branch"
-                          className="p-1.5 text-text-muted hover:text-sky-600 dark:hover:text-sky-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                        </button>
-                        {!b.isDefault && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteBranch(b)}
-                            title="Delete / Deactivate Branch"
-                            className="p-1.5 text-text-muted hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="text-text-muted space-y-0.5">
-                      <div className="flex items-center gap-1.5 py-1 text-accent-primary font-semibold">
-                        <Users className="w-3.5 h-3.5" />
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStaffBranchFilter(b.id);
-                            setActiveTab('staff');
-                          }}
-                          className="hover:underline cursor-pointer"
-                        >
-                          Manage Staff &amp; Cashiers →
-                        </button>
-                      </div>
-                      <p>{b.address || 'No address configured'}, {b.city || ''}</p>
-                      <p>Phone: {b.phone || 'N/A'}</p>
-                      {b.email && <p>Email: {b.email}</p>}
-                    </div>
-
-                    <div className="pt-2 border-t border-border-default flex items-center justify-between text-[10px]">
-                      <span className={b.isActive ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400 font-medium'}>
-                        {b.isActive ? '● Active' : '○ Inactive'}
-                      </span>
-                      {b.isDefault && (
-                        <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 rounded-full font-bold">
-                          Primary Default
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Branch Modal */}
-              {branchModalOpen && (
-                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-                  <div className="bg-surface-base rounded-2xl shadow-2xl border border-border-default max-w-md w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh]">
-                    <div className="flex items-center justify-between pb-3 border-b border-border-default">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-5 h-5 text-accent-primary" />
-                        <h3 className="font-bold text-sm text-text-primary">
-                          {editingBranch ? 'Edit Store Branch' : 'Add New Store Branch'}
-                        </h3>
-                      </div>
-                      <button onClick={() => setBranchModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        saveBranchMutation.mutate(branchForm);
-                      }}
-                      className="space-y-3"
-                    >
-                      <div>
-                        <label className="block font-semibold text-text-secondary mb-1">Branch Name *</label>
-                        <input
-                          required
-                          type="text"
-                          value={branchForm.name}
-                          onChange={(e) => setBranchForm({ ...branchForm, name: e.target.value })}
-                          placeholder="e.g. Main Dispensary / South Branch"
-                          className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block font-semibold text-text-secondary mb-1">Branch Code *</label>
-                          <input
-                            required
-                            type="text"
-                            value={branchForm.code}
-                            disabled={Boolean(editingBranch)}
-                            onChange={(e) => setBranchForm({ ...branchForm, code: e.target.value.toUpperCase() })}
-                            placeholder="e.g. BR-01"
-                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary font-mono uppercase focus:outline-none focus:border-sky-500 disabled:opacity-60"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-text-secondary mb-1">Phone Number</label>
-                          <input
-                            type="tel"
-                            value={branchForm.phone}
-                            onChange={(e) => setBranchForm({ ...branchForm, phone: e.target.value })}
-                            placeholder="+91 98765 43210"
-                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary font-mono focus:outline-none focus:border-sky-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block font-semibold text-text-secondary mb-1">Email</label>
-                        <input
-                          type="email"
-                          value={branchForm.email}
-                          onChange={(e) => setBranchForm({ ...branchForm, email: e.target.value })}
-                          placeholder="branch@medcare.com"
-                          className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block font-semibold text-text-secondary mb-1">Address</label>
-                        <input
-                          type="text"
-                          value={branchForm.address}
-                          onChange={(e) => setBranchForm({ ...branchForm, address: e.target.value })}
-                          placeholder="Shop No. 4, Commercial Complex"
-                          className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2">
-                        <div>
-                          <label className="block font-semibold text-text-secondary mb-1">City</label>
-                          <input
-                            type="text"
-                            value={branchForm.city}
-                            onChange={(e) => setBranchForm({ ...branchForm, city: e.target.value })}
-                            placeholder="Bangalore"
-                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-semibold text-text-secondary mb-1">State</label>
-                          <input
-                            type="text"
-                            value={branchForm.state}
-                            onChange={(e) => setBranchForm({ ...branchForm, state: e.target.value })}
-                            placeholder="Karnataka"
-                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="pt-2 flex items-center justify-between border-t border-border-default">
-                        <label className="flex items-center gap-2 cursor-pointer text-text-primary">
-                          <input
-                            type="checkbox"
-                            checked={branchForm.isDefault}
-                            onChange={(e) => setBranchForm({ ...branchForm, isDefault: e.target.checked })}
-                            className="rounded text-sky-600"
-                          />
-                          <span>Primary Store</span>
-                        </label>
-
-                        <label className="flex items-center gap-2 cursor-pointer text-text-primary">
-                          <input
-                            type="checkbox"
-                            checked={branchForm.isActive}
-                            onChange={(e) => setBranchForm({ ...branchForm, isActive: e.target.checked })}
-                            className="rounded text-sky-600"
-                          />
-                          <span>Active Outlet</span>
-                        </label>
-                      </div>
-
-                      <div className="pt-3 flex justify-end gap-2 border-t border-border-default">
-                        <button
-                          type="button"
-                          onClick={() => setBranchModalOpen(false)}
-                          className="px-4 py-2 rounded-xl bg-surface-raised text-text-secondary hover:bg-surface-active"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          disabled={saveBranchMutation.isPending}
-                          className="px-5 py-2 rounded-xl bg-accent-primary hover:bg-accent-hover font-bold text-white shadow-lg transition"
-                        >
-                          {saveBranchMutation.isPending ? 'Saving...' : editingBranch ? 'Update Branch' : 'Save Branch'}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* TAB: Branch Staff & Roles */}
+          {/* TAB: Pharmacy Staff & Roles */}
           {activeTab === 'staff' && (
             <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm dark:shadow-xl p-6 space-y-5">
               <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border-default">
                 <div>
                   <h3 className="font-bold text-sm text-text-primary flex items-center gap-2">
                     <Users className="w-4 h-4 text-accent-primary" />
-                    Branch Staff, Cashiers &amp; Role Management
+                    Pharmacy Staff, Cashiers &amp; Role Management
                   </h3>
                   <p className="text-xs text-text-muted mt-0.5">
-                    Add and manage multiple billing cashiers, licensed pharmacists, store managers, and stock executives per branch.
+                    Add and manage billing cashiers, licensed pharmacists, store managers, and account executives for your medical store.
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  onClick={() => handleOpenAddStaff(staffBranchFilter)}
+                  onClick={() => handleOpenAddStaff(branches[0]?.id || '')}
                   className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 transition cursor-pointer"
                 >
                   <UserPlus className="w-4 h-4" />
@@ -1408,23 +1169,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Filters & Search */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-surface-page rounded-xl border border-border-default">
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter by Branch</label>
-                  <select
-                    value={staffBranchFilter}
-                    onChange={(e) => setStaffBranchFilter(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-surface-base border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-text-primary"
-                  >
-                    <option value="">All Branches</option>
-                    {branches.map((b: any) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name} ({b.code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-surface-page rounded-xl border border-border-default">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter by Role</label>
                   <select
@@ -1432,7 +1177,7 @@ export default function SettingsPage() {
                     onChange={(e) => setStaffRoleFilter(e.target.value)}
                     className="w-full px-3 py-1.5 bg-surface-base border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-text-primary"
                   >
-                    <option value="">All Roles</option>
+                    <option value="">All Roles (Show All Staff)</option>
                     {allRoles.map((r: any) => (
                       <option key={r.id} value={r.name}>
                         {r.name}
@@ -1521,14 +1266,6 @@ export default function SettingsPage() {
                           <div className="text-text-muted space-y-1 font-mono text-[11px]">
                             <p>✉ {user.email}</p>
                             <p>📱 {user.mobile || 'No Phone'}</p>
-                            <p className="font-sans text-[11px] text-slate-500">🏢 {userBranch}</p>
-                          </div>
-
-                          <div className="pt-2 border-t border-border-default flex items-center justify-between text-[10px]">
-                            <span className={user.isActive ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-slate-400'}>
-                              {user.isActive ? '● Active Login' : '○ Disabled'}
-                            </span>
-                            <span className="text-slate-400 font-mono text-[10px]">ID: {user.id.slice(0, 8)}...</span>
                           </div>
                         </div>
                       );
@@ -1536,15 +1273,15 @@ export default function SettingsPage() {
                 )}
               </div>
 
-              {/* Staff Add / Edit Modal */}
+              {/* Staff Modal */}
               {staffModalOpen && (
                 <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-                  <div className="bg-surface-base rounded-2xl shadow-2xl border border-border-default max-w-lg w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh]">
+                  <div className="bg-surface-base rounded-2xl shadow-2xl border border-border-default max-w-md w-full p-6 space-y-4 text-xs overflow-y-auto max-h-[90vh]">
                     <div className="flex items-center justify-between pb-3 border-b border-border-default">
                       <div className="flex items-center gap-2">
                         <Users className="w-5 h-5 text-accent-primary" />
                         <h3 className="font-bold text-sm text-text-primary">
-                          {editingStaff ? 'Edit Staff Member / Cashier' : 'Add New Staff Member / Cashier'}
+                          {editingStaff ? 'Edit Staff Member' : 'Add New Staff Member'}
                         </h3>
                       </div>
                       <button onClick={() => setStaffModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-white">
@@ -1555,11 +1292,15 @@ export default function SettingsPage() {
                     <form
                       onSubmit={(e) => {
                         e.preventDefault();
-                        saveStaffMutation.mutate(staffForm);
+                        const payload = {
+                          ...staffForm,
+                          branchId: staffForm.branchId || branches[0]?.id || '',
+                        };
+                        saveStaffMutation.mutate(payload);
                       }}
                       className="space-y-3"
                     >
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
                           <label className="block font-semibold text-text-secondary mb-1">First Name *</label>
                           <input
@@ -1567,7 +1308,7 @@ export default function SettingsPage() {
                             type="text"
                             value={staffForm.firstName}
                             onChange={(e) => setStaffForm({ ...staffForm, firstName: e.target.value })}
-                            placeholder="e.g. Amit"
+                            placeholder="e.g. Ramesh"
                             className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
                           />
                         </div>
@@ -1577,21 +1318,21 @@ export default function SettingsPage() {
                             type="text"
                             value={staffForm.lastName}
                             onChange={(e) => setStaffForm({ ...staffForm, lastName: e.target.value })}
-                            placeholder="e.g. Kumar (Cashier)"
+                            placeholder="e.g. Kumar"
                             className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
                           />
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block font-semibold text-text-secondary mb-1">Email / User ID *</label>
+                          <label className="block font-semibold text-text-secondary mb-1">Email Address *</label>
                           <input
                             required
                             type="email"
                             value={staffForm.email}
                             onChange={(e) => setStaffForm({ ...staffForm, email: e.target.value })}
-                            placeholder="cashier2@medcare.com"
+                            placeholder="ramesh@pharmacy.com"
                             className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
                           />
                         </div>
@@ -1601,7 +1342,7 @@ export default function SettingsPage() {
                             type="tel"
                             value={staffForm.mobile}
                             onChange={(e) => setStaffForm({ ...staffForm, mobile: e.target.value })}
-                            placeholder="9876543210"
+                            placeholder="+91 98765 43210"
                             className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
                           />
                         </div>
@@ -1621,40 +1362,21 @@ export default function SettingsPage() {
                         />
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block font-semibold text-text-secondary mb-1">Assigned Role *</label>
-                          <select
-                            required
-                            value={staffForm.roleId}
-                            onChange={(e) => setStaffForm({ ...staffForm, roleId: e.target.value })}
-                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-bold"
-                          >
-                            <option value="">Select Role...</option>
-                            {allRoles.map((r: any) => (
-                              <option key={r.id} value={r.id}>
-                                {r.name} - {r.description?.slice(0, 30)}...
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold text-text-secondary mb-1">Assigned Store Branch *</label>
-                          <select
-                            required
-                            value={staffForm.branchId}
-                            onChange={(e) => setStaffForm({ ...staffForm, branchId: e.target.value })}
-                            className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                          >
-                            <option value="">Select Branch...</option>
-                            {branches.map((b: any) => (
-                              <option key={b.id} value={b.id}>
-                                {b.name} ({b.code})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                      <div>
+                        <label className="block font-semibold text-text-secondary mb-1">Assigned Role *</label>
+                        <select
+                          required
+                          value={staffForm.roleId}
+                          onChange={(e) => setStaffForm({ ...staffForm, roleId: e.target.value })}
+                          className="w-full px-3 py-2 bg-surface-page border border-border-strong rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-bold"
+                        >
+                          <option value="">Select Role...</option>
+                          {allRoles.map((r: any) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name} - {r.description?.slice(0, 35)}...
+                            </option>
+                          ))}
+                        </select>
                       </div>
 
                       <div className="pt-2 flex items-center justify-between border-t border-border-default">

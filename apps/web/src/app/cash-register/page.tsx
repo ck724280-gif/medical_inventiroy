@@ -224,9 +224,9 @@ export default function CashRegisterPage() {
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-border-default">
-                    <span className="text-text-muted">Branch</span>
-                    <span className="font-medium text-text-primary">
-                      {shift.branch?.name} ({shift.branch?.code})
+                    <span className="text-text-muted">Register Status</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                      Dispensary Counter (Active)
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-border-default">

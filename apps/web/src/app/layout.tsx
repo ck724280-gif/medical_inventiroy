@@ -6,7 +6,7 @@ import { AiCopilotDrawer } from '../components/ai-copilot-drawer';
 
 export const metadata: Metadata = {
   title: 'MedCare Pharmacy ERP & POS',
-  description: 'Enterprise Medical Inventory, Batch Expiry, FEFO, POS Billing, and Multi-Branch Management',
+  description: 'Enterprise Medical Inventory, Batch Expiry, FEFO, and Fast POS Billing System',
 };
 
 export default function RootLayout({

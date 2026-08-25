@@ -13,6 +13,7 @@ import {
   Search,
 } from 'lucide-react';
 import { useAuthStore } from '../stores/auth-store';
+import { useBrandingStore } from '../stores/branding-store';
 import { useUiStore } from '../stores/ui-store';
 import { useThemeStore } from '../stores/theme-store';
 import { useQuery } from '@tanstack/react-query';
@@ -24,6 +25,7 @@ import { Badge } from './ui/badge';
 export function Header() {
   const router = useRouter();
   const { user, selectedBranchId, setSelectedBranchId, logout } = useAuthStore();
+  const { name: storeName } = useBrandingStore();
   const { toggleMobileSidebar } = useUiStore();
   const { theme, toggleTheme } = useThemeStore();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -38,8 +40,6 @@ export function Header() {
     refetchInterval: 60000,
   });
 
-  const branches = Array.isArray(user?.branches) ? user.branches : [];
-  const activeBranch = branches.find((b) => b.id === selectedBranchId) || branches[0];
   const unreadCount = notificationsData?.unreadCount ?? 0;
 
   const handleLogout = async () => {
@@ -65,7 +65,7 @@ export function Header() {
     <>
       <GlobalCommandPalette />
       <header className="h-16 px-4 sm:px-6 flex items-center justify-between gap-3 sticky top-0 z-20 select-none bg-surface-base border-b border-border-default transition-colors duration-200">
-        {/* Left: Mobile Menu Button & Branch Selector */}
+        {/* Left: Mobile Menu Button & Store Badge */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {/* Mobile Hamburger Toggle */}
           <button
@@ -77,27 +77,15 @@ export function Header() {
             <Menu className="w-5 h-5" />
           </button>
 
-          {/* Branch Selector */}
+          {/* Store Badge */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs bg-surface-raised border border-border-default text-text-primary shadow-sm">
             <Building2 className="w-4 h-4 text-accent-primary flex-shrink-0" />
-            <span className="text-text-muted font-medium hidden sm:inline">Branch:</span>
-            {branches.length > 1 ? (
-              <select
-                value={selectedBranchId || ''}
-                onChange={(e) => setSelectedBranchId(e.target.value)}
-                className="bg-transparent font-semibold text-text-primary focus:outline-none cursor-pointer text-xs"
-              >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id} className="bg-surface-base text-text-primary">
-                    {b.name} ({b.code})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="font-semibold text-text-primary truncate max-w-[140px] sm:max-w-none">
-                {activeBranch ? `${activeBranch.name} (${activeBranch.code})` : 'Main Branch'}
-              </span>
-            )}
+            <span className="font-semibold text-text-primary truncate max-w-[160px] sm:max-w-none">
+              {storeName || 'Medical Store'}
+            </span>
+            <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300">
+              ● Online
+            </span>
           </div>
         </div>
 
