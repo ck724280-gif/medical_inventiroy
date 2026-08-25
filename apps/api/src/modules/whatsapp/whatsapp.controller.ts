@@ -12,6 +12,7 @@ import {
 import { WhatsAppService } from './whatsapp.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { CurrentBranch } from '../../common/decorators/current-branch.decorator';
 
 @Controller('whatsapp')
 @UseGuards(JwtAuthGuard)
@@ -19,21 +20,21 @@ export class WhatsAppController {
   constructor(private readonly whatsappService: WhatsAppService) {}
 
   @Get('status')
-  async getStatus(@Query('branchId') branchId: string, @CurrentUser() user: any) {
+  async getStatus(@CurrentBranch() branchId: string, @CurrentUser() user: any) {
     const activeBranchId = branchId || user?.branchId;
     return this.whatsappService.getSessionStatus(activeBranchId);
   }
 
   @Post('connect')
   @HttpCode(HttpStatus.OK)
-  async connectSession(@Body('branchId') branchId: string, @CurrentUser() user: any) {
+  async connectSession(@CurrentBranch() branchId: string, @CurrentUser() user: any) {
     const activeBranchId = branchId || user?.branchId;
     return this.whatsappService.connectSession(activeBranchId);
   }
 
   @Post('disconnect')
   @HttpCode(HttpStatus.OK)
-  async disconnectSession(@Body('branchId') branchId: string, @CurrentUser() user: any) {
+  async disconnectSession(@CurrentBranch() branchId: string, @CurrentUser() user: any) {
     const activeBranchId = branchId || user?.branchId;
     return this.whatsappService.disconnectSession(activeBranchId);
   }
@@ -42,9 +43,10 @@ export class WhatsAppController {
   @HttpCode(HttpStatus.OK)
   async sendMessage(
     @Body() body: { branchId?: string; recipientPhone: string; recipientName?: string; content: string; messageType?: any; customerId?: string },
+    @CurrentBranch() headerBranchId: string,
     @CurrentUser() user: any,
   ) {
-    const branchId = body.branchId || user?.branchId;
+    const branchId = body.branchId || headerBranchId || user?.branchId;
     return this.whatsappService.sendMessage({
       branchId,
       recipientPhone: body.recipientPhone,

@@ -139,7 +139,8 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   async initSocket(branchId: string, forceFresh = false): Promise<WASocket> {
     if (!branchId) throw new BadRequestException('Branch ID is required');
 
-    const branchAuthDir = path.join(this.sessionDir, branchId);
+    const sanitizedBranchId = branchId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const branchAuthDir = path.resolve(this.sessionDir, sanitizedBranchId);
 
     if (forceFresh) {
       if (this.sockets.has(branchId)) {
@@ -166,9 +167,10 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       auth: state,
       printQRInTerminal: false,
       logger: pino({ level: 'silent' }),
-      browser: Browsers.ubuntu('Chrome'),
+      browser: ['MedCare Pharmacy ERP', 'Chrome', '120.0.0'],
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
+      syncFullHistory: false,
     });
 
     this.sockets.set(branchId, sock);
@@ -275,8 +277,8 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     });
 
     // Poll briefly for fast QR emission
-    for (let i = 0; i < 8; i++) {
-      await new Promise((r) => setTimeout(r, 400));
+    for (let i = 0; i < 4; i++) {
+      await new Promise((r) => setTimeout(r, 250));
       try {
         const s = await this.prisma.whatsAppSession.findFirst({
           where: { branchId: activeBranchId },
@@ -305,7 +307,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       this.sockets.delete(branchId);
     }
 
-    const branchAuthDir = path.join(this.sessionDir, branchId);
+    const branchAuthDir = path.resolve(this.sessionDir, branchId.replace(/[^a-zA-Z0-9_-]/g, '_'));
     try {
       fs.rmSync(branchAuthDir, { recursive: true, force: true });
     } catch (e) {}
