@@ -33,13 +33,23 @@ import { Skeleton } from '../../../components/ui/skeleton';
 import { apiClient } from '../../../lib/api-client';
 import { formatDate } from '@medical-inventory/shared-utils';
 
+import { useAuthStore } from '../../../stores/auth-store';
+
 export default function SuperAdminStaffPage() {
   const queryClient = useQueryClient();
+  const { selectedBranchId } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedBranchFilter, setSelectedBranchFilter] = useState('');
+  const [selectedBranchFilter, setSelectedBranchFilter] = useState(selectedBranchId || '');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('');
   const [transferModalUser, setTransferModalUser] = useState<any>(null);
   const [targetBranchId, setTargetBranchId] = useState('');
+
+  // Automatically update staff filter when active branch in header changes
+  React.useEffect(() => {
+    if (selectedBranchId) {
+      setSelectedBranchFilter(selectedBranchId);
+    }
+  }, [selectedBranchId]);
   
   // State for show/hide passwords and copied feedback
   const [showPasswordMap, setShowPasswordMap] = useState<Record<string, boolean>>({});

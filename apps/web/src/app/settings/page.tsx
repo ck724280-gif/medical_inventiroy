@@ -42,6 +42,7 @@ import { apiClient } from '../../lib/api-client';
 import { useBrandingStore } from '../../stores/branding-store';
 import { PrintStudioCustomizer } from '../../components/print-studio-customizer';
 import { PaperWidth } from '@medical-inventory/shared-types';
+import { useAuthStore } from '../../stores/auth-store';
 
 const INDIAN_STATES = [
   'Jharkhand', 'Bihar', 'West Bengal', 'Uttar Pradesh', 'Maharashtra',
@@ -55,9 +56,10 @@ const INDIAN_STATES = [
 ];
 
 export default function SettingsPage() {
+  const { selectedBranchId } = useAuthStore();
   const queryClient = useQueryClient();
   const { fetchBranding, updateLogoImmediately, logo: currentStoreLogo } = useBrandingStore();
-  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'branding' | 'receipt' | 'staff' | 'ai' | 'backup'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'branding' | 'receipt' | 'staff' | 'ai'>('business');
   const [savedBanner, setSavedBanner] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
@@ -69,9 +71,7 @@ export default function SettingsPage() {
     aiSystemPrompt: '',
   });
 
-  const [gdriveModal, setGdriveModal] = useState(false);
-  const [gdriveFolderInput, setGdriveFolderInput] = useState('');
-  const [gdriveAutoSync, setGdriveAutoSync] = useState(false);
+  
   const [branchModalOpen, setBranchModalOpen] = useState(false);
   const [editingBranch, setEditingBranch] = useState<any | null>(null);
   const [branchForm, setBranchForm] = useState({
@@ -91,7 +91,13 @@ export default function SettingsPage() {
   const [staffModalOpen, setStaffModalOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<any | null>(null);
   const [staffSearch, setStaffSearch] = useState('');
-  const [staffBranchFilter, setStaffBranchFilter] = useState('');
+  const [staffBranchFilter, setStaffBranchFilter] = useState(selectedBranchId || '');
+
+  React.useEffect(() => {
+    if (selectedBranchId) {
+      setStaffBranchFilter(selectedBranchId);
+    }
+  }, [selectedBranchId]);
   const [staffRoleFilter, setStaffRoleFilter] = useState('');
   const [staffForm, setStaffForm] = useState({
     firstName: '',
@@ -141,37 +147,7 @@ export default function SettingsPage() {
     },
   });
 
-  const { data: backupsData, isLoading: isBackupsLoading } = useQuery({
-    queryKey: ['backup-history'],
-    queryFn: async () => {
-      const res = await apiClient.get('/backup/history');
-      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
-    },
-  });
-
-  const { data: backupStats } = useQuery({
-    queryKey: ['backup-stats'],
-    queryFn: async () => {
-      const res = await apiClient.get('/backup/stats');
-      return res.data?.data || res.data || {};
-    },
-  });
-
-  const { data: gdriveConfigData } = useQuery({
-    queryKey: ['gdrive-config'],
-    queryFn: async () => {
-      const res = await apiClient.get('/backup/gdrive-config');
-      const cfg = res.data?.data || res.data || {};
-      if (cfg.folderId) setGdriveFolderInput(cfg.folderId);
-      if (cfg.autoSyncDaily !== undefined) setGdriveAutoSync(cfg.autoSyncDaily);
-      if (cfg.retentionDays !== undefined) setRetentionDays(cfg.retentionDays);
-      return cfg;
-    },
-  });
-
   const branches = Array.isArray(branchesData) ? branchesData : [];
-  const backups = Array.isArray(backupsData) ? backupsData : [];
-  const gdrive = gdriveConfigData || {};
 
   // Queries for Users and Roles
   const { data: usersData, isLoading: isUsersLoading } = useQuery({
@@ -446,62 +422,6 @@ export default function SettingsPage() {
     },
   });
 
-  const createBackupMutation = useMutation({
-    mutationFn: async () => apiClient.post('/backup/create'),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['backup-history'] });
-      queryClient.invalidateQueries({ queryKey: ['backup-stats'] });
-      setSavedBanner(true);
-      setTimeout(() => setSavedBanner(false), 3000);
-    },
-  });
-
-  const deleteBackupMutation = useMutation({
-    mutationFn: async (id: string) => apiClient.delete(`/backup/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['backup-history'] });
-    },
-  });
-
-  const saveGdriveConfigMutation = useMutation({
-    mutationFn: async (payload: any) => apiClient.post('/backup/gdrive-config', payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['gdrive-config'] });
-      setGdriveModal(false);
-      setSavedBanner(true);
-      setTimeout(() => setSavedBanner(false), 3000);
-    },
-  });
-
-  const uploadGdriveMutation = useMutation({
-    mutationFn: async (id: string) => apiClient.post(`/backup/upload-gdrive/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['backup-history'] });
-      queryClient.invalidateQueries({ queryKey: ['gdrive-config'] });
-      alert('Snapshot uploaded to Google Drive folder successfully!');
-    },
-    onError: () => {
-      alert('Google Drive sync failed. Please check folder permissions.');
-    },
-  });
-
-  const handleDownloadBackup = async (id: string, filename?: string) => {
-    try {
-      const res = await apiClient.get(`/backup/download/${id}`, { responseType: 'blob' });
-      const blob = new Blob([res.data], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename || `medcare-backup-${id}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
-      alert('Failed to download backup snapshot from server.');
-    }
-  };
-
   return (
     <div className="flex h-screen bg-surface-page text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
       <Sidebar />
@@ -514,7 +434,7 @@ export default function SettingsPage() {
             <div>
               <h2 className="text-xl font-bold text-text-primary tracking-tight">System &amp; Store Settings</h2>
               <p className="text-xs text-text-muted mt-0.5">
-                Configure legal pharmacy licenses, white-label branding, thermal printer formats, AI Co-Pilot API keys, and cloud database backups.
+                Configure legal pharmacy licenses, store branches, white-label branding, thermal printer formats, staff roles, and AI Co-Pilot API keys.
               </p>
             </div>
 
@@ -535,7 +455,6 @@ export default function SettingsPage() {
               { id: 'receipt', label: 'Thermal & Universal Print Setup', icon: Printer },
               { id: 'staff', label: 'Staff & User Roles', icon: Users },
               { id: 'ai', label: 'AI Co-Pilot & Chatbot API', icon: Sparkles },
-              { id: 'backup', label: 'Database Backup & Google Drive', icon: Database },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1656,306 +1575,7 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {/* TAB 5: Database Backup & Google Drive */}
-          {activeTab === 'backup' && (
-            <div className="space-y-6 max-w-4xl">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-surface-base p-5 rounded-2xl border border-border-default shadow-sm dark:shadow-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-muted font-medium">Server Storage</span>
-                    <Server className="w-5 h-5 text-accent-primary" />
-                  </div>
-                  <h4 className="text-xl font-bold text-text-primary font-mono">{backups.length} Snapshots</h4>
-                  <p className="text-[11px] text-text-muted">Point-in-time database records ready on server.</p>
-                </div>
-
-                <div className="bg-surface-base p-5 rounded-2xl border border-border-default shadow-sm dark:shadow-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-muted font-medium">Google Drive Cloud</span>
-                    <Cloud className={`w-5 h-5 ${gdrive.connected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
-                  </div>
-                  <h4 className="text-xl font-bold text-text-primary flex items-center gap-1.5 font-mono">
-                    {gdrive.connected ? 'Connected' : 'Not Linked'}
-                  </h4>
-                  <p className="text-[11px] text-text-muted">
-                    {gdrive.connected ? `Folder: ${gdrive.folderName}` : 'Connect Google Drive for offsite cloud sync.'}
-                  </p>
-                </div>
-
-                <div className="bg-surface-base p-5 rounded-2xl border border-border-default shadow-sm dark:shadow-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-text-muted font-medium">Database Volume</span>
-                    <Database className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <h4 className="text-xl font-bold text-text-primary font-mono">
-                    {backupStats.sales || 0} Bills • {backupStats.medicines || 0} Items
-                  </h4>
-                  <p className="text-[11px] text-text-muted">15 tables secured across all branches.</p>
-                </div>
-              </div>
-
-              <div className="bg-surface-base p-6 rounded-2xl border border-border-default shadow-sm dark:shadow-xl space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-border-default">
-                  <div>
-                    <h3 className="font-bold text-sm text-text-primary">Create Immediate Database Snapshot &amp; Retention Policy</h3>
-                    <p className="text-xs text-text-muted mt-0.5">
-                      Generates a verified snapshot including medicines, batches, sales, ledger entries, and tax receipts.
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2.5">
-                    <button
-                      onClick={() => setGdriveModal(true)}
-                      className="px-3.5 py-2 bg-surface-raised hover:bg-surface-active text-text-primary rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 transition cursor-pointer"
-                    >
-                      <Cloud className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                      Google Drive Setup
-                    </button>
-
-                    <button
-                      onClick={() => createBackupMutation.mutate()}
-                      disabled={createBackupMutation.isPending}
-                      className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-sky-600/20 transition cursor-pointer disabled:opacity-50"
-                    >
-                      <Database className="w-4 h-4" />
-                      {createBackupMutation.isPending ? 'Generating Backup...' : 'Create Backup Snapshot'}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3 pt-2">
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs font-semibold text-text-secondary">
-                      Backup Retention Period:
-                    </label>
-                    <select
-                      value={retentionDays}
-                      onChange={(e) => {
-                        const val = Number(e.target.value);
-                        setRetentionDays(val);
-                        saveGdriveConfigMutation.mutate({ retentionDays: val });
-                      }}
-                      className="px-3 py-1.5 bg-surface-page border border-border-strong rounded-xl text-xs font-semibold text-text-primary focus:outline-none focus:border-sky-500"
-                    >
-                      <option value={1}>1 Day (Auto-delete older backups on next upload)</option>
-                      <option value={2}>2 Days</option>
-                      <option value={3}>3 Days</option>
-                      <option value={4}>4 Days</option>
-                      <option value={5}>5 Days</option>
-                      <option value={6}>6 Days</option>
-                      <option value={7}>7 Days (Maximum 1 Week)</option>
-                    </select>
-                  </div>
-                  <span className="text-[11px] text-text-muted">
-                    • Expired snapshots older than {retentionDays} {retentionDays === 1 ? 'day' : 'days'} are automatically purged to prevent server disk overflow.
-                  </span>
-                </div>
-
-                <div className={`p-4 rounded-xl border flex items-center justify-between text-xs ${
-                  gdrive.connected
-                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
-                    : 'bg-slate-50 dark:bg-slate-900/60 border-border-default text-text-secondary'
-                }`}>
-                  <div className="flex items-center gap-2.5">
-                    <FolderSync className={`w-5 h-5 ${gdrive.connected ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`} />
-                    <div>
-                      <p className="font-bold">
-                        {gdrive.connected ? 'Google Drive Cloud Sync Active' : 'Google Drive Disconnected'}
-                      </p>
-                      <p className="text-[11px] opacity-80">
-                        {gdrive.connected
-                          ? `Destination: Google Drive / ${gdrive.folderName} (Auto-sync: ${gdrive.autoSyncDaily ? 'Daily ON' : 'Manual'})`
-                          : 'Connect your Google Drive folder to auto-backup data without manual downloads.'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {gdrive.connected && (
-                    <span className="px-2.5 py-1 rounded-lg bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200 font-bold text-[10px]">
-                      🟢 Cloud Ready
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <label className="font-bold text-xs text-text-primary">
-                      Saved Backup Snapshots ({backups.length})
-                    </label>
-                    <button
-                      onClick={() => queryClient.invalidateQueries({ queryKey: ['backup-history'] })}
-                      className="text-[11px] text-accent-primary hover:underline flex items-center gap-1"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Refresh
-                    </button>
-                  </div>
-
-                  {isBackupsLoading ? (
-                    <p className="text-xs text-slate-400 py-6 text-center">Loading backup archives...</p>
-                  ) : backups.length === 0 ? (
-                    <div className="p-8 text-center bg-surface-page rounded-xl border border-border-default space-y-2">
-                      <Database className="w-8 h-8 text-slate-400 mx-auto stroke-1" />
-                      <p className="text-xs font-semibold text-text-secondary">No backup snapshots generated yet.</p>
-                      <p className="text-[11px] text-text-muted">Click "Create Backup Snapshot" to create your first full database backup.</p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto rounded-xl border border-border-default">
-                      <table className="w-full text-left text-xs min-w-[650px]">
-                        <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase">
-                          <tr>
-                            <th className="py-2.5 px-3">Snapshot Name</th>
-                            <th className="py-2.5 px-3">Size</th>
-                            <th className="py-2.5 px-3">Timestamp</th>
-                            <th className="py-2.5 px-3 text-center">Drive Cloud</th>
-                            <th className="py-2.5 px-3 text-right">Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border-default bg-surface-base">
-                          {backups.map((b: any) => (
-                            <tr key={b.id} className="hover:bg-surface-raised">
-                              <td className="py-2.5 px-3">
-                                <div className="font-mono font-bold text-text-primary flex items-center gap-1.5">
-                                  <Database className="w-3.5 h-3.5 text-accent-primary" />
-                                  <span>{b.filename}</span>
-                                </div>
-                                <span className="text-[10px] text-slate-400 font-mono">ID: {b.id}</span>
-                              </td>
-                              <td className="py-2.5 px-3 font-mono font-semibold text-text-secondary">
-                                {(b.sizeBytes / 1024).toFixed(1)} KB
-                              </td>
-                              <td className="py-2.5 px-3 text-text-muted font-mono text-[11px]">
-                                {new Date(b.createdAt).toLocaleString()}
-                              </td>
-                              <td className="py-2.5 px-3 text-center">
-                                {b.gdriveStatus === 'SYNCED' ? (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 inline-flex items-center gap-1">
-                                    <Cloud className="w-3 h-3" /> Synced
-                                  </span>
-                                ) : (
-                                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-surface-raised text-text-muted border border-slate-200 dark:border-slate-700">
-                                    Local Only
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-2.5 px-3 text-right">
-                                <div className="flex items-center justify-end gap-1.5">
-                                  <button
-                                    onClick={() => handleDownloadBackup(b.id, b.filename)}
-                                    title="Download JSON Snapshot to PC"
-                                    className="p-1.5 bg-sky-50 dark:bg-slate-800 text-accent-primary hover:bg-sky-100 dark:hover:bg-slate-700 rounded-lg transition"
-                                  >
-                                    <Download className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  <button
-                                    onClick={() => uploadGdriveMutation.mutate(b.id)}
-                                    disabled={uploadGdriveMutation.isPending}
-                                    title="Upload directly to Google Drive"
-                                    className="p-1.5 bg-emerald-50 dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-slate-700 rounded-lg transition"
-                                  >
-                                    <CloudUpload className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  <button
-                                    onClick={() => {
-                                      if (confirm(`Delete backup snapshot "${b.filename}"?`)) {
-                                        deleteBackupMutation.mutate(b.id);
-                                      }
-                                    }}
-                                    title="Delete from Server"
-                                    className="p-1.5 bg-red-50 dark:bg-slate-800 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-slate-700 rounded-lg transition"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Google Drive Configuration Modal */}
-              {gdriveModal && (
-                <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-                  <div className="bg-surface-base rounded-2xl shadow-2xl border border-border-default max-w-md w-full p-6 space-y-4 text-xs">
-                    <div className="flex items-center justify-between pb-3 border-b border-border-default">
-                      <div className="flex items-center gap-2">
-                        <Cloud className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                        <h3 className="font-bold text-sm text-text-primary">Google Drive Integration</h3>
-                      </div>
-                      <button onClick={() => setGdriveModal(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                        ✕
-                      </button>
-                    </div>
-
-                    <p className="text-text-muted">
-                      Configure your Google Drive folder where automated database snapshots will be securely mirrored.
-                    </p>
-
-                    <div className="space-y-3">
-                      <div>
-                        <label className="font-semibold text-text-secondary block mb-1">
-                          Google Drive Folder Name / ID
-                        </label>
-                        <input
-                          type="text"
-                          value={gdriveFolderInput}
-                          onChange={(e) => setGdriveFolderInput(e.target.value)}
-                          placeholder="e.g. MedCare_Pharmacy_Backups"
-                          className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono text-xs"
-                        />
-                      </div>
-
-                      <div className="p-3 bg-surface-page rounded-xl border border-border-default space-y-2">
-                        <label className="flex items-center gap-2 cursor-pointer font-semibold text-text-primary">
-                          <input
-                            type="checkbox"
-                            checked={gdriveAutoSync}
-                            onChange={(e) => setGdriveAutoSync(e.target.checked)}
-                            className="rounded text-sky-600"
-                          />
-                          <span>Auto-Sync to Google Drive on every backup</span>
-                        </label>
-                        <p className="text-[10px] text-text-muted pl-6">
-                          Whenever a new backup is created, it will automatically sync to your cloud folder.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="pt-3 border-t border-border-default flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setGdriveModal(false)}
-                        className="px-3 py-2 text-text-muted hover:bg-surface-raised rounded-xl"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          saveGdriveConfigMutation.mutate({
-                            folderId: gdriveFolderInput || 'MedCare_Backups_Folder',
-                            folderName: gdriveFolderInput || 'MedCare_Pharmacy_Backups',
-                            autoSyncDaily: gdriveAutoSync,
-                            connected: true,
-                          })
-                        }
-                        disabled={saveGdriveConfigMutation.isPending}
-                        className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-semibold shadow transition cursor-pointer"
-                      >
-                        Connect &amp; Save Drive
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </main>
+          </main>
       </div>
     </div>
   );
