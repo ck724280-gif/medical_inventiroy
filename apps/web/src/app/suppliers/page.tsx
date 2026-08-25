@@ -8,6 +8,8 @@ import {
   Search,
   Edit2,
   Trash2,
+  MessageCircle,
+  Send,
   Lock,
   ShieldCheck,
   X,
@@ -29,6 +31,28 @@ import { formatCurrency } from '@medical-inventory/shared-utils';
 import { extractDataArray } from '../../lib/utils';
 
 export default function SuppliersPage() {
+  const { selectedBranchId } = useAuthStore();
+  const [whatsAppModalSupplier, setWhatsAppModalSupplier] = useState<any | null>(null);
+  const [whatsAppMsgText, setWhatsAppMsgText] = useState('');
+
+  const sendSupplierMsgMutation = useMutation({
+    mutationFn: async ({ phone, name, content }: { phone: string; name: string; content: string }) =>
+      apiClient.post('/whatsapp/send-message', {
+        branchId: selectedBranchId || undefined,
+        recipientPhone: phone,
+        recipientName: name,
+        content,
+      }),
+    onSuccess: () => {
+      alert('WhatsApp message dispatched to supplier successfully!');
+      setWhatsAppModalSupplier(null);
+      setWhatsAppMsgText('');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to send WhatsApp message. Please check WhatsApp pairing in Settings.');
+    },
+  });
+
   const queryClient = useQueryClient();
   const { isSuperAdmin, hasPermission } = useAuthStore();
   const canManage = isSuperAdmin() || hasPermission('supplier.create') || hasPermission('supplier.edit');
@@ -336,6 +360,109 @@ export default function SuppliersPage() {
               </table>
             </div>
           </div>
+        
+        {/* Supplier WhatsApp Messaging Modal */}
+        {whatsAppModalSupplier && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-surface-base border border-emerald-500/30 rounded-2xl max-w-md w-full p-6 space-y-4 text-xs shadow-2xl text-text-primary animate-scale-in">
+              <div className="flex items-center justify-between pb-3 border-b border-border-default">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5 text-emerald-500" />
+                  <h3 className="font-bold text-sm text-text-primary">
+                    WhatsApp Distributor: {whatsAppModalSupplier.name}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setWhatsAppModalSupplier(null)}
+                  className="text-text-muted hover:text-text-primary font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-surface-raised border border-border-default space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Supplier Mobile:</span>
+                  <span className="font-mono font-bold text-text-primary">{whatsAppModalSupplier.phone || 'Not provided'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Outstanding Payable:</span>
+                  <span className="font-mono font-bold text-amber-500">₹{Number(whatsAppModalSupplier.currentBalance || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Quick Template Chips */}
+              <div className="space-y-1.5">
+                <label className="font-semibold text-text-secondary block">Quick Template:</label>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWhatsAppMsgText(`Namaste ${whatsAppModalSupplier.name} ji, please send the latest price list and medicine stock availability for our pharmacy.`)
+                    }
+                    className="px-2.5 py-1 bg-surface-page hover:bg-surface-raised border border-border-default rounded-lg text-[11px] text-text-secondary"
+                  >
+                    📦 Stock & Price Inquiry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setWhatsAppMsgText(`Namaste ${whatsAppModalSupplier.name} ji, we have processed the payment. Please confirm receipt and share the ledger statement.`)
+                    }
+                    className="px-2.5 py-1 bg-surface-page hover:bg-surface-raised border border-border-default rounded-lg text-[11px] text-text-secondary"
+                  >
+                    💳 Payment Confirmation
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-text-secondary block">Message Content *</label>
+                <textarea
+                  rows={4}
+                  value={whatsAppMsgText}
+                  onChange={(e) => setWhatsAppMsgText(e.target.value)}
+                  placeholder="Type your WhatsApp message to supplier..."
+                  className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-xs text-text-primary focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-border-default flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWhatsAppModalSupplier(null)}
+                  className="px-3.5 py-2 text-text-muted hover:bg-surface-raised rounded-xl font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!whatsAppModalSupplier.phone) {
+                      alert('Supplier phone number is missing.');
+                      return;
+                    }
+                    if (!whatsAppMsgText.trim()) {
+                      alert('Message text cannot be empty.');
+                      return;
+                    }
+                    sendSupplierMsgMutation.mutate({
+                      phone: whatsAppModalSupplier.phone,
+                      name: whatsAppModalSupplier.name,
+                      content: whatsAppMsgText.trim(),
+                    });
+                  }}
+                  disabled={sendSupplierMsgMutation.isPending}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {sendSupplierMsgMutation.isPending ? 'Sending...' : 'Send WhatsApp Message'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         </main>
 
         {/* Modal: Create / Edit Supplier */}

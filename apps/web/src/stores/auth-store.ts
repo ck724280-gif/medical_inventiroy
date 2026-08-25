@@ -21,6 +21,7 @@ interface AuthState {
   setSelectedBranchId: (branchId: string) => void;
   initialize: () => void;
   hasPermission: (permission: string) => boolean;
+  isAdmin: () => boolean;
   isSuperAdmin: () => boolean;
 }
 
@@ -96,19 +97,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ selectedBranchId: branchId });
   },
 
-  hasPermission: (permission: string) => {
+  isAdmin: () => {
     const { user } = get();
     if (!user) return false;
     const roles = (user.roles || []).map((r) => r.toUpperCase());
-    if (
+    return (
       roles.includes('OWNER') ||
       roles.includes('SUPER_ADMIN') ||
       roles.includes('SUPERADMIN') ||
-      roles.includes('SUPER ADMIN')
-    ) {
-      return true;
-    }
-    return user.permissions?.includes(permission) || false;
+      roles.includes('SUPER ADMIN') ||
+      roles.includes('ADMIN') ||
+      roles.includes('BRANCH_ADMIN') ||
+      roles.includes('BRANCH_MANAGER') ||
+      roles.includes('MANAGER')
+    );
   },
 
   isSuperAdmin: () => {
@@ -121,5 +123,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       roles.includes('SUPERADMIN') ||
       roles.includes('SUPER ADMIN')
     );
+  },
+
+  hasPermission: (permission: string) => {
+    const { user, isSuperAdmin, isAdmin } = get();
+    if (!user) return false;
+
+    // Super Admin has unrestricted access to everything including edit & delete
+    if (isSuperAdmin()) {
+      return true;
+    }
+
+    // Admin has access to all tabs, reading all data, execution, new creation & AI, but CANNOT edit or delete master records
+    if (isAdmin()) {
+      if (
+        permission.includes('.delete') ||
+        permission.includes('.edit') ||
+        permission === 'branch.delete' ||
+        permission === 'user.delete' ||
+        permission === 'user.manage' ||
+        permission === 'sale.delete' ||
+        permission === 'purchase.delete'
+      ) {
+        return false;
+      }
+      return true;
+    }
+
+    return user.permissions?.includes(permission) || false;
   },
 }));
