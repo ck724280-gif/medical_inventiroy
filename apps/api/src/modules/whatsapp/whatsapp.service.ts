@@ -512,6 +512,135 @@ ${customNote ? `\n💬 *Note:* ${customNote}\n` : ''}
     });
   }
 
+
+  async getConversations(branchId?: string) {
+    const activeBranchId = await this.resolveBranchId(branchId);
+    
+    // Fetch all logs for this branch
+    const logs = await this.prisma.whatsAppMessageLog.findMany({
+      where: { branchId: activeBranchId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        customer: { select: { id: true, name: true, mobile: true } },
+        invoice: { select: { id: true, invoiceNumber: true, totalAmount: true } },
+      },
+    });
+
+    // Also fetch customers and suppliers with phone numbers to populate contacts
+    const [customers, suppliers] = await Promise.all([
+      this.prisma.customer.findMany({
+        where: { mobile: { not: null } },
+        take: 30,
+        select: { id: true, name: true, mobile: true },
+      }),
+      this.prisma.supplier.findMany({
+        where: { phone: { not: '' } },
+        take: 20,
+        select: { id: true, name: true, phone: true },
+      }),
+    ]);
+
+    const chatMap = new Map<string, any>();
+
+    // Add logged messages
+    for (const log of logs) {
+      const phone = log.recipientPhone;
+      if (!chatMap.has(phone)) {
+        chatMap.set(phone, {
+          id: log.id,
+          phone,
+          name: log.recipientName || log.customer?.name || phone,
+          type: log.customerId ? 'CUSTOMER' : 'DIRECT',
+          lastMessage: log.content,
+          lastMessageType: log.messageType,
+          lastMessageAt: log.createdAt,
+          lastStatus: log.status,
+          unreadCount: 0,
+          customer: log.customer,
+        });
+      }
+    }
+
+    // Add customers without logs yet
+    for (const c of customers) {
+      if (c.mobile) {
+        let cleanNumber = c.mobile;
+        try {
+          cleanNumber = this.normalizePhoneNumber(c.mobile).cleanNumber;
+        } catch (e) {}
+
+        if (!chatMap.has(cleanNumber) && !chatMap.has(c.mobile)) {
+          chatMap.set(cleanNumber, {
+            id: `c_${c.id}`,
+            phone: cleanNumber,
+            name: c.name,
+            type: 'CUSTOMER',
+            lastMessage: 'Tap to start a new chat',
+            lastMessageType: 'DIRECT_CHAT',
+            lastMessageAt: new Date(Date.now() - 3600000),
+            lastStatus: 'SENT',
+            unreadCount: 0,
+            customer: c,
+          });
+        }
+      }
+    }
+
+    // Add suppliers
+    for (const s of suppliers) {
+      if (s.phone) {
+        let cleanNumber = s.phone;
+        try {
+          cleanNumber = this.normalizePhoneNumber(s.phone).cleanNumber;
+        } catch (e) {}
+
+        if (!chatMap.has(cleanNumber) && !chatMap.has(s.phone)) {
+          chatMap.set(cleanNumber, {
+            id: `s_${s.id}`,
+            phone: cleanNumber,
+            name: `${s.name} (Supplier)`,
+            type: 'SUPPLIER',
+            lastMessage: 'Tap to start distributor chat',
+            lastMessageType: 'DIRECT_CHAT',
+            lastMessageAt: new Date(Date.now() - 7200000),
+            lastStatus: 'SENT',
+            unreadCount: 0,
+          });
+        }
+      }
+    }
+
+    return Array.from(chatMap.values()).sort(
+      (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
+    );
+  }
+
+  async getConversationMessages(branchId: string | undefined, phone: string) {
+    const activeBranchId = await this.resolveBranchId(branchId);
+    let cleanNumber = phone;
+    try {
+      cleanNumber = this.normalizePhoneNumber(phone).cleanNumber;
+    } catch (e) {}
+
+    const messages = await this.prisma.whatsAppMessageLog.findMany({
+      where: {
+        branchId: activeBranchId,
+        OR: [
+          { recipientPhone: cleanNumber },
+          { recipientPhone: phone },
+          { recipientPhone: { contains: phone.slice(-10) } },
+        ],
+      },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        invoice: true,
+        customer: true,
+      },
+    });
+
+    return messages;
+  }
+
   async getMessageLogs(query: {
     branchId?: string;
     messageType?: string;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MessageSquare,
@@ -12,40 +12,47 @@ import {
   PowerOff,
   Phone,
   User,
-  FileText,
   Clock,
   Search,
-  Filter,
-  Building2,
-  Sparkles,
-  ShieldCheck,
+  Check,
+  CheckCheck,
   Smartphone,
+  ShieldCheck,
+  Smile,
+  Paperclip,
+  MoreVertical,
+  ArrowLeft,
+  Users,
+  Building2,
+  Receipt,
+  FileText,
+  Lock,
+  Plus,
+  CircleDot,
+  Radio,
   ExternalLink,
-  MessageCircle,
 } from 'lucide-react';
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
-import { PageHeader } from '../../components/ui/page-header';
-import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/card';
-import { Button } from '../../components/ui/button';
-import { Badge } from '../../components/ui/badge';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 
 export default function WhatsAppHubPage() {
   const queryClient = useQueryClient();
   const { selectedBranchId, user } = useAuthStore();
-  const [filterType, setFilterType] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
+  
+  // UI Navigation & Chat State
+  const [activeNavTab, setActiveNavTab] = useState<'chats' | 'customers' | 'suppliers' | 'logs'>('chats');
+  const [filterChip, setFilterChip] = useState<'all' | 'unread' | 'customers' | 'suppliers'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedChat, setSelectedChat] = useState<any | null>(null);
+  const [inputText, setInputText] = useState('');
+  const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [newChatPhone, setNewChatPhone] = useState('');
+  const [newChatName, setNewChatName] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Quick Direct Message Form State
-  const [directMsgModal, setDirectMsgModal] = useState(false);
-  const [recipientPhone, setRecipientPhone] = useState('');
-  const [recipientName, setRecipientName] = useState('');
-  const [messageContent, setMessageContent] = useState('');
-
-  // WhatsApp Status Query (polling every 5s while connecting)
+  // 1. WhatsApp Status Query (polls frequently when in pairing mode)
   const { data: statusData, isLoading: isStatusLoading } = useQuery({
     queryKey: ['whatsapp-status', selectedBranchId],
     queryFn: async () => {
@@ -60,21 +67,34 @@ export default function WhatsAppHubPage() {
     },
   });
 
-  // Message Logs Query
-  const { data: logsData, isLoading: isLogsLoading } = useQuery({
-    queryKey: ['whatsapp-logs', selectedBranchId, filterType, filterStatus, searchTerm],
+  // 2. Fetch Live Conversations
+  const { data: conversationsData, isLoading: isConversationsLoading } = useQuery({
+    queryKey: ['whatsapp-conversations', selectedBranchId],
     queryFn: async () => {
-      const res = await apiClient.get('/whatsapp/logs', {
+      const res = await apiClient.get('/whatsapp/conversations', {
+        params: { branchId: selectedBranchId || undefined },
+      });
+      return res.data?.data || res.data || [];
+    },
+    refetchInterval: 5000,
+    enabled: statusData?.status === 'CONNECTED',
+  });
+
+  // 3. Fetch Selected Chat Messages
+  const { data: chatMessagesData } = useQuery({
+    queryKey: ['whatsapp-chat-messages', selectedBranchId, selectedChat?.phone],
+    queryFn: async () => {
+      if (!selectedChat?.phone) return [];
+      const res = await apiClient.get('/whatsapp/conversation-messages', {
         params: {
+          phone: selectedChat.phone,
           branchId: selectedBranchId || undefined,
-          messageType: filterType || undefined,
-          status: filterStatus || undefined,
-          search: searchTerm || undefined,
-          limit: 100,
         },
       });
-      return res.data?.data || res.data?.items || res.data || [];
+      return res.data?.data || res.data || [];
     },
+    refetchInterval: 3000,
+    enabled: !!selectedChat?.phone && statusData?.status === 'CONNECTED',
   });
 
   // Connect Mutation
@@ -92,442 +112,651 @@ export default function WhatsAppHubPage() {
       apiClient.post('/whatsapp/disconnect', { branchId: selectedBranchId || undefined }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
+      setSelectedChat(null);
     },
   });
 
-  // Send Direct Message Mutation
-  const sendMsgMutation = useMutation({
+  // Send Message Mutation
+  const sendMessageMutation = useMutation({
     mutationFn: async (payload: { recipientPhone: string; recipientName?: string; content: string }) =>
       apiClient.post('/whatsapp/send-message', {
         ...payload,
         branchId: selectedBranchId || undefined,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['whatsapp-logs'] });
-      setDirectMsgModal(false);
-      setRecipientPhone('');
-      setRecipientName('');
-      setMessageContent('');
-      alert('WhatsApp message dispatched successfully!');
+      setInputText('');
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-chat-messages'] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
     },
     onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to send WhatsApp message.');
+      alert(err.response?.data?.message || 'Failed to dispatch WhatsApp message.');
     },
   });
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessagesData]);
+
   const isConnected = statusData?.status === 'CONNECTED';
   const isQrReady = statusData?.status === 'QR_READY' && statusData?.qrCode;
-  const isConnecting = statusData?.status === 'CONNECTING';
-  const logs: any[] = Array.isArray(logsData) ? logsData : [];
+  const isConnecting = statusData?.status === 'CONNECTING' || connectMutation.isPending;
+
+  const conversations: any[] = Array.isArray(conversationsData) ? conversationsData : [];
+  const messages: any[] = Array.isArray(chatMessagesData) ? chatMessagesData : [];
+
+  const filteredConversations = conversations.filter((c) => {
+    if (filterChip === 'customers' && c.type !== 'CUSTOMER') return false;
+    if (filterChip === 'suppliers' && c.type !== 'SUPPLIER') return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return (
+        c.name?.toLowerCase().includes(q) ||
+        c.phone?.includes(q) ||
+        c.lastMessage?.toLowerCase().includes(q)
+      );
+    }
+    return true;
+  });
 
   return (
-    <div className="flex h-screen bg-surface-page text-text-primary overflow-hidden font-sans">
+    <div className="flex h-screen bg-[#111b21] text-[#e9edef] overflow-hidden font-sans select-none">
       <Sidebar />
+
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header />
 
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          <PageHeader
-            title="WhatsApp Communication & QR Hub"
-            description="Link your store WhatsApp via QR scan to send automated Bill PDFs, Payment Confirmations, Due Reminders, and Direct Messages to Customers & Staff."
-            badge={
-              isConnected ? (
-                <span className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-bold flex items-center gap-1.5 animate-pulse">
-                  ● Connected ({statusData?.phoneNumber || 'Active'})
-                </span>
-              ) : (
-                <span className="px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 rounded-full text-xs font-bold flex items-center gap-1.5">
-                  ○ Disconnected
-                </span>
-              )
-            }
-            actions={
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={() => setDirectMsgModal(true)}
-                  disabled={!isConnected}
-                  size="sm"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5 shadow-sm"
-                >
-                  <Send className="w-4 h-4" />
-                  Quick Direct Message
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
-                    queryClient.invalidateQueries({ queryKey: ['whatsapp-logs'] });
-                  }}
-                >
-                  <RefreshCw className="w-4 h-4 mr-1.5" />
-                  Refresh
-                </Button>
-              </div>
-            }
-          />
-
-          {/* Connection Status & QR Code Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left 2 Cols: Session Details */}
-            <Card className="lg:col-span-2 bg-surface-base border-border-default shadow-sm">
-              <CardHeader className="pb-3 border-b border-border-default">
-                <CardTitle className="text-sm font-bold flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    Branch WhatsApp Session Status
+        {/* MAIN WHATSAPP CONTAINER */}
+        <div className="flex-1 flex overflow-hidden relative bg-[#0c1317]">
+          {/* ========================================================= */}
+          {/* STATE A: NOT CONNECTED -> OFFICIAL WHATSAPP WEB LOGIN UI  */}
+          {/* ========================================================= */}
+          {!isConnected ? (
+            <div className="flex-1 overflow-y-auto flex flex-col items-center bg-[#111b21] p-4 sm:p-8">
+              {/* WhatsApp Web Brand Top Header */}
+              <div className="w-full max-w-4xl flex items-center justify-between py-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-[#00a884] flex items-center justify-center text-white shadow-lg">
+                    <MessageSquare className="w-6 h-6 fill-current" />
+                  </div>
+                  <span className="font-bold text-lg sm:text-xl tracking-tight text-[#e9edef]">
+                    WHATSAPP BUSINESS WEB
                   </span>
-                  <Badge variant={isConnected ? 'success' : 'warning'}>
-                    {statusData?.status || 'DISCONNECTED'}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-4 space-y-4">
-                {isConnected ? (
-                  <div className="p-5 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-bold text-sm">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                        WhatsApp Linked & Ready for Automated Messaging
-                      </div>
-                      <p className="text-xs text-text-secondary">
-                        Phone: <strong className="text-text-primary font-mono">{statusData?.phoneNumber}</strong> ({statusData?.pushName || 'Store Account'})
-                      </p>
-                      <p className="text-[11px] text-text-muted">
-                        All POS bills, customer payment confirmations, and due reminders will automatically be dispatched through this number.
-                      </p>
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        if (confirm('Are you sure you want to disconnect WhatsApp from this branch?')) {
-                          disconnectMutation.mutate();
-                        }
-                      }}
-                      disabled={disconnectMutation.isPending}
-                      className="text-red-600 border-red-500/30 hover:bg-red-500/10 flex-shrink-0"
-                    >
-                      <PowerOff className="w-4 h-4 mr-1.5" />
-                      Disconnect WhatsApp
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-bold text-sm">
-                        <AlertCircle className="w-5 h-5 text-amber-500" />
-                        WhatsApp Not Connected for This Branch
-                      </div>
-                      <p className="text-xs text-text-secondary">
-                        Scan the QR code with your mobile WhatsApp (Linked Devices) to activate direct customer billing & reminders.
-                      </p>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      onClick={() => connectMutation.mutate()}
-                      disabled={connectMutation.isPending || isConnecting}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex-shrink-0 shadow-sm"
-                    >
-                      <QrCode className="w-4 h-4 mr-1.5" />
-                      {isConnecting ? 'Generating QR...' : 'Generate QR Code'}
-                    </Button>
-                  </div>
-                )}
-
-                {/* Instructions Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-                  <div className="p-3 bg-surface-raised rounded-xl border border-border-default text-xs space-y-1">
-                    <span className="font-bold text-text-primary block flex items-center gap-1.5">
-                      <Smartphone className="w-3.5 h-3.5 text-accent-primary" />
-                      1. Open WhatsApp
-                    </span>
-                    <span className="text-[11px] text-text-muted">
-                      Open WhatsApp on your mobile phone and tap Settings / 3-dots.
-                    </span>
-                  </div>
-                  <div className="p-3 bg-surface-raised rounded-xl border border-border-default text-xs space-y-1">
-                    <span className="font-bold text-text-primary block flex items-center gap-1.5">
-                      <QrCode className="w-3.5 h-3.5 text-accent-primary" />
-                      2. Linked Devices
-                    </span>
-                    <span className="text-[11px] text-text-muted">
-                      Tap <strong>Linked Devices</strong> → <strong>Link a Device</strong>.
-                    </span>
-                  </div>
-                  <div className="p-3 bg-surface-raised rounded-xl border border-border-default text-xs space-y-1">
-                    <span className="font-bold text-text-primary block flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                      3. Scan On-Screen QR
-                    </span>
-                    <span className="text-[11px] text-text-muted">
-                      Point your phone camera to the QR code on the right side.
-                    </span>
-                  </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            {/* Right Col: QR Code Display Card */}
-            <Card className="bg-surface-base border-border-default shadow-sm flex flex-col justify-center items-center p-6 text-center">
-              {isConnected ? (
-                <div className="space-y-3 py-6">
-                  <div className="w-20 h-20 bg-emerald-500/10 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
-                    <CheckCircle2 className="w-10 h-10" />
-                  </div>
-                  <h4 className="font-bold text-sm text-text-primary">Device Connected</h4>
-                  <p className="text-xs text-text-muted font-mono">{statusData?.phoneNumber}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-[#8696a0] font-mono">
+                    Branch: {selectedBranchId || 'Primary HQ'}
+                  </span>
                 </div>
-              ) : isQrReady ? (
-                <div className="space-y-3">
-                  <div className="p-2 bg-white rounded-2xl shadow-md border border-slate-200 inline-block">
-                    <img
-                      src={statusData?.qrCode}
-                      alt="WhatsApp Web QR Code"
-                      className="w-48 h-48 rounded-xl object-contain"
-                    />
-                  </div>
-                  <p className="text-xs font-semibold text-text-secondary animate-pulse">
-                    Scan with your mobile WhatsApp
-                  </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => connectMutation.mutate()}
-                    className="text-xs"
-                  >
-                    <RefreshCw className="w-3 h-3 mr-1" /> Refresh QR
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-3 py-8 text-center">
-                  <div className="w-16 h-16 bg-surface-raised text-text-muted rounded-full flex items-center justify-center mx-auto border border-border-default">
-                    <QrCode className="w-8 h-8 opacity-60" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-xs text-text-secondary">QR Code Standby</h4>
-                    <p className="text-[11px] text-text-muted mt-0.5">Click below to generate a fresh QR code.</p>
-                  </div>
-                  <Button
-                    size="sm"
-                    onClick={() => connectMutation.mutate()}
-                    disabled={connectMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
-                  >
-                    Start WhatsApp Pairing
-                  </Button>
-                </div>
-              )}
-            </Card>
-          </div>
-
-          {/* WhatsApp Message Logs & Audit Trail */}
-          <Card className="bg-surface-base border-border-default shadow-sm">
-            <CardHeader className="pb-3 border-b border-border-default flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Clock className="w-4 h-4 text-accent-primary" />
-                Outgoing Message History & Audit Trail ({logs.length})
-              </CardTitle>
-
-              {/* Filters */}
-              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                <div className="relative flex-1 sm:w-48">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-text-muted" />
-                  <input
-                    type="text"
-                    placeholder="Search phone, customer..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-8 pr-3 py-1.5 bg-surface-page border border-border-default rounded-xl text-xs text-text-primary focus:outline-none focus:border-accent-primary"
-                  />
-                </div>
-
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className="px-2.5 py-1.5 bg-surface-page border border-border-default rounded-xl text-xs font-semibold text-text-primary focus:outline-none"
-                >
-                  <option value="">All Message Types</option>
-                  <option value="BILL_INVOICE">Bill Invoices</option>
-                  <option value="DUE_REMINDER">Due Reminders</option>
-                  <option value="PAYMENT_CONFIRMATION">Payment Receipts</option>
-                  <option value="DIRECT_CHAT">Direct Chats</option>
-                </select>
-
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="px-2.5 py-1.5 bg-surface-page border border-border-default rounded-xl text-xs font-semibold text-text-primary focus:outline-none"
-                >
-                  <option value="">All Statuses</option>
-                  <option value="SENT">Sent</option>
-                  <option value="FAILED">Failed</option>
-                  <option value="QUEUED">Queued</option>
-                </select>
               </div>
-            </CardHeader>
 
-            <CardContent className="p-0">
-              {isLogsLoading ? (
-                <div className="p-8 text-center text-xs text-text-muted">Loading message records...</div>
-              ) : logs.length === 0 ? (
-                <div className="p-12 text-center space-y-2">
-                  <MessageCircle className="w-8 h-8 text-text-muted mx-auto opacity-50" />
-                  <p className="text-xs font-semibold text-text-secondary">No WhatsApp messages dispatched yet.</p>
-                  <p className="text-[11px] text-text-muted">
-                    Messages sent from POS counter, Customers directory, and due reminders will show here.
-                  </p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs min-w-[700px]">
-                    <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase tracking-wider">
-                      <tr>
-                        <th className="py-2.5 px-4">Date & Time</th>
-                        <th className="py-2.5 px-4">Recipient</th>
-                        <th className="py-2.5 px-4">Type</th>
-                        <th className="py-2.5 px-4">Message Content Preview</th>
-                        <th className="py-2.5 px-4 text-center">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-default bg-surface-base">
-                      {logs.map((log: any) => (
-                        <tr key={log.id} className="hover:bg-surface-raised/50 transition">
-                          <td className="py-3 px-4 text-text-muted font-mono text-[11px] whitespace-nowrap">
-                            {new Date(log.createdAt).toLocaleString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="font-bold text-text-primary block">{log.recipientName || 'Customer'}</span>
-                            <span className="font-mono text-[11px] text-text-secondary">{log.recipientPhone}</span>
-                          </td>
-                          <td className="py-3 px-4">
-                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-surface-raised border border-border-default text-text-secondary">
-                              {log.messageType?.replace('_', ' ')}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 max-w-xs truncate text-text-secondary" title={log.content}>
-                            {log.content?.substring(0, 70)}...
-                          </td>
-                          <td className="py-3 px-4 text-center">
-                            {log.status === 'SENT' ? (
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                ✅ Sent
-                              </span>
-                            ) : log.status === 'FAILED' ? (
-                              <span
-                                className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 cursor-pointer"
-                                title={log.error}
-                              >
-                                ❌ Failed
-                              </span>
-                            ) : (
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                                ⏳ Queued
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              {/* Login Card */}
+              <div className="w-full max-w-4xl bg-[#111b21] sm:bg-[#202c33] rounded-3xl p-6 sm:p-10 shadow-2xl border border-[#2a3942] flex flex-col lg:flex-row items-center justify-between gap-8 my-auto">
+                {/* Left Instructions */}
+                <div className="flex-1 space-y-6">
+                  <div className="space-y-1">
+                    <h2 className="text-xl sm:text-2xl font-light text-[#e9edef]">
+                      To use WhatsApp on your computer:
+                    </h2>
+                    <p className="text-xs text-[#8696a0]">
+                      Link your medical store phone to send bills, payment confirmations &amp; due reminders automatically.
+                    </p>
+                  </div>
 
-          {/* Quick Direct Message Modal */}
-          {directMsgModal && (
-            <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
-              <div className="bg-surface-base rounded-2xl shadow-2xl border border-border-default max-w-md w-full p-6 space-y-4 text-xs animate-scale-in">
-                <div className="flex items-center justify-between pb-3 border-b border-border-default">
-                  <h3 className="font-bold text-sm text-text-primary flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                    Send Direct WhatsApp Message
-                  </h3>
+                  <ol className="space-y-4 text-sm text-[#d1d7db] font-normal leading-relaxed">
+                    <li className="flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                        1
+                      </span>
+                      <span>
+                        Open <strong>WhatsApp</strong> on your phone
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                        2
+                      </span>
+                      <span>
+                        Tap <strong>Menu (⋮)</strong> on Android or <strong>Settings (⚙️)</strong> on iPhone
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                        3
+                      </span>
+                      <span>
+                        Tap <strong>Linked devices</strong> and then <strong>Link a device</strong>
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-[#2a3942] text-[#00a884] font-bold text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                        4
+                      </span>
+                      <span>
+                        Point your phone to this screen to capture the QR code
+                      </span>
+                    </li>
+                  </ol>
+
+                  <div className="pt-2 flex items-center gap-4 text-xs text-[#00a884]">
+                    <button
+                      onClick={() => connectMutation.mutate()}
+                      disabled={isConnecting}
+                      className="hover:underline font-semibold flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isConnecting ? 'animate-spin' : ''}`} />
+                      {isConnecting ? 'Generating QR Code...' : 'Regenerate QR Code'}
+                    </button>
+                    <span className="text-[#8696a0]">•</span>
+                    <span className="text-[#8696a0] flex items-center gap-1">
+                      <Lock className="w-3 h-3 text-[#8696a0]" /> End-to-end encrypted
+                    </span>
+                  </div>
+                </div>
+
+                {/* Right QR Box */}
+                <div className="flex flex-col items-center justify-center p-6 bg-[#111b21] rounded-2xl border border-[#2a3942] shadow-inner text-center min-w-[280px]">
+                  {isQrReady ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-white rounded-2xl shadow-xl border-4 border-white inline-block relative group">
+                        <img
+                          src={statusData?.qrCode}
+                          alt="WhatsApp Web QR Code"
+                          className="w-56 h-56 rounded-xl object-contain"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold text-[#00a884] animate-pulse flex items-center justify-center gap-1.5">
+                          <CircleDot className="w-3.5 h-3.5" />
+                          Ready to Scan
+                        </p>
+                        <p className="text-[11px] text-[#8696a0]">
+                          QR code refreshes automatically for security.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-8 space-y-4">
+                      <div className="w-20 h-20 bg-[#202c33] rounded-full flex items-center justify-center mx-auto text-[#00a884] border border-[#2a3942]">
+                        <QrCode className="w-10 h-10 opacity-80" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-sm text-[#e9edef]">WhatsApp Pairing Standby</h4>
+                        <p className="text-xs text-[#8696a0] mt-1 max-w-[200px]">
+                          Click below to start Baileys pairing and generate your store QR code.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => connectMutation.mutate()}
+                        disabled={isConnecting}
+                        className="px-6 py-2.5 bg-[#00a884] hover:bg-[#02906f] active:scale-95 text-[#111b21] font-bold rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2 mx-auto cursor-pointer"
+                      >
+                        {isConnecting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />}
+                        <span>{isConnecting ? 'Generating QR...' : 'Start WhatsApp Pairing'}</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom footer note */}
+              <div className="mt-8 text-center text-xs text-[#8696a0] flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-[#00a884]" />
+                Official Baileys WhatsApp Web Engine for Multi-Branch Medical ERP
+              </div>
+            </div>
+          ) : (
+            /* ========================================================= */
+            /* STATE B: CONNECTED -> REAL WHATSAPP BUSINESS WEB INTERFACE */
+            /* ========================================================= */
+            <div className="flex-1 flex overflow-hidden w-full h-full">
+              {/* 1. ULTRA-SLIM LEFT ICON STRIP */}
+              <div className="w-14 bg-[#202c33] border-r border-[#2a3942] flex flex-col items-center justify-between py-3 flex-shrink-0">
+                <div className="flex flex-col items-center gap-4">
                   <button
-                    onClick={() => setDirectMsgModal(false)}
-                    className="text-text-muted hover:text-text-primary"
+                    onClick={() => setActiveNavTab('chats')}
+                    title="Chats"
+                    className={`p-2.5 rounded-xl transition cursor-pointer relative ${
+                      activeNavTab === 'chats' ? 'bg-[#374248] text-[#00a884]' : 'text-[#aebac1] hover:bg-[#2a3942]'
+                    }`}
                   >
-                    ✕
+                    <MessageSquare className="w-5 h-5" />
+                    <span className="w-2 h-2 bg-[#00a884] rounded-full absolute top-2 right-2 ring-2 ring-[#202c33]" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveNavTab('customers');
+                      setFilterChip('customers');
+                    }}
+                    title="Customers"
+                    className={`p-2.5 rounded-xl transition cursor-pointer ${
+                      activeNavTab === 'customers' ? 'bg-[#374248] text-[#00a884]' : 'text-[#aebac1] hover:bg-[#2a3942]'
+                    }`}
+                  >
+                    <Users className="w-5 h-5" />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveNavTab('suppliers');
+                      setFilterChip('suppliers');
+                    }}
+                    title="Suppliers & Distributors"
+                    className={`p-2.5 rounded-xl transition cursor-pointer ${
+                      activeNavTab === 'suppliers' ? 'bg-[#374248] text-[#00a884]' : 'text-[#aebac1] hover:bg-[#2a3942]'
+                    }`}
+                  >
+                    <Building2 className="w-5 h-5" />
                   </button>
                 </div>
 
-                <div className="space-y-3">
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">
-                      Recipient Mobile Number (with country code or 10 digits)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 9876543210 or +919876543210"
-                      value={recipientPhone}
-                      onChange={(e) => setRecipientPhone(e.target.value)}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-xs text-text-primary focus:outline-none focus:border-emerald-500 font-mono"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">
-                      Recipient Name (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Customer or Staff Name"
-                      value={recipientName}
-                      onChange={(e) => setRecipientName(e.target.value)}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-xs text-text-primary focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">
-                      Message Text
-                    </label>
-                    <textarea
-                      rows={4}
-                      placeholder="Type your message here..."
-                      value={messageContent}
-                      onChange={(e) => setMessageContent(e.target.value)}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-xs text-text-primary focus:outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-border-default flex justify-end gap-2">
-                  <Button variant="secondary" size="sm" onClick={() => setDirectMsgModal(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      if (!recipientPhone.trim() || !messageContent.trim()) {
-                        alert('Phone number and message content are required.');
-                        return;
-                      }
-                      sendMsgMutation.mutate({
-                        recipientPhone,
-                        recipientName,
-                        content: messageContent,
-                      });
-                    }}
-                    disabled={sendMsgMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold flex items-center gap-1.5"
+                <div className="flex flex-col items-center gap-3">
+                  <div
+                    title={`Connected: ${statusData?.phoneNumber} (${statusData?.pushName})`}
+                    className="w-8 h-8 rounded-full bg-[#00a884]/20 border border-[#00a884]/40 flex items-center justify-center text-[#00a884] text-xs font-bold font-mono"
                   >
-                    <Send className="w-3.5 h-3.5" />
-                    {sendMsgMutation.isPending ? 'Sending...' : 'Send WhatsApp'}
-                  </Button>
+                    WA
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (confirm('Disconnect WhatsApp session for this branch?')) {
+                        disconnectMutation.mutate();
+                      }
+                    }}
+                    title="Disconnect Session"
+                    className="p-2 text-rose-400 hover:bg-rose-500/10 rounded-xl transition cursor-pointer"
+                  >
+                    <PowerOff className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
+
+              {/* 2. CHATS SIDEBAR (340px) */}
+              <div className="w-80 sm:w-96 bg-[#111b21] border-r border-[#2a3942] flex flex-col flex-shrink-0">
+                {/* Header */}
+                <div className="h-14 px-4 bg-[#202c33] flex items-center justify-between border-b border-[#2a3942]">
+                  <h3 className="font-bold text-lg text-[#e9edef] tracking-tight">WhatsApp</h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowNewChatModal(true)}
+                      title="New Chat"
+                      className="p-2 text-[#aebac1] hover:bg-[#374248] rounded-full transition cursor-pointer"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => {
+                        queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
+                        queryClient.invalidateQueries({ queryKey: ['whatsapp-status'] });
+                      }}
+                      title="Refresh"
+                      className="p-2 text-[#aebac1] hover:bg-[#374248] rounded-full transition cursor-pointer"
+                    >
+                      <RefreshCw className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Search Bar */}
+                <div className="p-2.5 bg-[#111b21] border-b border-[#222e35]">
+                  <div className="relative bg-[#202c33] rounded-xl flex items-center px-3 py-1.5">
+                    <Search className="w-4 h-4 text-[#8696a0] mr-2" />
+                    <input
+                      type="text"
+                      placeholder="Search or start a new chat"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-transparent text-xs text-[#d1d7db] placeholder-[#8696a0] focus:outline-none"
+                    />
+                  </div>
+
+                  {/* Filter Chips */}
+                  <div className="flex items-center gap-1.5 pt-2 overflow-x-auto text-[11px] font-medium no-scrollbar">
+                    {(['all', 'unread', 'customers', 'suppliers'] as const).map((chip) => (
+                      <button
+                        key={chip}
+                        onClick={() => setFilterChip(chip)}
+                        className={`px-3 py-1 rounded-full capitalize transition whitespace-nowrap cursor-pointer ${
+                          filterChip === chip
+                            ? 'bg-[#00a884]/20 text-[#00a884] font-semibold border border-[#00a884]/40'
+                            : 'bg-[#202c33] text-[#8696a0] hover:bg-[#374248]'
+                        }`}
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Chat List */}
+                <div className="flex-1 overflow-y-auto divide-y divide-[#222e35]/50">
+                  {isConversationsLoading ? (
+                    <div className="p-8 text-center text-xs text-[#8696a0]">Loading conversations...</div>
+                  ) : filteredConversations.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-[#8696a0] space-y-2">
+                      <p>No conversations found.</p>
+                      <button
+                        onClick={() => setShowNewChatModal(true)}
+                        className="px-3 py-1 bg-[#00a884] text-[#111b21] font-bold rounded-lg text-xs cursor-pointer"
+                      >
+                        + Start New Chat
+                      </button>
+                    </div>
+                  ) : (
+                    filteredConversations.map((c) => {
+                      const isSelected = selectedChat?.phone === c.phone;
+                      const initial = (c.name || 'C').charAt(0).toUpperCase();
+
+                      return (
+                        <div
+                          key={c.phone}
+                          onClick={() => setSelectedChat(c)}
+                          className={`px-3.5 py-3 flex items-center gap-3 cursor-pointer transition relative ${
+                            isSelected ? 'bg-[#2a3942]' : 'hover:bg-[#202c33]'
+                          }`}
+                        >
+                          {/* Avatar */}
+                          <div className="w-11 h-11 rounded-full bg-[#374248] border border-[#41525d] text-[#e9edef] flex items-center justify-center font-bold text-sm flex-shrink-0">
+                            {initial}
+                          </div>
+
+                          {/* Chat Info */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-xs text-[#e9edef] truncate">{c.name}</span>
+                              <span className="text-[10px] text-[#8696a0] font-mono">
+                                {new Date(c.lastMessageAt).toLocaleDateString('en-IN', {
+                                  day: '2-digit',
+                                  month: 'short',
+                                })}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between mt-1 text-[11px] text-[#8696a0]">
+                              <span className="truncate max-w-[190px] flex items-center gap-1">
+                                {c.lastStatus === 'SENT' ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb] flex-shrink-0" />
+                                ) : (
+                                  <Check className="w-3.5 h-3.5 flex-shrink-0" />
+                                )}
+                                {c.lastMessage}
+                              </span>
+
+                              {c.type && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#202c33] border border-[#2a3942] text-[#8696a0] uppercase font-bold">
+                                  {c.type}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* 3. RIGHT MAIN CHAT PANE */}
+              {selectedChat ? (
+                <div className="flex-1 flex flex-col bg-[#0b141a] relative">
+                  {/* Chat Top Header */}
+                  <div className="h-14 px-4 bg-[#202c33] flex items-center justify-between border-b border-[#2a3942] z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-[#374248] text-[#e9edef] flex items-center justify-center font-bold text-sm">
+                        {(selectedChat.name || 'C').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-xs text-[#e9edef] leading-none">{selectedChat.name}</h4>
+                        <span className="text-[11px] text-[#8696a0] font-mono mt-1 block">
+                          {selectedChat.phone}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-[#aebac1]">
+                      {selectedChat.customer?.id && (
+                        <a
+                          href={`/customers`}
+                          className="px-2.5 py-1 rounded-lg bg-[#374248] hover:bg-[#41525d] text-[11px] text-[#00a884] font-semibold flex items-center gap-1"
+                        >
+                          <Receipt className="w-3.5 h-3.5" />
+                          View Customer
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Message Bubbles Container */}
+                  <div
+                    className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3"
+                    style={{
+                      backgroundImage: `radial-gradient(#1f2c34 1px, transparent 1px)`,
+                      backgroundSize: '24px 24px',
+                    }}
+                  >
+                    {/* Security Disclaimer Pill */}
+                    <div className="text-center my-2">
+                      <span className="px-3 py-1.5 rounded-lg bg-[#182229] border border-[#222e35] text-[11px] text-[#ffd279] inline-flex items-center gap-1.5 shadow-sm">
+                        <Lock className="w-3 h-3 text-[#ffd279]" />
+                        Messages to this chat are routed through your store's authenticated WhatsApp session.
+                      </span>
+                    </div>
+
+                    {messages.map((m: any) => {
+                      const isOutgoing = m.status !== 'RECEIVED';
+                      const timeStr = new Date(m.createdAt).toLocaleTimeString('en-IN', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+
+                      return (
+                        <div
+                          key={m.id}
+                          className={`flex ${isOutgoing ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-md sm:max-w-lg rounded-2xl px-3.5 py-2.5 shadow-md relative text-xs leading-relaxed ${
+                              isOutgoing
+                                ? 'bg-[#005c4b] text-[#e9edef] rounded-tr-none'
+                                : 'bg-[#202c33] text-[#e9edef] rounded-tl-none'
+                            }`}
+                          >
+                            {/* Message Type Tag */}
+                            {m.messageType && m.messageType !== 'DIRECT_CHAT' && (
+                              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-black/20 text-[#8696a0] mb-1">
+                                {m.messageType.replace('_', ' ')}
+                              </span>
+                            )}
+
+                            {/* Message Text */}
+                            <p className="whitespace-pre-line text-[12px]">{m.content}</p>
+
+                            {/* Timestamp & Status */}
+                            <div className="flex items-center justify-end gap-1 mt-1 text-[10px] text-[#8696a0]">
+                              <span>{timeStr}</span>
+                              {isOutgoing && (
+                                m.status === 'SENT' ? (
+                                  <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />
+                                ) : m.status === 'FAILED' ? (
+                                  <span className="text-rose-400" title={m.error}>❌</span>
+                                ) : (
+                                  <Clock className="w-3 h-3 text-[#8696a0]" />
+                                )
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  {/* Bottom Input Composer */}
+                  <div className="p-3 bg-[#202c33] border-t border-[#2a3942] space-y-2">
+                    {/* Pharmacy Quick Response Chips */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto text-[10px] text-[#8696a0] no-scrollbar">
+                      <span className="font-bold text-[#aebac1]">Quick:</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setInputText(`Namaste ${selectedChat.name}, your prescription order is packed and ready for billing at MedCare counter.`)
+                        }
+                        className="px-2.5 py-1 bg-[#111b21] hover:bg-[#374248] rounded-lg border border-[#2a3942] text-[#d1d7db] whitespace-nowrap cursor-pointer"
+                      >
+                        📦 Order Ready
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setInputText(`Namaste ${selectedChat.name}, please share your doctor's prescription so we can verify the medicines.`)
+                        }
+                        className="px-2.5 py-1 bg-[#111b21] hover:bg-[#374248] rounded-lg border border-[#2a3942] text-[#d1d7db] whitespace-nowrap cursor-pointer"
+                      >
+                        📄 Request Prescription
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setInputText(`Namaste ${selectedChat.name}, thank you for choosing MedCare Pharmacy! Wishing you a speedy recovery.`)
+                        }
+                        className="px-2.5 py-1 bg-[#111b21] hover:bg-[#374248] rounded-lg border border-[#2a3942] text-[#d1d7db] whitespace-nowrap cursor-pointer"
+                      >
+                        🙏 Thank You Note
+                      </button>
+                    </div>
+
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!inputText.trim()) return;
+                        sendMessageMutation.mutate({
+                          recipientPhone: selectedChat.phone,
+                          recipientName: selectedChat.name,
+                          content: inputText.trim(),
+                        });
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <input
+                        type="text"
+                        placeholder="Type a message..."
+                        value={inputText}
+                        onChange={(e) => setInputText(e.target.value)}
+                        className="flex-1 bg-[#2a3942] text-xs text-[#d1d7db] placeholder-[#8696a0] px-4 py-2.5 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#00a884]"
+                      />
+
+                      <button
+                        type="submit"
+                        disabled={!inputText.trim() || sendMessageMutation.isPending}
+                        className="w-10 h-10 rounded-full bg-[#00a884] hover:bg-[#02906f] active:scale-95 text-[#111b21] flex items-center justify-center shadow-lg transition disabled:opacity-40 cursor-pointer flex-shrink-0"
+                      >
+                        <Send className="w-4 h-4 ml-0.5" />
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              ) : (
+                /* WhatsApp Business Web Splash Screen */
+                <div className="flex-1 flex flex-col items-center justify-center bg-[#222e35] p-8 text-center select-none border-b-8 border-[#00a884]">
+                  <div className="max-w-md space-y-4">
+                    <div className="w-32 h-32 mx-auto rounded-full bg-[#111b21]/40 flex items-center justify-center border border-[#2a3942]">
+                      <MessageSquare className="w-16 h-16 text-[#00a884] opacity-80" />
+                    </div>
+
+                    <h2 className="text-2xl font-light text-[#e9edef] tracking-tight">
+                      WhatsApp Business on Web
+                    </h2>
+
+                    <p className="text-xs text-[#8696a0] leading-relaxed">
+                      Select a customer or supplier chat on the left to review invoice receipts, prescription instructions, or start a new conversation.
+                    </p>
+
+                    <div className="pt-4 flex items-center justify-center gap-1.5 text-xs text-[#8696a0]">
+                      <Lock className="w-3.5 h-3.5" /> End-to-end encrypted
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </main>
+        </div>
+
+        {/* New Chat Modal */}
+        {showNewChatModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-[#202c33] border border-[#2a3942] rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 text-xs text-[#e9edef]">
+              <div className="flex justify-between items-center pb-3 border-b border-[#2a3942]">
+                <h3 className="font-bold text-sm text-[#e9edef] flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4 text-[#00a884]" />
+                  Start New WhatsApp Chat
+                </h3>
+                <button onClick={() => setShowNewChatModal(false)} className="text-[#8696a0] hover:text-white">
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[#8696a0] font-semibold mb-1">
+                    Mobile Number (10 Digits or with +91) *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="e.g. 9876543210"
+                    value={newChatPhone}
+                    onChange={(e) => setNewChatPhone(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#111b21] border border-[#2a3942] rounded-xl text-xs text-[#d1d7db] focus:outline-none focus:border-[#00a884] font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[#8696a0] font-semibold mb-1">
+                    Contact / Customer Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Ramesh Sharma"
+                    value={newChatName}
+                    onChange={(e) => setNewChatName(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#111b21] border border-[#2a3942] rounded-xl text-xs text-[#d1d7db] focus:outline-none focus:border-[#00a884]"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-[#2a3942]">
+                <button
+                  type="button"
+                  onClick={() => setShowNewChatModal(false)}
+                  className="px-4 py-2 bg-[#111b21] hover:bg-[#374248] text-[#8696a0] rounded-xl font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!newChatPhone.trim()) {
+                      alert('Please enter a mobile number.');
+                      return;
+                    }
+                    setSelectedChat({
+                      phone: newChatPhone.trim(),
+                      name: newChatName.trim() || newChatPhone.trim(),
+                      type: 'DIRECT',
+                    });
+                    setShowNewChatModal(false);
+                    setNewChatPhone('');
+                    setNewChatName('');
+                  }}
+                  className="px-4 py-2 bg-[#00a884] hover:bg-[#02906f] text-[#111b21] font-bold rounded-xl flex items-center gap-1.5 shadow-sm"
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Open Chat
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

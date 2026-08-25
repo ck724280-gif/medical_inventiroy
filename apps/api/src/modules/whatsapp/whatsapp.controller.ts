@@ -92,6 +92,23 @@ export class WhatsAppController {
     return this.whatsappService.sendPaymentConfirmation(activeBranchId, paymentId, customNote, user?.id);
   }
 
+
+  @Get('conversations')
+  async getConversations(@Query('branchId') branchId: string, @CurrentUser() user: any) {
+    const activeBranchId = branchId || user?.branchId;
+    return this.whatsappService.getConversations(activeBranchId);
+  }
+
+  @Get('conversation-messages')
+  async getConversationMessages(
+    @Query('phone') phone: string,
+    @Query('branchId') branchId: string,
+    @CurrentUser() user: any,
+  ) {
+    const activeBranchId = branchId || user?.branchId;
+    return this.whatsappService.getConversationMessages(activeBranchId, phone);
+  }
+
   @Get('logs')
   async getLogs(
     @Query('branchId') branchId?: string,
