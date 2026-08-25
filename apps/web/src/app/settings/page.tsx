@@ -64,7 +64,7 @@ export default function SettingsPage() {
   const { selectedBranchId } = useAuthStore();
   const queryClient = useQueryClient();
   const { fetchBranding, updateLogoImmediately, logo: currentStoreLogo } = useBrandingStore();
-  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'branding' | 'receipt' | 'staff' | 'ai' | 'whatsapp'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'receipt' | 'staff' | 'ai' | 'whatsapp'>('business');
   const [savedBanner, setSavedBanner] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
@@ -439,7 +439,7 @@ export default function SettingsPage() {
             <div>
               <h2 className="text-xl font-bold text-text-primary tracking-tight">System &amp; Store Settings</h2>
               <p className="text-xs text-text-muted mt-0.5">
-                Configure legal pharmacy licenses, store branches, white-label branding, thermal printer formats, staff roles, and AI Co-Pilot API keys.
+                Configure pharmacy licenses, store branding, themes, thermal printer formats, staff roles, and AI Co-Pilot API keys.
               </p>
             </div>
 
@@ -454,9 +454,8 @@ export default function SettingsPage() {
           {/* Settings Tabs */}
           <div className="flex border-b border-border-default gap-2 overflow-x-auto">
             {[
-              { id: 'business', label: 'Business Profile & Tax', icon: Building2 },
+              { id: 'business', label: 'Business Profile & Branding', icon: Building2 },
               { id: 'branches', label: 'Store Branches', icon: Layers },
-              { id: 'branding', label: 'White-Label Branding', icon: Palette },
               { id: 'receipt', label: 'Thermal & Universal Print Setup', icon: Printer },
               { id: 'staff', label: 'Staff & User Roles', icon: Users },
               { id: 'ai', label: 'AI Co-Pilot & Chatbot API', icon: Sparkles },
@@ -492,10 +491,10 @@ export default function SettingsPage() {
               </div>
 
               <form
-                onSubmit={(e: any) => {
+                onSubmit={async (e: any) => {
                   e.preventDefault();
                   const fd = new FormData(e.target);
-                  saveBusinessMutation.mutate({
+                  const businessPayload = {
                     name: fd.get('name'),
                     logo: fd.get('logo') || null,
                     description: fd.get('description'),
@@ -513,7 +512,19 @@ export default function SettingsPage() {
                     currencySymbol: fd.get('currencySymbol') || '₹',
                     dateFormat: fd.get('dateFormat') || 'DD-MM-YYYY',
                     timezone: fd.get('timezone') || 'Asia/Kolkata',
-                  });
+                  };
+
+                  const brandingPayload = {
+                    appName: fd.get('name'),
+                    tagline: fd.get('description'),
+                    logoUrl: fd.get('logoUrl') || undefined,
+                    primaryColor: fd.get('primaryColor') || '#0284c7',
+                    supportEmail: fd.get('supportEmail') || fd.get('email'),
+                    supportPhone: fd.get('supportPhone') || fd.get('phone'),
+                  };
+
+                  saveBusinessMutation.mutate(businessPayload);
+                  saveBrandingMutation.mutate(brandingPayload);
                 }}
                 className="space-y-6 text-xs"
               >
@@ -723,6 +734,64 @@ export default function SettingsPage() {
                       className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl font-bold font-mono text-text-primary focus:outline-none focus:border-sky-500"
                     />
                   </div>
+
+                  {/* ── Brand Color & Theme Settings ── */}
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary flex items-center justify-between">
+                      <span>Brand Accent Color</span>
+                      <span className="text-[10px] text-text-muted font-mono">{brandingData?.primaryColor || '#0284c7'}</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        name="primaryColorPicker"
+                        defaultValue={brandingData?.primaryColor || '#0284c7'}
+                        onChange={(e) => {
+                          const input = document.getElementById('primaryColorInput') as HTMLInputElement;
+                          if (input) input.value = e.target.value;
+                        }}
+                        className="w-9 h-9 p-0.5 rounded-xl border border-border-default bg-surface-page cursor-pointer"
+                      />
+                      <input
+                        id="primaryColorInput"
+                        name="primaryColor"
+                        defaultValue={brandingData?.primaryColor || '#0284c7'}
+                        placeholder="#0284c7"
+                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl font-mono text-text-primary focus:outline-none focus:border-sky-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Customer Support Email</label>
+                    <input
+                      name="supportEmail"
+                      type="email"
+                      defaultValue={brandingData?.supportEmail || businessData.email || ''}
+                      placeholder="support@pharmacy.com"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-semibold text-text-secondary">Customer Support Phone / Helpline</label>
+                    <input
+                      name="supportPhone"
+                      defaultValue={brandingData?.supportPhone || businessData.phone || ''}
+                      placeholder="e.g. 1800-XXX-XXXX or +91 98765 43210"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="font-semibold text-text-secondary">External Logo Image URL (Optional Fallback)</label>
+                    <input
+                      name="logoUrl"
+                      defaultValue={brandingData?.logoUrl || ''}
+                      placeholder="https://example.com/pharmacy-logo.png"
+                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500 font-mono"
+                    />
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t border-border-default flex justify-end">
@@ -732,7 +801,7 @@ export default function SettingsPage() {
                     className="px-6 py-2.5 bg-accent-primary hover:bg-accent-hover text-white rounded-xl font-bold shadow-md shadow-sky-600/20 transition cursor-pointer flex items-center gap-2 active:scale-95 disabled:opacity-50"
                   >
                     {saveBusinessMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                    {saveBusinessMutation.isPending ? 'Saving...' : 'Save Business & Tax Info'}
+                    {saveBusinessMutation.isPending || saveBrandingMutation.isPending ? 'Saving...' : 'Save Business Profile & Brand Info'}
                   </button>
                 </div>
               </form>
@@ -964,94 +1033,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* TAB 2: White-Label Branding */}
-          {activeTab === 'branding' && brandingData && (
-            <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm dark:shadow-xl p-6 max-w-3xl space-y-4">
-              <h3 className="font-bold text-sm text-text-primary">Custom Brand Identity &amp; Accent Color</h3>
-              <form
-                onSubmit={(e: any) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  saveBrandingMutation.mutate({
-                    appName: fd.get('appName'),
-                    tagline: fd.get('tagline'),
-                    logoUrl: fd.get('logoUrl'),
-                    primaryColor: fd.get('primaryColor'),
-                    supportEmail: fd.get('supportEmail'),
-                    supportPhone: fd.get('supportPhone'),
-                  });
-                }}
-                className="space-y-4 text-xs"
-              >
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">Application Name</label>
-                    <input
-                      name="appName"
-                      defaultValue={brandingData.appName}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">Tagline</label>
-                    <input
-                      name="tagline"
-                      defaultValue={brandingData.tagline}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="font-semibold text-text-secondary block mb-1">Logo URL</label>
-                  <input
-                    name="logoUrl"
-                    defaultValue={brandingData.logoUrl}
-                    placeholder="https://example.com/logo.png"
-                    className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">Primary Color Hex</label>
-                    <input
-                      name="primaryColor"
-                      defaultValue={brandingData.primaryColor || '#0284c7'}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl font-mono text-text-primary focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">Support Email</label>
-                    <input
-                      name="supportEmail"
-                      defaultValue={brandingData.supportEmail}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-semibold text-text-secondary block mb-1">Support Phone</label>
-                    <input
-                      name="supportPhone"
-                      defaultValue={brandingData.supportPhone}
-                      className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-sky-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-3 border-t border-border-default flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={saveBrandingMutation.isPending}
-                    className="px-5 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl font-semibold shadow transition cursor-pointer"
-                  >
-                    Save Branding
-                  </button>
-                </div>
-              </form>
             </div>
           )}
 
