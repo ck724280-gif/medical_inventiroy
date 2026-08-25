@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   X,
   MessageCircle,
+  Send,
   Tag,
   TrendingDown,
   Phone,
@@ -29,6 +30,45 @@ import { formatCurrency, generatePaymentReminderUrl } from '@medical-inventory/s
 import { extractDataArray } from '../../lib/utils';
 
 export default function CustomersPage() {
+  const { selectedBranchId } = useAuthStore();
+  const [whatsAppModalCustomer, setWhatsAppModalCustomer] = useState<any | null>(null);
+  const [whatsAppCustomText, setWhatsAppCustomText] = useState('');
+
+  const sendDueReminderMutation = useMutation({
+    mutationFn: async ({ customerId, customNote }: { customerId: string; customNote?: string }) =>
+      apiClient.post(`/whatsapp/send-reminder/${customerId}`, {
+        branchId: selectedBranchId || undefined,
+        customNote,
+      }),
+    onSuccess: () => {
+      alert('Payment due reminder dispatched directly to customer WhatsApp!');
+      setWhatsAppModalCustomer(null);
+      setWhatsAppCustomText('');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to send WhatsApp reminder. Please check WhatsApp connection.');
+    },
+  });
+
+  const sendDirectCustomerMsgMutation = useMutation({
+    mutationFn: async ({ customerId, recipientPhone, recipientName, content }: { customerId?: string; recipientPhone: string; recipientName?: string; content: string }) =>
+      apiClient.post('/whatsapp/send-message', {
+        branchId: selectedBranchId || undefined,
+        customerId,
+        recipientPhone,
+        recipientName,
+        content,
+      }),
+    onSuccess: () => {
+      alert('Message dispatched directly to customer WhatsApp!');
+      setWhatsAppModalCustomer(null);
+      setWhatsAppCustomText('');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to send WhatsApp message.');
+    },
+  });
+
   const queryClient = useQueryClient();
   const { isSuperAdmin, hasPermission } = useAuthStore();
   const canManage = isSuperAdmin() || hasPermission('customer.create') || hasPermission('customer.edit');
@@ -422,6 +462,103 @@ export default function CustomersPage() {
               </table>
             </div>
           </div>
+        
+        {/* WhatsApp Customer Messaging Modal */}
+        {whatsAppModalCustomer && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-surface-base rounded-2xl border border-border-default max-w-md w-full p-6 space-y-4 text-xs shadow-2xl text-text-primary animate-scale-in">
+              <div className="flex items-center justify-between pb-3 border-b border-border-default">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-5 h-5 text-emerald-500" />
+                  <h3 className="font-bold text-sm text-text-primary">
+                    WhatsApp Message: {whatsAppModalCustomer.name}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setWhatsAppModalCustomer(null)}
+                  className="text-text-muted hover:text-text-primary"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-surface-raised border border-border-default space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Mobile Number:</span>
+                  <span className="font-mono font-bold text-text-primary">{whatsAppModalCustomer.mobile || 'Not provided'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-text-muted">Outstanding Balance:</span>
+                  <span className="font-mono font-bold text-red-500">₹{Number(whatsAppModalCustomer.currentBalance || whatsAppModalCustomer.balance || 0).toFixed(2)}</span>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="font-semibold text-text-secondary block mb-1">
+                    Custom Message Note (Optional)
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Type an optional message note here..."
+                    value={whatsAppCustomText}
+                    onChange={(e) => setWhatsAppCustomText(e.target.value)}
+                    className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-xs text-text-primary focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-border-default flex flex-col sm:flex-row justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setWhatsAppModalCustomer(null)}
+                  className="px-3.5 py-2 text-text-muted hover:bg-surface-raised rounded-xl"
+                >
+                  Cancel
+                </button>
+
+                {Number(whatsAppModalCustomer.currentBalance || 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sendDueReminderMutation.mutate({
+                        customerId: whatsAppModalCustomer.id,
+                        customNote: whatsAppCustomText || undefined,
+                      });
+                    }}
+                    disabled={sendDueReminderMutation.isPending}
+                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold shadow transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    {sendDueReminderMutation.isPending ? 'Sending...' : 'Send Due Reminder'}
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!whatsAppModalCustomer.mobile) {
+                      alert('Customer mobile number is missing.');
+                      return;
+                    }
+                    sendDirectCustomerMsgMutation.mutate({
+                      customerId: whatsAppModalCustomer.id,
+                      recipientPhone: whatsAppModalCustomer.mobile,
+                      recipientName: whatsAppModalCustomer.name,
+                      content: whatsAppCustomText || `Hello ${whatsAppModalCustomer.name}, this is MedCare Pharmacy. How can we assist you today?`,
+                    });
+                  }}
+                  disabled={sendDirectCustomerMsgMutation.isPending}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow transition cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  {sendDirectCustomerMsgMutation.isPending ? 'Sending...' : 'Send Message'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+  
         </main>
 
         {/* Modal: Create / Edit Customer */}

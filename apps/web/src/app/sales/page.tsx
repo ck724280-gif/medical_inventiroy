@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Receipt,
   Printer,
@@ -40,6 +40,19 @@ import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview'
 import { extractDataArray } from '../../lib/utils';
 
 export default function SalesPage() {
+  const sendWhatsAppBillMutation = useMutation({
+    mutationFn: async ({ invoiceId }: { invoiceId: string }) =>
+      apiClient.post(`/whatsapp/send-bill/${invoiceId}`, {
+        branchId: selectedBranchId || undefined,
+      }),
+    onSuccess: () => {
+      alert('Invoice Bill dispatched directly to Customer WhatsApp!');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to dispatch WhatsApp bill. Please check WhatsApp connection in Settings.');
+    },
+  });
+
   const { selectedBranchId, isSuperAdmin } = useAuthStore();
   const { name: storeName } = useBrandingStore();
   const [search, setSearch] = useState('');
@@ -156,13 +169,7 @@ export default function SalesPage() {
   };
 
   const handleWhatsAppShare = (sale: any) => {
-    const phone = sale.customer?.mobile || sale.customerMobile;
-    if (phone) {
-      triggerWhatsAppRedirect(sale, phone);
-    } else {
-      setTargetPhone('');
-      setWhatsAppModal(sale);
-    }
+    sendWhatsAppBillMutation.mutate({ invoiceId: sale.id });
   };
 
   const startEdit = (sale: any) => {

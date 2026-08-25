@@ -14,6 +14,7 @@ import {
   Users,
   Building2,
   Wallet,
+  MessageSquare,
   BarChart3,
   Settings,
   FileSpreadsheet,

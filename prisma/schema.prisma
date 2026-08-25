@@ -212,6 +212,8 @@ model Branch {
   centralPurchaseAllocations CentralPurchaseAllocation[]
   switchFromLogs           BranchSwitchLog[]   @relation("SwitchFrom")
   switchToLogs             BranchSwitchLog[]   @relation("SwitchTo")
+  whatsAppSession          WhatsAppSession?
+  whatsAppMessages         WhatsAppMessageLog[]
 
   @@map("branches")
 }
@@ -546,6 +548,7 @@ model Customer {
   PartyItemPrice PartyItemPrice[]
   branchRelations CustomerBranchRelation[]
   credits        CustomerCredit[]
+  whatsAppMessages WhatsAppMessageLog[]
 
   @@index([name])
   @@index([mobile])
@@ -700,6 +703,7 @@ model SalesInvoice {
   idempotencyKey     String?             @unique @map("idempotency_key")
   isReprint          Boolean             @default(false) @map("is_reprint")
   customerCredits    CustomerCredit[]
+  whatsAppMessages   WhatsAppMessageLog[]
 
   @@index([invoiceNumber])
   @@index([createdAt])
@@ -1286,3 +1290,55 @@ model BranchSwitchLog {
   @@map("branch_switch_logs")
 }
 
+
+// ============================================================
+// WHATSAPP INTEGRATION & CUSTOMER MESSAGING
+// ============================================================
+
+model WhatsAppSession {
+  id           String    @id @default(uuid())
+  branchId     String    @unique @map("branch_id")
+  status       String    @default("DISCONNECTED") // DISCONNECTED, CONNECTING, QR_READY, CONNECTED
+  phoneNumber  String?   @map("phone_number")
+  pushName     String?   @map("push_name")
+  profilePic   String?   @map("profile_pic")
+  qrCode       String?   @map("qr_code")
+  authData     String?   @map("auth_data")
+  lastSeenAt   DateTime? @map("last_seen_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  branch       Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  messages     WhatsAppMessageLog[]
+
+  @@map("whatsapp_sessions")
+}
+
+model WhatsAppMessageLog {
+  id             String    @id @default(uuid())
+  sessionId      String?   @map("session_id")
+  branchId       String    @map("branch_id")
+  customerId     String?   @map("customer_id")
+  invoiceId      String?   @map("invoice_id")
+  paymentId      String?   @map("payment_id")
+  messageType    String    @default("TEXT") // TEXT, BILL_INVOICE, PAYMENT_RECEIPT, DUE_REMINDER, PAYMENT_CONFIRMATION, DIRECT_CHAT
+  recipientPhone String    @map("recipient_phone")
+  recipientName  String?   @map("recipient_name")
+  content        String
+  mediaUrl       String?   @map("media_url")
+  status         String    @default("QUEUED") // QUEUED, SENDING, SENT, FAILED
+  error          String?
+  sentByUserId   String?   @map("sent_by_user_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  sentAt         DateTime? @map("sent_at")
+
+  session        WhatsAppSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  branch         Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  customer       Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  invoice        SalesInvoice?    @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+
+  @@index([branchId])
+  @@index([recipientPhone])
+  @@index([status])
+  @@map("whatsapp_message_logs")
+}

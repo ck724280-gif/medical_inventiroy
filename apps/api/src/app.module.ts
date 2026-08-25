@@ -43,6 +43,7 @@ import { BackupModule } from './modules/backup/backup.module';
 import { ImportExportModule } from './modules/import-export/import-export.module';
 import { PartyPricingModule } from './modules/party-pricing/party-pricing.module';
 import { AiAssistantModule } from './modules/ai-assistant/ai-assistant.module';
+import { WhatsAppModule } from './modules/whatsapp/whatsapp.module';
 import { AppCacheModule } from './modules/cache/cache.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { StockTransfersModule } from './modules/stock-transfers/stock-transfers.module';
@@ -105,6 +106,7 @@ import { AppController } from './app.controller';
     BackupModule,
     ImportExportModule,
     AiAssistantModule,
+    WhatsAppModule,
     SearchModule,
     // P6 New Modules
     ApprovalsModule,

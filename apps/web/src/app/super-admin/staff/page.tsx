@@ -36,6 +36,44 @@ import { formatDate } from '@medical-inventory/shared-utils';
 import { useAuthStore } from '../../../stores/auth-store';
 
 export default function SuperAdminStaffPage() {
+  const sendStaffWhatsAppMsgMutation = useMutation({
+    mutationFn: async ({ phone, content }: { phone: string; content: string }) =>
+      apiClient.post('/whatsapp/send-message', {
+        branchId: selectedBranchId || undefined,
+        recipientPhone: phone,
+        content,
+      }),
+    onSuccess: () => {
+      alert('Login credentials sent directly to Staff WhatsApp!');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to send WhatsApp message to staff.');
+    },
+  });
+
+  const handleSendStaffWhatsApp = (user: any) => {
+    if (!user.mobile) {
+      alert('Staff member does not have a registered mobile number.');
+      return;
+    }
+    const defaultPassword = user.defaultPassword || 'Admin@123';
+    const text = `🏥 *MedCare Pharmacy ERP — Staff Login Details*
+━━━━━━━━━━━━━━━━━━━━━━━━
+👤 *Staff:* ${user.firstName} ${user.lastName || ''}
+🛡️ *Role:* ${user.role}
+🆔 *User ID:* ${user.id}
+📧 *Login Email:* ${user.email}
+🔑 *Password:* ${defaultPassword}
+🌐 *Web App URL:* ${getLoginUrl()}
+━━━━━━━━━━━━━━━━━━━━━━━━
+Please keep your login credentials secure.`;
+
+    sendStaffWhatsAppMsgMutation.mutate({
+      phone: user.mobile,
+      content: text,
+    });
+  };
+
   const queryClient = useQueryClient();
   const { selectedBranchId } = useAuthStore();
   const [searchTerm, setSearchTerm] = useState('');
