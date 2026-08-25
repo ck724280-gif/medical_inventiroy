@@ -118,6 +118,8 @@ export default function SuperAdminBranchesPage() {
       queryClient.invalidateQueries({ queryKey: ['super-admin-branches-list'] });
       queryClient.invalidateQueries({ queryKey: ['super-admin-overview'] });
       queryClient.invalidateQueries({ queryKey: ['super-admin-branches-matrix'] });
+      queryClient.invalidateQueries({ queryKey: ['active-branches-list'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
       setIsCreateModalOpen(false);
       setNewBranch({ name: '', code: '', address: '', city: '', state: 'Jharkhand', phone: '', email: '' });
       alert('Branch created successfully!');

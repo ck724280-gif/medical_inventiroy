@@ -40,7 +40,18 @@ export function Header() {
     refetchInterval: 60000,
   });
 
-  const branches = Array.isArray(user?.branches) ? user.branches : [];
+  const { data: serverBranches } = useQuery({
+    queryKey: ['active-branches-list'],
+    queryFn: async () => {
+      const res = await apiClient.get('/branches');
+      return Array.isArray(res.data) ? res.data : (res.data?.data || []);
+    },
+    staleTime: 10000,
+  });
+
+  const branches: any[] = (serverBranches && serverBranches.length > 0)
+    ? serverBranches
+    : (Array.isArray(user?.branches) ? user.branches : []);
   const activeBranch = branches.find((b: any) => b.id === selectedBranchId) || branches[0];
   const unreadCount = notificationsData?.unreadCount ?? 0;
 

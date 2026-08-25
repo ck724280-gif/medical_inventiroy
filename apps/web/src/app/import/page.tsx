@@ -18,20 +18,39 @@ import {
   History,
   ClipboardPaste,
   Loader2,
+  Printer,
+  Search,
+  Filter,
+  FileText,
+  Building2,
+  Calendar,
+  Check,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
-import { PageHeader } from '../../components/ui';
+import { PageHeader } from '../../components/ui/page-header';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
+import { useBrandingStore } from '../../stores/branding-store';
 import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
 
-export default function ImportPage() {
+export default function OpeningClosingStockPage() {
   const queryClient = useQueryClient();
   const { selectedBranchId } = useAuthStore();
+  const { name: storeName } = useBrandingStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Active Tab: 'opening' | 'closing'
+  const [activeTab, setActiveTab] = useState<'opening' | 'closing'>('opening');
+
+  // Search & Filter for Closing Stock
+  const [closingSearch, setClosingSearch] = useState('');
+  const [closingCategory, setClosingCategory] = useState('ALL');
+
+  // ----------------------------------------------------
+  // OPENING STOCK STATE & HANDLERS
+  // ----------------------------------------------------
   const initialRow = {
     medicineName: '',
     sku: '',
@@ -64,10 +83,11 @@ export default function ImportPage() {
       });
       return res.data?.data || res.data || [];
     },
+    enabled: activeTab === 'opening',
   });
 
-  // Calculate live stats
-  const stats = useMemo(() => {
+  // Calculate live stats for Opening Stock Grid
+  const openingStats = useMemo(() => {
     const valid = rows.filter((r) => r.medicineName?.trim());
     const totalUnits = valid.reduce((sum, r) => sum + (Number(r.qty) || 0), 0);
     const totalCost = valid.reduce((sum, r) => sum + (Number(r.qty) || 0) * (Number(r.purchasePrice) || 0), 0);
@@ -100,38 +120,36 @@ export default function ImportPage() {
         branchId: selectedBranchId,
         items: formatted,
       });
-      return res.data?.data || res.data;
+      return res.data;
     },
-    onSuccess: (data: any) => {
+    onSuccess: (data) => {
       setResultStatus({
         success: true,
-        message: `Opening stock successfully committed! (${data.createdCount || 0} batches created/updated).`,
-        errors: [],
+        message: data.message || 'Opening stock successfully committed to inventory!',
+        summary: data.data || data,
       });
-      queryClient.invalidateQueries({ queryKey: ['inventory-batches'] });
-      queryClient.invalidateQueries({ queryKey: ['recent-opening-stock'] });
-      refetchRecent();
       setRows([{ ...initialRow }, { ...initialRow }, { ...initialRow }]);
+      queryClient.invalidateQueries({ queryKey: ['recent-opening-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-overview'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-closing-stock'] });
     },
     onError: (err: any) => {
       setResultStatus({
         success: false,
-        message: err.response?.data?.message || 'Opening stock import failed.',
-        errors: Array.isArray(err.response?.data?.errors) ? err.response.data.errors : [],
+        message: err.response?.data?.message || 'Failed to commit opening stock.',
       });
     },
   });
 
-  const handleAddRow = (count = 1) => {
-    const newItems = Array.from({ length: count }, () => ({ ...initialRow }));
-    setRows([...rows, ...newItems]);
+  const handleRowChange = (index: number, field: string, value: any) => {
+    const updated = [...rows];
+    updated[index] = { ...updated[index], [field]: value };
+    setRows(updated);
   };
 
-  const handleClearGrid = () => {
-    if (window.confirm('Are you sure you want to clear all rows in the grid?')) {
-      setRows([{ ...initialRow }, { ...initialRow }, { ...initialRow }]);
-      setResultStatus(null);
-    }
+  const addRow = (count = 1) => {
+    const newItems = Array.from({ length: count }, () => ({ ...initialRow }));
+    setRows((prev) => [...prev, ...newItems]);
   };
 
   const removeRow = (index: number) => {
@@ -139,115 +157,85 @@ export default function ImportPage() {
       setRows([{ ...initialRow }]);
       return;
     }
-    setRows(rows.filter((_, i) => i !== index));
+    setRows((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Robust CSV parser handling quoted strings and commas
-  const parseCsvLine = (text: string): string[] => {
-    const result: string[] = [];
-    let cur = '';
-    let inQuotes = false;
-    for (let i = 0; i < text.length; i++) {
-      const c = text[i];
-      if (c === '"') {
-        inQuotes = !inQuotes;
-      } else if (c === ',' && !inQuotes) {
-        result.push(cur.trim());
-        cur = '';
-      } else {
-        cur += c;
-      }
-    }
-    result.push(cur.trim());
-    return result.map((s) => s.replace(/^"|"$/g, '').trim());
-  };
-
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = event.target?.result as string;
-      if (!text) return;
-
-      const lines = text.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
-      if (lines.length <= 1) return;
-
-      const headers = parseCsvLine(lines[0]).map((h) => h.toLowerCase().replace(/[^a-z0-9]/g, ''));
-      const parsedRows: any[] = [];
-
-      for (let i = 1; i < lines.length; i++) {
-        const cols = parseCsvLine(lines[i]);
-        const obj: any = {};
-        headers.forEach((h, idx) => {
-          obj[h] = cols[idx] || '';
-        });
-
-        // Smart alias matching
-        const medicineName =
-          obj['medicinename'] || obj['medicine'] || obj['itemname'] || obj['item'] || obj['name'] || '';
-        const sku = obj['sku'] || obj['code'] || obj['itemcode'] || '';
-        const batchNumber = obj['batchnumber'] || obj['batchno'] || obj['batch'] || '';
-        const expiryDate = obj['expirydate'] || obj['expiry'] || obj['expdate'] || obj['exp'] || '';
-        const qty = parseInt(obj['quantity'] || obj['qty'] || obj['stock'] || '0') || 0;
-        const purchasePrice = parseFloat(obj['purchaseprice'] || obj['costprice'] || obj['cost'] || obj['rate'] || '0') || 0;
-        const sellingPrice = parseFloat(obj['sellingprice'] || obj['saleprice'] || obj['mrp'] || '0') || 0;
-        const mrp = parseFloat(obj['mrp'] || obj['maxretailprice'] || '0') || sellingPrice;
-        const taxPercent = parseFloat(obj['taxpercent'] || obj['gst'] || obj['gstpercent'] || '12') || 12;
-        const rackLocation = obj['racklocation'] || obj['rack'] || obj['location'] || '';
-
-        if (medicineName || batchNumber) {
-          parsedRows.push({
-            medicineName,
-            sku,
-            batchNumber,
-            expiryDate,
-            qty,
-            purchasePrice,
-            sellingPrice,
-            mrp,
-            taxPercent,
-            rackLocation,
-          });
-        }
-      }
-
-      if (parsedRows.length > 0) {
-        setRows(parsedRows);
-        setResultStatus({
-          success: true,
-          message: `Loaded ${parsedRows.length} rows from CSV file. Review and click 'Commit Opening Stock' below.`,
-        });
-      }
+      parseCSV(text);
     };
     reader.readAsText(file);
   };
 
-  const handleProcessPaste = () => {
+  const parseCSV = (text: string) => {
+    const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    if (lines.length < 2) {
+      alert('CSV must contain a header row and at least one data row.');
+      return;
+    }
+
+    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+    const parsedRows = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
+      if (cols.length === 0 || !cols[0]) continue;
+
+      const rowObj: any = { ...initialRow };
+      headers.forEach((h, colIdx) => {
+        const val = cols[colIdx] || '';
+        if (h.includes('medicine') || h.includes('name')) rowObj.medicineName = val;
+        else if (h.includes('sku') || h.includes('barcode')) rowObj.sku = val;
+        else if (h.includes('batch')) rowObj.batchNumber = val;
+        else if (h.includes('expiry') || h.includes('exp')) rowObj.expiryDate = val;
+        else if (h.includes('qty') || h.includes('quantity')) rowObj.qty = parseInt(val) || 10;
+        else if (h.includes('cost') || h.includes('purchase')) rowObj.purchasePrice = parseFloat(val) || 0;
+        else if (h.includes('sell') || h.includes('rate')) rowObj.sellingPrice = parseFloat(val) || 0;
+        else if (h.includes('mrp')) rowObj.mrp = parseFloat(val) || 0;
+        else if (h.includes('tax') || h.includes('gst')) rowObj.taxPercent = parseFloat(val) || 12;
+        else if (h.includes('rack') || h.includes('location')) rowObj.rackLocation = val;
+      });
+
+      if (rowObj.medicineName) {
+        parsedRows.push(rowObj);
+      }
+    }
+
+    if (parsedRows.length > 0) {
+      setRows(parsedRows);
+      setResultStatus({
+        success: true,
+        message: 'Loaded ' + parsedRows.length + ' rows from CSV spreadsheet.',
+      });
+    } else {
+      alert('No valid medicine rows could be parsed from the file.');
+    }
+  };
+
+  const handlePasteProcess = () => {
     if (!pasteText.trim()) return;
-    const lines = pasteText.split(/\r\n|\n/).filter((l) => l.trim().length > 0);
+    const lines = pasteText.split(/\r?\n/).filter((l) => l.trim().length > 0);
     const parsedRows: any[] = [];
 
     lines.forEach((line) => {
-      // Split by tab (Excel copy) or comma
-      const cols = line.includes('\t')
-        ? line.split('\t').map((c) => c.trim().replace(/^"|"$/g, ''))
-        : parseCsvLine(line);
-
-      if (cols.length >= 2) {
-        // Assume order: Medicine Name, Batch Number, Expiry, Qty, Cost, Selling, MRP, SKU
+      const cols = line.split('\t').map((c) => c.trim());
+      if (cols.length > 0 && cols[0]) {
         parsedRows.push({
           medicineName: cols[0] || '',
-          batchNumber: cols[1] || `B-${Date.now().toString(36).toUpperCase()}`,
-          expiryDate: cols[2] || '',
-          qty: parseInt(cols[3] || '10') || 10,
-          purchasePrice: parseFloat(cols[4] || '0') || 0,
-          sellingPrice: parseFloat(cols[5] || '0') || 0,
-          mrp: parseFloat(cols[6] || '0') || 0,
-          sku: cols[7] || '',
-          taxPercent: 12,
-          rackLocation: '',
+          sku: cols[1] || '',
+          batchNumber: cols[2] || 'B-' + new Date().getFullYear(),
+          expiryDate: cols[3] || '2027-12-31',
+          qty: parseInt(cols[4]) || 10,
+          purchasePrice: parseFloat(cols[5]) || 0,
+          sellingPrice: parseFloat(cols[6]) || 0,
+          mrp: parseFloat(cols[7]) || 0,
+          taxPercent: parseFloat(cols[8]) || 12,
+          rackLocation: cols[9] || '',
         });
       }
     });
@@ -258,510 +246,862 @@ export default function ImportPage() {
       setPasteText('');
       setResultStatus({
         success: true,
-        message: `Parsed ${parsedRows.length} rows from clipboard paste!`,
+        message: 'Successfully imported ' + parsedRows.length + ' rows from clipboard!',
       });
     }
   };
 
-  const handleDownloadSampleCsv = () => {
+  const downloadSampleTemplate = () => {
     const csvContent =
-      'data:text/csv;charset=utf-8,' +
-      'Medicine Name,SKU,Batch Number,Expiry Date,Quantity,Purchase Price,Selling Price,MRP,GST %,Rack Location\n' +
-      'Paracetamol 650mg,MED-PCM-650,BT-2026-01,2027-12-31,100,1.20,2.00,2.50,12,Rack-A1\n' +
-      'Amoxicillin 500mg,MED-AMX-500,BT-2026-02,2026-10-31,50,5.50,8.50,10.00,12,Rack-B3\n' +
-      'Cetirizine 10mg,MED-CTZ-010,BT-2026-03,2028-05-31,200,0.80,1.50,2.00,12,Rack-A2\n' +
-      'Azithromycin 500mg,MED-AZI-500,BT-2026-04,2027-08-31,40,15.00,22.00,25.00,18,Rack-C1\n' +
-      'Pantoprazole 40mg,MED-PAN-040,BT-2026-05,2028-02-28,150,3.20,5.50,6.00,12,Rack-B1';
+      'Medicine Name,SKU,Batch Number,Expiry Date,Quantity,Purchase Price,Selling Price,MRP,GST %,Location\n' +
+      'Paracetamol 650mg,PCM-650,B2026-01,2027-12-31,100,1.20,2.00,2.50,12,Rack-A1\n' +
+      'Amoxicillin 500mg,AMX-500,B2026-02,2026-06-30,50,4.50,7.00,8.00,12,Rack-B2\n' +
+      'Azithromycin 500mg,AZI-500,B2026-03,2028-01-15,40,12.00,18.00,22.00,12,Rack-C1\n';
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', 'medcare_opening_stock_template.csv');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'opening_stock_template.csv');
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const handleSubmit = () => {
-    const validRows = rows.filter((r) => r.medicineName?.trim());
-    if (validRows.length === 0) {
-      alert('Please fill at least one row with a valid Medicine Name.');
+  // ----------------------------------------------------
+  // CLOSING STOCK STATE & HANDLERS
+  // ----------------------------------------------------
+  const { data: closingStockData, isLoading: loadingClosing, refetch: refetchClosing } = useQuery({
+    queryKey: ['inventory-closing-stock', selectedBranchId],
+    queryFn: async () => {
+      const res = await apiClient.get('/reports/inventory', {
+        params: { branchId: selectedBranchId || undefined },
+      });
+      return res.data?.data || res.data || { items: [], summary: {} };
+    },
+    enabled: activeTab === 'closing',
+  });
+
+  const { data: fullBatchesData, isLoading: loadingBatches } = useQuery({
+    queryKey: ['inventory-overview-batches', selectedBranchId],
+    queryFn: async () => {
+      const res = await apiClient.get('/inventory/overview', {
+        params: { branchId: selectedBranchId || undefined, limit: 1000 },
+      });
+      return res.data?.data || res.data?.items || res.data || [];
+    },
+    enabled: activeTab === 'closing',
+  });
+
+  // Flattened Live Batches for Closing Stock
+  const allClosingBatches = useMemo(() => {
+    const rawList = Array.isArray(fullBatchesData)
+      ? fullBatchesData
+      : (fullBatchesData?.items || []);
+
+    const list: any[] = [];
+    rawList.forEach((med: any) => {
+      if (Array.isArray(med.batches) && med.batches.length > 0) {
+        med.batches.forEach((b: any) => {
+          list.push({
+            id: b.id || med.id + '_' + b.batchNumber,
+            medicineName: med.name,
+            genericName: med.genericName,
+            sku: med.sku || 'N/A',
+            category: med.category?.name || med.category || 'General',
+            unit: med.baseUnit?.abbreviation || med.baseUnit || 'PCS',
+            batchNumber: b.batchNumber,
+            expiryDate: b.expiryDate,
+            currentQty: b.currentQty || 0,
+            purchasePrice: b.purchasePrice || 0,
+            sellingPrice: b.sellingPrice || 0,
+            mrp: b.mrp || 0,
+            purchaseValuation: (b.currentQty || 0) * (b.purchasePrice || 0),
+            mrpValuation: (b.currentQty || 0) * (b.mrp || 0),
+          });
+        });
+      } else {
+        // Fallback for medicines with stock aggregate
+        list.push({
+          id: med.id,
+          medicineName: med.name,
+          genericName: med.genericName,
+          sku: med.sku || 'N/A',
+          category: med.category?.name || med.category || 'General',
+          unit: med.baseUnit?.abbreviation || med.baseUnit || 'PCS',
+          batchNumber: 'Primary Batch',
+          expiryDate: null,
+          currentQty: med.totalStock || med.stock || 0,
+          purchasePrice: med.purchasePrice || 0,
+          sellingPrice: med.sellingPrice || 0,
+          mrp: med.mrp || 0,
+          purchaseValuation: (med.totalStock || med.stock || 0) * (med.purchasePrice || 0),
+          mrpValuation: (med.totalStock || med.stock || 0) * (med.mrp || 0),
+        });
+      }
+    });
+    return list;
+  }, [fullBatchesData]);
+
+  // Filtered Closing Batches
+  const filteredClosingBatches = useMemo(() => {
+    return allClosingBatches.filter((item) => {
+      const matchSearch =
+        closingSearch === '' ||
+        item.medicineName?.toLowerCase().includes(closingSearch.toLowerCase()) ||
+        item.genericName?.toLowerCase().includes(closingSearch.toLowerCase()) ||
+        item.sku?.toLowerCase().includes(closingSearch.toLowerCase()) ||
+        item.batchNumber?.toLowerCase().includes(closingSearch.toLowerCase());
+
+      const matchCategory =
+        closingCategory === 'ALL' || item.category === closingCategory;
+
+      return matchSearch && matchCategory;
+    });
+  }, [allClosingBatches, closingSearch, closingCategory]);
+
+  // Closing Stock Totals
+  const closingTotals = useMemo(() => {
+    const totalItems = filteredClosingBatches.length;
+    const totalQty = filteredClosingBatches.reduce((s, it) => s + (it.currentQty || 0), 0);
+    const totalPurchaseValue = filteredClosingBatches.reduce((s, it) => s + (it.purchaseValuation || 0), 0);
+    const totalMrpValue = filteredClosingBatches.reduce((s, it) => s + (it.mrpValuation || 0), 0);
+    const grossMargin = Math.max(0, totalMrpValue - totalPurchaseValue);
+    const marginPct = totalPurchaseValue > 0 ? ((grossMargin / totalPurchaseValue) * 100).toFixed(1) : '0';
+
+    return { totalItems, totalQty, totalPurchaseValue, totalMrpValue, grossMargin, marginPct };
+  }, [filteredClosingBatches]);
+
+  // Unique Categories
+  const categoriesList = useMemo(() => {
+    const cats = new Set<string>();
+    allClosingBatches.forEach((b) => {
+      if (b.category) cats.add(b.category);
+    });
+    return Array.from(cats);
+  }, [allClosingBatches]);
+
+  // EXPORT CSV FOR CLOSING STOCK
+  const exportClosingCSV = () => {
+    if (filteredClosingBatches.length === 0) {
+      alert('No stock records available to export.');
       return;
     }
-    importMutation.mutate(validRows);
+    const headerRow = 'Medicine Name,Generic Composition,SKU,Category,Batch Number,Expiry Date,Current Stock Qty,Unit,Purchase Cost Rate (₹),MRP Rate (₹),Total Cost Valuation (₹),Total MRP Valuation (₹)\n';
+    const rowsText = filteredClosingBatches
+      .map((it) =>
+        [
+          '"' + (it.medicineName || '').replace(/"/g, '""') + '"',
+          '"' + (it.genericName || '').replace(/"/g, '""') + '"',
+          '"' + (it.sku || '') + '"',
+          '"' + (it.category || '') + '"',
+          '"' + (it.batchNumber || '') + '"',
+          it.expiryDate ? formatDate(it.expiryDate) : 'N/A',
+          it.currentQty,
+          it.unit,
+          it.purchasePrice,
+          it.mrp,
+          it.purchaseValuation.toFixed(2),
+          it.mrpValuation.toFixed(2),
+        ].join(',')
+      )
+      .join('\n');
+
+    const blob = new Blob([headerRow + rowsText], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'closing_stock_report_' + new Date().toISOString().split('T')[0] + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // EXPORT EXCEL FOR CLOSING STOCK VIA API
+  const exportClosingExcel = async () => {
+    try {
+      const res = await apiClient.get('/reports/inventory/export/excel', {
+        params: { branchId: selectedBranchId || undefined },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'closing_stock_inventory_' + new Date().toISOString().split('T')[0] + '.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (e) {
+      exportClosingCSV();
+    }
+  };
+
+  // PRINT CLOSING STOCK PDF
+  const handlePrintPDF = () => {
+    window.print();
   };
 
   return (
-    <div className="flex h-screen bg-surface-page text-text-primary overflow-hidden font-sans">
-      <Sidebar />
+    <div className="flex h-screen bg-surface-page text-slate-900 dark:text-slate-100 overflow-hidden font-sans transition-colors duration-200">
+      <div className="print:hidden">
+        <Sidebar />
+      </div>
 
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <Header />
+        <div className="print:hidden">
+          <Header />
+        </div>
 
-        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-5">
-          {/* Page Header */}
-          <PageHeader
-            title="Opening Stock Import"
-            description="Bulk import medicines and opening inventory via spreadsheet or manual entry."
-            actions={
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={handleDownloadSampleCsv}
-                  className="px-3 py-2 bg-surface-base hover:bg-surface-raised text-text-secondary rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-border-default shadow-sm transition cursor-pointer"
-                >
-                  <Download className="w-4 h-4 text-text-muted" />
-                  CSV Sample Template
-                </button>
-
-                <button
-                  onClick={() => setShowPasteModal(true)}
-                  className="px-3 py-2 bg-surface-base hover:bg-surface-raised text-text-secondary rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-border-default shadow-sm transition cursor-pointer"
-                >
-                  <ClipboardPaste className="w-4 h-4 text-indigo-500" />
-                  Paste from Excel
-                </button>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleCsvUpload}
-                  className="hidden"
-                />
-
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-3.5 py-2 bg-surface-raised hover:bg-surface-hover text-text-primary rounded-xl text-xs font-semibold flex items-center gap-1.5 border border-border-strong shadow transition cursor-pointer"
-                >
-                  <Upload className="w-4 h-4 text-accent-primary" />
-                  Upload CSV File
-                </button>
-
-                <button
-                  onClick={handleSubmit}
-                  disabled={importMutation.isPending || stats.totalItems === 0}
-                  className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition cursor-pointer disabled:opacity-50 active:scale-95"
-                >
-                  {importMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {importMutation.isPending ? 'Committing...' : `Commit Opening Stock (${stats.totalItems})`}
-                </button>
-              </div>
-            }
-          />
-
-          {/* File Drop Zone */}
-          <div
-            className="border-2 border-dashed border-border-strong rounded-xl p-10 text-center bg-surface-base hover:bg-surface-raised transition cursor-pointer"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <FileSpreadsheet className="text-text-muted w-10 h-10 mx-auto mb-3" />
-            <p className="text-text-primary font-semibold text-base mb-1">Drop your CSV file here</p>
-            <p className="text-text-muted text-sm mb-4">
-              Or click to browse — supports .csv files with Medicine Name, Batch, Expiry, Qty, Cost, MRP columns
+        <main className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6">
+          {/* Printable Header (Visible only when printing) */}
+          <div className="hidden print:block mb-6 border-b pb-4">
+            <h1 className="text-2xl font-bold">{storeName || 'Medical Pharmacy Inventory'}</h1>
+            <p className="text-sm text-slate-600">
+              Closing Stock Valuation Report | Generated on: {new Date().toLocaleString('en-IN')}
             </p>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold transition"
-            >
-              <Upload className="w-4 h-4" />
-              Choose CSV File
-            </button>
-          </div>
-
-          {/* Live Valuation KPI Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
-              <span className="text-[11px] text-text-muted font-semibold block">Valid Items in Grid</span>
-              <div className="text-xl font-bold font-mono text-text-primary mt-1">
-                {stats.totalItems} Medicines
-              </div>
-              <span className="text-[10px] text-text-muted">{rows.length} total rows in table</span>
-            </div>
-
-            <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
-              <span className="text-[11px] text-text-muted font-semibold block">Total Stock Units</span>
-              <div className="text-xl font-bold font-mono text-sky-600 dark:text-sky-400 mt-1">
-                {stats.totalUnits} Units
-              </div>
-              <span className="text-[10px] text-text-muted">Total batch quantity</span>
-            </div>
-
-            <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
-              <span className="text-[11px] text-text-muted font-semibold block">Total Purchase Cost</span>
-              <div className="text-xl font-bold font-mono text-text-primary mt-1">
-                {formatCurrency(stats.totalCost)}
-              </div>
-              <span className="text-[10px] text-text-muted">Inventory investment</span>
-            </div>
-
-            <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
-              <span className="text-[11px] text-text-muted font-semibold block">Total MRP Valuation</span>
-              <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
-                {formatCurrency(stats.totalMrp)}
-              </div>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-                Est. Profit: {formatCurrency(stats.potentialProfit)}
-              </span>
+            <div className="flex justify-between mt-3 text-xs">
+              <span><b>Total Stock Units:</b> {closingTotals.totalQty}</span>
+              <span><b>Total Cost Value:</b> {formatCurrency(closingTotals.totalPurchaseValue)}</span>
+              <span><b>Total MRP Value:</b> {formatCurrency(closingTotals.totalMrpValue)}</span>
             </div>
           </div>
 
-          {/* Result Alert Banner */}
-          {resultStatus && (
-            <div
-              className={`p-4 rounded-2xl border text-xs flex items-start gap-3 shadow-sm ${
-                resultStatus.success
-                  ? 'bg-status-success-bg border-status-success-border text-status-success'
-                  : 'bg-status-error-bg border-status-error-border text-status-error'
-              }`}
-            >
-              {resultStatus.success ? (
-                <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+          {/* Top Page Header */}
+          <div className="print:hidden flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold text-text-primary tracking-tight flex items-center gap-2">
+                <Boxes className="w-5 h-5 text-accent-primary" />
+                Opening / Closing Stock
+              </h2>
+              <p className="text-xs text-text-muted mt-0.5">
+                Manage initial batch imports (Opening Stock) and inspect live branch valuation &amp; stock registers (Closing Stock).
+              </p>
+            </div>
+
+            {/* Tab Toggle Buttons */}
+            <div className="flex items-center gap-1.5 bg-surface-base p-1.5 rounded-2xl border border-border-default shadow-sm">
+              <button
+                onClick={() => setActiveTab('opening')}
+                className={'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ' +
+                  (activeTab === 'opening'
+                    ? 'bg-accent-primary text-white shadow'
+                    : 'text-text-muted hover:text-text-primary hover:bg-surface-raised')}
+              >
+                <Upload className="w-4 h-4" />
+                <span>Opening Stock (Import)</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('closing')}
+                className={'flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ' +
+                  (activeTab === 'closing'
+                    ? 'bg-accent-primary text-white shadow'
+                    : 'text-text-muted hover:text-text-primary hover:bg-surface-raised')}
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>Closing Stock (Export &amp; Live)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* ========================================================================= */}
+          {/* TAB 1: OPENING STOCK IMPORT */}
+          {/* ========================================================================= */}
+          {activeTab === 'opening' && (
+            <div className="space-y-6">
+              {/* Import Options Bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={downloadSampleTemplate}
+                    className="px-3 py-1.5 bg-surface-raised hover:bg-surface-hover border border-border-default rounded-xl text-xs font-medium text-text-secondary flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-accent-primary" />
+                    CSV Sample Template
+                  </button>
+
+                  <button
+                    onClick={() => setShowPasteModal(true)}
+                    className="px-3 py-1.5 bg-surface-raised hover:bg-surface-hover border border-border-default rounded-xl text-xs font-medium text-text-secondary flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                  >
+                    <ClipboardPaste className="w-3.5 h-3.5 text-emerald-500" />
+                    Paste from Excel
+                  </button>
+
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-3 py-1.5 bg-surface-raised hover:bg-surface-hover border border-border-default rounded-xl text-xs font-medium text-text-secondary flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-indigo-500" />
+                    Upload CSV File
+                  </button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileUpload}
+                    accept=".csv"
+                    className="hidden"
+                  />
+                </div>
+
+                <button
+                  onClick={() => {
+                    const valid = rows.filter((r) => r.medicineName?.trim());
+                    if (valid.length === 0) {
+                      alert('Please enter at least one medicine with a name.');
+                      return;
+                    }
+                    importMutation.mutate(valid);
+                  }}
+                  disabled={importMutation.isPending}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition active:scale-95 disabled:opacity-50 cursor-pointer"
+                >
+                  {importMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4" />
+                  )}
+                  Commit Opening Stock ({openingStats.totalItems})
+                </button>
+              </div>
+
+              {/* Status Alert Banner */}
+              {resultStatus && (
+                <div
+                  className={'p-4 rounded-2xl flex items-start gap-3 border shadow-sm ' +
+                    (resultStatus.success
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/50 text-emerald-800 dark:text-emerald-300'
+                      : 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800/50 text-red-800 dark:text-red-300')}
+                >
+                  {resultStatus.success ? (
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div className="text-xs flex-1">
+                    <p className="font-semibold">{resultStatus.message}</p>
+                    {resultStatus.summary && (
+                      <p className="mt-1 text-[11px] opacity-90">
+                        Imported {resultStatus.summary.importedCount || resultStatus.summary.count || 0} batches successfully into inventory.
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setResultStatus(null)}
+                    className="text-xs font-bold hover:underline opacity-70 hover:opacity-100"
+                  >
+                    Dismiss
+                  </button>
+                </div>
               )}
-              <div className="flex-1">
-                <p className="font-bold text-xs">{resultStatus.message}</p>
-                {(Array.isArray(resultStatus.errors) ? resultStatus.errors : []).map((err: any, idx: number) => (
-                  <p key={idx} className="text-[11px] text-status-error mt-0.5">
-                    Row {err.row}: {err.error}
-                  </p>
-                ))}
+
+              {/* Drag & Drop Upload Zone */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="p-8 border-2 border-dashed border-border-default rounded-3xl bg-surface-base/50 hover:bg-surface-raised/40 transition text-center cursor-pointer space-y-2 group"
+              >
+                <div className="w-12 h-12 rounded-2xl bg-surface-raised border border-border-default flex items-center justify-center mx-auto text-accent-primary group-hover:scale-110 transition">
+                  <FileSpreadsheet className="w-6 h-6" />
+                </div>
+                <h3 className="font-bold text-sm text-text-primary">
+                  Drop your CSV file here or click to browse
+                </h3>
+                <p className="text-xs text-text-muted max-w-md mx-auto">
+                  Supports .csv spreadsheets with Medicine Name, SKU, Batch, Expiry, Qty, Cost, and MRP columns.
+                </p>
+              </div>
+
+              {/* Live Opening Stats Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                  <span className="text-[11px] text-text-muted font-medium">Valid Items</span>
+                  <h4 className="text-lg font-bold font-mono text-text-primary mt-1">
+                    {openingStats.totalItems} Medicines
+                  </h4>
+                  <span className="text-[10px] text-slate-400">{rows.length} total rows in table</span>
+                </div>
+
+                <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                  <span className="text-[11px] text-text-muted font-medium">Total Quantity</span>
+                  <h4 className="text-lg font-bold font-mono text-accent-primary mt-1">
+                    {openingStats.totalUnits} Units
+                  </h4>
+                  <span className="text-[10px] text-slate-400">Total batch units</span>
+                </div>
+
+                <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                  <span className="text-[11px] text-text-muted font-medium">Total Cost Investment</span>
+                  <h4 className="text-lg font-bold font-mono text-text-primary mt-1">
+                    {formatCurrency(openingStats.totalCost)}
+                  </h4>
+                  <span className="text-[10px] text-slate-400">Inventory cost value</span>
+                </div>
+
+                <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                  <span className="text-[11px] text-text-muted font-medium">Total MRP Valuation</span>
+                  <h4 className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
+                    {formatCurrency(openingStats.totalMrp)}
+                  </h4>
+                  <span className="text-[10px] text-emerald-600 font-medium">
+                    Est. Margin: {formatCurrency(openingStats.potentialProfit)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Editable Live Opening Grid */}
+              <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-xs text-text-primary flex items-center gap-1.5">
+                    <Layers className="w-4 h-4 text-accent-primary" />
+                    Live Opening Stock Entry Grid
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => addRow(1)}
+                      className="px-2.5 py-1 bg-surface-raised hover:bg-surface-hover border border-border-default text-text-primary rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Row
+                    </button>
+                    <button
+                      onClick={() => addRow(5)}
+                      className="px-2.5 py-1 bg-surface-raised hover:bg-surface-hover border border-border-default text-text-primary rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> +5 Rows
+                    </button>
+                    <button
+                      onClick={() => setRows([{ ...initialRow }, { ...initialRow }, { ...initialRow }])}
+                      className="px-2.5 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" /> Clear Grid
+                    </button>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[950px]">
+                    <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase">
+                      <tr>
+                        <th className="py-2 px-2 w-8">#</th>
+                        <th className="py-2 px-2 min-w-[180px]">Medicine Name *</th>
+                        <th className="py-2 px-2 min-w-[90px]">SKU / Barcode</th>
+                        <th className="py-2 px-2 min-w-[110px]">Batch Number *</th>
+                        <th className="py-2 px-2 min-w-[110px]">Expiry Date</th>
+                        <th className="py-2 px-2 min-w-[70px] text-center">Qty</th>
+                        <th className="py-2 px-2 min-w-[85px] text-right">Cost (₹)</th>
+                        <th className="py-2 px-2 min-w-[85px] text-right">Selling (₹)</th>
+                        <th className="py-2 px-2 min-w-[85px] text-right">MRP (₹)</th>
+                        <th className="py-2 px-2 min-w-[90px]">Location</th>
+                        <th className="py-2 px-2 w-8 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-default">
+                      {rows.map((r, i) => (
+                        <tr key={i} className="hover:bg-surface-raised/40">
+                          <td className="py-2 px-2 font-mono text-text-muted text-center">{i + 1}</td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="text"
+                              placeholder="e.g. Paracetamol 650mg"
+                              value={r.medicineName}
+                              onChange={(e) => handleRowChange(i, 'medicineName', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs focus:outline-none focus:border-accent-primary"
+                            />
+                          </td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="text"
+                              placeholder="SKU"
+                              value={r.sku}
+                              onChange={(e) => handleRowChange(i, 'sku', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs font-mono focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="text"
+                              placeholder="B2026-01"
+                              value={r.batchNumber}
+                              onChange={(e) => handleRowChange(i, 'batchNumber', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs font-mono focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="date"
+                              value={r.expiryDate}
+                              onChange={(e) => handleRowChange(i, 'expiryDate', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="number"
+                              min="1"
+                              value={r.qty}
+                              onChange={(e) => handleRowChange(i, 'qty', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs text-center font-mono focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={r.purchasePrice}
+                              onChange={(e) => handleRowChange(i, 'purchasePrice', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs text-right font-mono focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={r.sellingPrice}
+                              onChange={(e) => handleRowChange(i, 'sellingPrice', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs text-right font-mono focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={r.mrp}
+                              onChange={(e) => handleRowChange(i, 'mrp', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs text-right font-mono focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-1 px-2">
+                            <input
+                              type="text"
+                              placeholder="Rack-A"
+                              value={r.rackLocation}
+                              onChange={(e) => handleRowChange(i, 'rackLocation', e.target.value)}
+                              className="w-full bg-surface-page border border-border-default text-text-primary px-2 py-1 rounded-lg text-xs focus:outline-none"
+                            />
+                          </td>
+                          <td className="py-1 px-2 text-center">
+                            <button
+                              onClick={() => removeRow(i)}
+                              className="p-1 hover:bg-red-50 dark:hover:bg-red-950/40 text-red-500 rounded transition"
+                              title="Delete Row"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Recent Opening Stock Imports History */}
+              <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-4 space-y-3">
+                <h3 className="font-bold text-xs text-text-primary flex items-center gap-1.5">
+                  <History className="w-4 h-4 text-text-muted" />
+                  Recent Opening Stock Import Batches
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[650px]">
+                    <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase">
+                      <tr>
+                        <th className="py-2 px-3">Date</th>
+                        <th className="py-2 px-3">Medicine</th>
+                        <th className="py-2 px-3">Batch #</th>
+                        <th className="py-2 px-3 text-center">Opening Qty</th>
+                        <th className="py-2 px-3 text-right">Cost Rate (₹)</th>
+                        <th className="py-2 px-3 text-right">MRP (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-default">
+                      {loadingRecent ? (
+                        <tr>
+                          <td colSpan={6} className="py-6 text-center text-slate-400">
+                            Loading import records...
+                          </td>
+                        </tr>
+                      ) : (recentImports || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-6 text-center text-slate-400">
+                            No opening stock batches imported recently for this branch.
+                          </td>
+                        </tr>
+                      ) : (
+                        recentImports.slice(0, 10).map((b: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-surface-raised/40">
+                            <td className="py-2 px-3 text-text-muted font-mono">{formatDate(b.createdAt)}</td>
+                            <td className="py-2 px-3 font-semibold text-text-primary">
+                              {b.medicine?.name || b.medicineName || 'Medicine'}
+                            </td>
+                            <td className="py-2 px-3 font-mono text-accent-primary">{b.batchNumber}</td>
+                            <td className="py-2 px-3 text-center font-bold font-mono text-text-primary">
+                              {b.initialQty || b.currentQty}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono text-text-secondary">
+                              {formatCurrency(b.purchasePrice)}
+                            </td>
+                            <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                              {formatCurrency(b.mrp)}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Opening Stock Wizard Table */}
-          <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm overflow-hidden space-y-3 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-xs text-text-primary">Live Opening Stock Table</span>
-                <span className="text-[11px] text-text-muted">({rows.length} rows)</span>
+          {/* ========================================================================= */}
+          {/* TAB 2: CLOSING STOCK (EXPORT & LIVE REGISTER) */}
+          {/* ========================================================================= */}
+          {activeTab === 'closing' && (
+            <div className="space-y-6">
+              {/* Closing Summary Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                  <span className="text-[11px] text-text-muted font-medium">Closing Items</span>
+                  <h4 className="text-lg font-bold font-mono text-text-primary mt-1">
+                    {closingTotals.totalItems} Batches
+                  </h4>
+                  <span className="text-[10px] text-slate-400">{closingStockData?.summary?.totalMedicines || 0} distinct medicines</span>
+                </div>
+
+                <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                  <span className="text-[11px] text-text-muted font-medium">Physical Stock on Shelf</span>
+                  <h4 className="text-lg font-bold font-mono text-accent-primary mt-1">
+                    {closingTotals.totalQty} Units
+                  </h4>
+                  <span className="text-[10px] text-slate-400">Available sellable inventory</span>
+                </div>
+
+                <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                  <span className="text-[11px] text-text-muted font-medium">Total Cost Valuation</span>
+                  <h4 className="text-lg font-bold font-mono text-text-primary mt-1">
+                    {formatCurrency(closingTotals.totalPurchaseValue)}
+                  </h4>
+                  <span className="text-[10px] text-slate-400">Purchase investment value</span>
+                </div>
+
+                <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                  <span className="text-[11px] text-text-muted font-medium">Total MRP Retail Value</span>
+                  <h4 className="text-lg font-bold font-mono text-emerald-600 dark:text-emerald-400 mt-1">
+                    {formatCurrency(closingTotals.totalMrpValue)}
+                  </h4>
+                  <span className="text-[10px] text-emerald-600 font-semibold">
+                    Potential Margin: {formatCurrency(closingTotals.grossMargin)} ({closingTotals.marginPct}%)
+                  </span>
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleAddRow(1)}
-                  className="px-2.5 py-1.5 bg-accent-subtle hover:bg-accent-subtle/70 text-accent-primary rounded-lg text-xs font-semibold flex items-center gap-1 transition"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Add Row
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleAddRow(5)}
-                  className="px-2.5 py-1.5 bg-surface-raised hover:bg-surface-hover text-text-secondary rounded-lg text-xs font-semibold flex items-center gap-1 transition"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  +5 Rows
-                </button>
-                <button
-                  type="button"
-                  onClick={handleClearGrid}
-                  className="px-2.5 py-1.5 bg-status-error-bg hover:bg-red-100 dark:hover:bg-red-900/50 text-status-error rounded-lg text-xs font-semibold flex items-center gap-1 transition"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  Clear Grid
-                </button>
-              </div>
-            </div>
+              {/* Filters & Export Options Bar */}
+              <div className="print:hidden flex flex-wrap items-center justify-between gap-3 bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
+                {/* Search & Category Filter */}
+                <div className="flex flex-wrap items-center gap-2 flex-1 min-w-[280px]">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="w-4 h-4 text-text-muted absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="Search medicine name, generic formula, SKU, batch..."
+                      value={closingSearch}
+                      onChange={(e) => setClosingSearch(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 bg-surface-page border border-border-default rounded-xl text-xs text-text-primary focus:outline-none focus:border-accent-primary"
+                    />
+                  </div>
 
-            <div className="overflow-x-auto border border-border-default rounded-xl">
-              <table className="w-full text-left border-collapse text-xs min-w-[950px]">
-                <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase tracking-wider">
-                  <tr>
-                    <th className="py-2.5 px-3">#</th>
-                    <th className="py-2.5 px-3 min-w-[200px]">Medicine Name *</th>
-                    <th className="py-2.5 px-3 min-w-[110px]">SKU</th>
-                    <th className="py-2.5 px-3 min-w-[120px]">Batch Number *</th>
-                    <th className="py-2.5 px-3 min-w-[130px]">Expiry Date</th>
-                    <th className="py-2.5 px-3 text-center min-w-[80px]">Qty</th>
-                    <th className="py-2.5 px-3 text-right min-w-[95px]">Cost (₹)</th>
-                    <th className="py-2.5 px-3 text-right min-w-[95px]">Selling (₹)</th>
-                    <th className="py-2.5 px-3 text-right min-w-[95px]">MRP (₹)</th>
-                    <th className="py-2.5 px-3 min-w-[90px]">Rack/Shelf</th>
-                    <th className="py-2.5 px-2 text-center w-10"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-default">
-                  {rows.map((row, idx) => (
-                    <tr key={idx} className="hover:bg-surface-raised">
-                      <td className="py-2 px-3 text-text-muted font-mono text-[11px]">{idx + 1}</td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={row.medicineName}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].medicineName = e.target.value;
-                            setRows(updated);
-                          }}
-                          placeholder="e.g. Paracetamol 650mg"
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg text-text-primary font-medium focus:outline-none focus:border-[var(--border-focus)] text-xs"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={row.sku}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].sku = e.target.value;
-                            setRows(updated);
-                          }}
-                          placeholder="SKU Code"
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-[11px] text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={row.batchNumber}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].batchNumber = e.target.value;
-                            setRows(updated);
-                          }}
-                          placeholder="B2026-01"
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-[11px] text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="date"
-                          value={row.expiryDate}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].expiryDate = e.target.value;
-                            setRows(updated);
-                          }}
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-[11px] text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-center">
-                        <input
-                          type="number"
-                          placeholder="0"
-                          value={row.qty === 0 ? '' : row.qty}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].qty = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
-                            setRows(updated);
-                          }}
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-center text-text-primary focus:outline-none focus:border-[var(--border-focus)] font-bold"
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={row.purchasePrice === 0 ? '' : row.purchasePrice}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].purchasePrice = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                            setRows(updated);
-                          }}
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-right text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={row.sellingPrice === 0 ? '' : row.sellingPrice}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].sellingPrice = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                            setRows(updated);
-                          }}
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-right text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
-                        />
-                      </td>
-                      <td className="py-2 px-3 text-right">
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          value={row.mrp === 0 ? '' : row.mrp}
-                          onFocus={(e) => e.target.select()}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].mrp = e.target.value === '' ? 0 : parseFloat(e.target.value) || 0;
-                            setRows(updated);
-                          }}
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg font-mono text-right text-emerald-600 dark:text-emerald-400 font-bold focus:outline-none focus:border-[var(--border-focus)]"
-                        />
-                      </td>
-                      <td className="py-2 px-3">
-                        <input
-                          type="text"
-                          value={row.rackLocation}
-                          onChange={(e) => {
-                            const updated = [...rows];
-                            updated[idx].rackLocation = e.target.value;
-                            setRows(updated);
-                          }}
-                          placeholder="A1 / Shelf-2"
-                          className="w-full px-2 py-1 bg-surface-page border border-border-default rounded-lg text-[11px] text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
-                        />
-                      </td>
-                      <td className="py-2 px-2 text-center">
-                        <button
-                          type="button"
-                          onClick={() => removeRow(idx)}
-                          className="p-1 text-text-muted hover:text-status-error rounded-lg transition"
-                          title="Remove row"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Bottom Add Row Bar */}
-            <div className="flex items-center justify-between pt-2">
-              <button
-                type="button"
-                onClick={() => handleAddRow(1)}
-                className="px-3 py-1.5 bg-surface-raised hover:bg-surface-hover text-text-secondary rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
-              >
-                <Plus className="w-4 h-4 text-accent-primary" />
-                Add Another Row
-              </button>
-
-              <button
-                onClick={handleSubmit}
-                disabled={importMutation.isPending || stats.totalItems === 0}
-                className="px-5 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-md transition disabled:opacity-50"
-              >
-                {importMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                {importMutation.isPending ? 'Committing...' : `Commit Opening Stock (${stats.totalItems})`}
-              </button>
-            </div>
-          </div>
-
-          {/* Recent Opening Stock Audit History */}
-          <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-accent-primary" />
-                <h3 className="font-bold text-sm text-text-primary">Recent Opening Stock Batches Audit</h3>
-              </div>
-              <span className="text-xs text-text-muted">Latest imported stock batches</span>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs min-w-[700px]">
-                <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase">
-                  <tr>
-                    <th className="py-2.5 px-3">Date &amp; Time</th>
-                    <th className="py-2.5 px-3">Medicine Name</th>
-                    <th className="py-2.5 px-3">Batch Number</th>
-                    <th className="py-2.5 px-3">Expiry Date</th>
-                    <th className="py-2.5 px-3 text-center">Initial Qty</th>
-                    <th className="py-2.5 px-3 text-right">Cost (₹)</th>
-                    <th className="py-2.5 px-3 text-right">MRP (₹)</th>
-                    <th className="py-2.5 px-3">Imported By</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-default">
-                  {loadingRecent ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-text-muted">
-                        Loading recent opening stock...
-                      </td>
-                    </tr>
-                  ) : (recentImports || []).length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-text-muted">
-                        No opening stock records found yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    recentImports.map((m: any) => (
-                      <tr key={m.id} className="hover:bg-surface-raised">
-                        <td className="py-2.5 px-3 font-mono text-text-muted">{formatDate(m.createdAt)}</td>
-                        <td className="py-2.5 px-3 font-bold text-text-primary">{m.medicineName}</td>
-                        <td className="py-2.5 px-3 font-mono text-accent-primary">{m.batchNumber}</td>
-                        <td className="py-2.5 px-3 font-mono text-text-muted">
-                          {m.expiryDate ? formatDate(m.expiryDate) : '—'}
-                        </td>
-                        <td className="py-2.5 px-3 text-center font-mono font-bold text-text-primary">
-                          +{m.qty}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono text-text-secondary">
-                          {formatCurrency(m.purchasePrice)}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                          {formatCurrency(m.mrp)}
-                        </td>
-                        <td className="py-2.5 px-3 text-text-secondary">{m.userName}</td>
-                      </tr>
-                    ))
+                  {categoriesList.length > 0 && (
+                    <select
+                      value={closingCategory}
+                      onChange={(e) => setClosingCategory(e.target.value)}
+                      className="bg-surface-page border border-border-default text-text-primary px-3 py-1.5 rounded-xl text-xs focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL">All Categories</option>
+                      {categoriesList.map((cat) => (
+                        <option key={cat} value={cat}>
+                          {cat}
+                        </option>
+                      ))}
+                    </select>
                   )}
-                </tbody>
-              </table>
+                </div>
+
+                {/* Export Action Buttons */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={exportClosingExcel}
+                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer"
+                    title="Export Closing Stock to Microsoft Excel Spreadsheet (.xlsx)"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Export Excel (.xlsx)
+                  </button>
+
+                  <button
+                    onClick={exportClosingCSV}
+                    className="px-3.5 py-1.5 bg-surface-raised hover:bg-surface-hover border border-border-default text-text-primary rounded-xl text-xs font-semibold flex items-center gap-1.5 transition active:scale-95 cursor-pointer"
+                    title="Export Closing Stock to CSV Data File (.csv)"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-accent-primary" />
+                    Export CSV (.csv)
+                  </button>
+
+                  <button
+                    onClick={handlePrintPDF}
+                    className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow transition active:scale-95 cursor-pointer"
+                    title="Print Closing Stock or Save as PDF via Browser Print"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-sky-400" />
+                    Print / PDF
+                  </button>
+                </div>
+              </div>
+
+              {/* Comprehensive Closing Stock Table */}
+              <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm overflow-hidden p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-xs text-text-primary flex items-center gap-1.5">
+                    <Boxes className="w-4 h-4 text-accent-primary" />
+                    Current Closing Stock &amp; Physical Inventory Register ({filteredClosingBatches.length} items)
+                  </h3>
+                  <span className="text-[11px] text-text-muted font-mono">
+                    Valuation: <b>{formatCurrency(closingTotals.totalPurchaseValue)}</b> (Cost) | <b>{formatCurrency(closingTotals.totalMrpValue)}</b> (MRP)
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[850px]">
+                    <thead className="bg-surface-raised text-text-muted font-semibold border-b border-border-default text-[10px] uppercase">
+                      <tr>
+                        <th className="py-2.5 px-3">Medicine &amp; Generic Formula</th>
+                        <th className="py-2.5 px-3">SKU</th>
+                        <th className="py-2.5 px-3">Category</th>
+                        <th className="py-2.5 px-3">Batch Number</th>
+                        <th className="py-2.5 px-3">Expiry Date</th>
+                        <th className="py-2.5 px-3 text-center">Closing Qty</th>
+                        <th className="py-2.5 px-3 text-right">Cost Rate (₹)</th>
+                        <th className="py-2.5 px-3 text-right">MRP (₹)</th>
+                        <th className="py-2.5 px-3 text-right">Cost Value (₹)</th>
+                        <th className="py-2.5 px-3 text-right">MRP Value (₹)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border-default">
+                      {loadingBatches || loadingClosing ? (
+                        <tr>
+                          <td colSpan={10} className="py-12 text-center text-slate-400">
+                            <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                            Calculating live closing stock balances...
+                          </td>
+                        </tr>
+                      ) : filteredClosingBatches.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="py-12 text-center text-slate-400">
+                            No closing stock matches found. Check search filters or import initial opening stock.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredClosingBatches.map((item, idx) => {
+                          const isExpired = item.expiryDate && new Date(item.expiryDate) < new Date();
+                          return (
+                            <tr key={idx} className="hover:bg-surface-raised/40">
+                              <td className="py-2 px-3">
+                                <div className="font-bold text-text-primary">{item.medicineName}</div>
+                                {item.genericName && (
+                                  <div className="text-[10px] text-slate-400">{item.genericName}</div>
+                                )}
+                              </td>
+                              <td className="py-2 px-3 font-mono text-[11px] text-text-muted">{item.sku}</td>
+                              <td className="py-2 px-3 text-text-secondary">{item.category}</td>
+                              <td className="py-2 px-3 font-mono font-bold text-accent-primary">
+                                {item.batchNumber}
+                              </td>
+                              <td className="py-2 px-3 font-mono text-text-muted">
+                                {item.expiryDate ? (
+                                  <span className={isExpired ? 'text-red-500 font-bold' : ''}>
+                                    {formatDate(item.expiryDate)}
+                                    {isExpired && ' (EXPIRED)'}
+                                  </span>
+                                ) : (
+                                  'N/A'
+                                )}
+                              </td>
+                              <td className="py-2 px-3 text-center font-mono font-bold text-text-primary">
+                                {item.currentQty} <span className="text-[10px] text-text-muted font-normal">{item.unit}</span>
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono text-text-secondary">
+                                {formatCurrency(item.purchasePrice)}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                {formatCurrency(item.mrp)}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono font-bold text-text-primary">
+                                {formatCurrency(item.purchaseValuation)}
+                              </td>
+                              <td className="py-2 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                {formatCurrency(item.mrpValuation)}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Paste from Excel Modal */}
+          {showPasteModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-surface-base border border-border-default rounded-3xl max-w-2xl w-full p-6 space-y-4 shadow-2xl">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-bold text-text-primary flex items-center gap-2">
+                    <ClipboardPaste className="w-5 h-5 text-emerald-500" />
+                    Paste Tab-Separated Data from Excel
+                  </h3>
+                  <button
+                    onClick={() => setShowPasteModal(false)}
+                    className="text-text-muted hover:text-text-primary text-xs font-bold"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <p className="text-xs text-text-muted">
+                  Copy rows directly from Microsoft Excel or Google Sheets and paste below. Expected column order:
+                  <br />
+                  <b className="font-mono text-accent-primary">
+                    [Name] [SKU] [Batch] [Expiry] [Qty] [Cost] [Selling] [MRP] [GST%] [Location]
+                  </b>
+                </p>
+
+                <textarea
+                  rows={8}
+                  value={pasteText}
+                  onChange={(e) => setPasteText(e.target.value)}
+                  placeholder="Paste your copied Excel table rows here..."
+                  className="w-full bg-surface-page border border-border-default rounded-2xl p-3 text-xs font-mono text-text-primary focus:outline-none focus:border-accent-primary"
+                />
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setShowPasteModal(false)}
+                    className="px-4 py-2 bg-surface-raised text-text-muted rounded-xl text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handlePasteProcess}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow"
+                  >
+                    Process &amp; Load into Grid
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
-
-      {/* Paste from Excel Modal */}
-      {showPasteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-surface-overlay rounded-2xl border border-border-default shadow-2xl max-w-lg w-full p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-sm text-text-primary flex items-center gap-2">
-                <ClipboardPaste className="w-4 h-4 text-indigo-500" />
-                Paste Rows from Excel / Spreadsheet
-              </h3>
-              <button
-                onClick={() => setShowPasteModal(false)}
-                className="text-text-muted hover:text-text-primary text-sm font-bold"
-              >
-                ✕
-              </button>
-            </div>
-
-            <p className="text-xs text-text-muted">
-              Copy columns from Excel (e.g. <b>Medicine Name, Batch, Expiry, Qty, Cost, Selling, MRP</b>) and paste below:
-            </p>
-
-            <textarea
-              rows={6}
-              value={pasteText}
-              onChange={(e) => setPasteText(e.target.value)}
-              placeholder={`Paracetamol 650mg\tB2026-01\t2027-12-31\t100\t1.20\t2.00\t2.50\nAmoxicillin 500mg\tB2026-02\t2026-10-31\t50\t5.50\t8.50\t10.00`}
-              className="w-full p-3 bg-surface-page border border-border-strong rounded-xl font-mono text-xs text-text-primary focus:outline-none focus:border-[var(--border-focus)]"
-            />
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowPasteModal(false)}
-                className="px-3 py-2 bg-surface-raised text-text-secondary rounded-xl text-xs font-semibold hover:bg-surface-hover"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleProcessPaste}
-                disabled={!pasteText.trim()}
-                className="px-4 py-2 bg-accent-primary hover:bg-accent-hover text-white rounded-xl text-xs font-semibold disabled:opacity-50"
-              >
-                Import Pasted Rows
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

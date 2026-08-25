@@ -217,6 +217,8 @@ export default function SettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings-branches'] });
       queryClient.invalidateQueries({ queryKey: ['super-admin-branches-list'] });
+      queryClient.invalidateQueries({ queryKey: ['active-branches-list'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
       setBranchModalOpen(false);
       setEditingBranch(null);
       setSavedBanner(true);
@@ -233,6 +235,9 @@ export default function SettingsPage() {
     },
     onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['settings-branches'] });
+      queryClient.invalidateQueries({ queryKey: ['super-admin-branches-list'] });
+      queryClient.invalidateQueries({ queryKey: ['active-branches-list'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
       alert(res.data?.message || 'Branch removed successfully.');
     },
     onError: (err: any) => {

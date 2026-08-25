@@ -61,7 +61,7 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Stock Transfers', href: '/stock-transfers', icon: ArrowLeftRight, permission: 'inventory.transfer' },
       { label: 'Purchases', href: '/purchases', icon: Truck, permission: 'purchase.view' },
       { label: 'Purchase Orders', href: '/purchase-orders', icon: ClipboardList, permission: 'purchase.view' },
-      { label: 'Opening Stock / Import', href: '/import', icon: FileSpreadsheet, permission: 'inventory.adjust' },
+      { label: 'Opening / Closing Stock', href: '/import', icon: FileSpreadsheet, permission: 'inventory.adjust' },
     ],
   },
   {
