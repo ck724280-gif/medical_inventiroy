@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ShoppingCart,
@@ -391,6 +391,24 @@ export default function PosPage() {
     }
   };
 
+  const expectedDrawerCash = useMemo(() => {
+    if (!currentShift) return 0;
+    const opening = Number(currentShift.openingCash) || 0;
+    const cashSales = Number(currentShift.totalCashSales ?? currentShift.liveTotals?.cashSales) || 0;
+    const expected = Number(currentShift.expectedCash ?? currentShift.liveTotals?.expectedDrawerCash) || (opening + cashSales);
+    return expected;
+  }, [currentShift]);
+
+  const handleOpenShiftModal = () => {
+    if (currentShift) {
+      const calculatedCash = (expectedDrawerCash > 0 ? expectedDrawerCash : (Number(currentShift.openingCash) || 0)).toFixed(2);
+      setClosingCashInput(calculatedCash);
+    } else {
+      setOpeningCashInput('500');
+    }
+    setShowShiftModal(true);
+  };
+
   const handleOpenShift = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -401,6 +419,9 @@ export default function PosPage() {
       });
       setShowShiftModal(false);
       refetchShift();
+      queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] });
+      queryClient.invalidateQueries({ queryKey: ['current-cash-shift'] });
+      alert('Cashier shift opened successfully. POS billing is now ACTIVE.');
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to open shift.');
     }
@@ -410,7 +431,7 @@ export default function PosPage() {
     e.preventDefault();
     if (!currentShift?.shiftId) return;
 
-    if (!confirm('Are you sure you want to close the current cashier shift?')) return;
+    if (!confirm('Are you sure you want to close the current cashier shift and reconcile cash?')) return;
 
     try {
       await apiClient.post('/pos/shift/close', {
@@ -421,7 +442,9 @@ export default function PosPage() {
       setShowShiftModal(false);
       setClosingCashInput('');
       refetchShift();
-      alert('Shift closed successfully.');
+      queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] });
+      queryClient.invalidateQueries({ queryKey: ['current-cash-shift'] });
+      alert('Shift closed & reconciled successfully. Terminal is now offline.');
     } catch (err: any) {
       alert(err.response?.data?.message || 'Failed to close shift.');
     }
@@ -519,6 +542,12 @@ export default function PosPage() {
   const hasScheduleHDrug = cart.items.some((i) => i.prescriptionRequired);
 
   const handleCheckoutClick = () => {
+    if (!currentShift) {
+      alert('Cashier session is offline. Please start/open a cashier shift before billing.');
+      handleOpenShiftModal();
+      return;
+    }
+
     if (cart.items.length === 0) {
       alert('Cart is empty.');
       return;
@@ -620,24 +649,29 @@ export default function PosPage() {
           {/* Shift Status Badge */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowShiftModal(true)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer ${
+              onClick={handleOpenShiftModal}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold transition cursor-pointer shadow-sm ${
                 currentShift
-                  ? 'bg-accent-subtle border-accent-subtle-border text-accent'
-                  : 'bg-status-warning-bg border-status-warning-border text-status-warning'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/60 border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
+                  : 'bg-amber-50 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 hover:bg-amber-100 dark:hover:bg-amber-900/50 animate-pulse'
               }`}
+              title={
+                currentShift
+                  ? 'Shift is Active — Click to Reconcile Cash & Close Shift'
+                  : 'Shift is Offline / Closed — Click to Start Cashier Session'
+              }
             >
               <span
-                className={`w-2 h-2 rounded-full ${
-                  currentShift ? 'bg-accent' : 'bg-status-warning'
+                className={`w-2.5 h-2.5 rounded-full ${
+                  currentShift ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
                 }`}
               />
               <span>
                 {currentShift
-                  ? `Shift: Active (Cash: ${formatCurrency((Number(currentShift.openingCash) || 0) + (Number(currentShift.totalCashSales ?? currentShift.liveTotals?.cashSales) || 0))})`
-                  : 'No Active Shift — Click to Open'}
+                  ? `Shift: Active (Cash: ${formatCurrency(expectedDrawerCash)})`
+                  : 'Shift: Offline (Closed) — Click to Start'}
               </span>
-              <Coins className="w-3.5 h-3.5 ml-0.5 opacity-70" />
+              <Coins className="w-3.5 h-3.5 ml-0.5 opacity-80" />
             </button>
           </div>
 
@@ -1251,10 +1285,18 @@ export default function PosPage() {
               <button
                 disabled={cart.items.length === 0 || isCheckingOut}
                 onClick={handleCheckoutClick}
-                className="w-full mt-3 py-3.5 bg-status-success hover:opacity-90 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-40 disabled:pointer-events-none shadow-md"
+                className={`w-full mt-3 py-3.5 font-bold rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer transition disabled:opacity-40 disabled:pointer-events-none shadow-md ${
+                  currentShift
+                    ? 'bg-status-success hover:opacity-90 text-white'
+                    : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-500/20'
+                }`}
               >
                 <CheckCircle2 className="w-5 h-5" />
-                {isCheckingOut ? 'Completing Sale...' : 'Checkout & Print Thermal (F9)'}
+                {currentShift
+                  ? isCheckingOut
+                    ? 'Completing Sale...'
+                    : 'Checkout & Print Thermal (F9)'
+                  : 'Start Shift to Checkout & Bill (F9)'}
               </button>
             </div>
           </div>
@@ -1364,20 +1406,53 @@ export default function PosPage() {
 
                   <form onSubmit={handleCloseShift} className="space-y-3 pt-2">
                     <div>
-                      <label className="block text-[11px] font-semibold text-text-secondary mb-1">
-                        Physical Cash Counted in Drawer (₹) *
-                      </label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[11px] font-semibold text-text-secondary">
+                          Physical Cash Counted in Drawer (₹) *
+                        </label>
+                        <span className="text-[10px] text-accent font-semibold bg-accent-subtle px-1.5 py-0.5 rounded">
+                          Auto-Calculated (Editable)
+                        </span>
+                      </div>
                       <input
                         required
                         type="number"
                         onFocus={(e) => e.target.select()}
                         step="0.01"
-                        placeholder="Counted cash amount"
+                        placeholder="Counted cash in drawer"
                         value={closingCashInput}
                         onChange={(e) => setClosingCashInput(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg bg-surface-base border border-border font-mono text-sm text-text-primary focus:outline-none focus:border-accent"
+                        className="w-full px-3 py-2 rounded-lg bg-surface-base border border-border font-mono text-sm font-bold text-text-primary focus:outline-none focus:border-accent"
                       />
                     </div>
+
+                    {/* Live Real-Time Discrepancy Box */}
+                    {(() => {
+                      const counted = parseFloat(closingCashInput) || 0;
+                      const diff = counted - expectedDrawerCash;
+                      if (Math.abs(diff) < 0.01) {
+                        return (
+                          <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between text-xs text-emerald-800 dark:text-emerald-300 font-medium">
+                            <span>✓ Reconciliation:</span>
+                            <span className="font-bold font-mono">Exact Match (No Discrepancy)</span>
+                          </div>
+                        );
+                      } else if (diff < 0) {
+                        return (
+                          <div className="p-2 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 flex items-center justify-between text-xs text-rose-800 dark:text-rose-300 font-medium">
+                            <span>⚠ Cash Discrepancy:</span>
+                            <span className="font-bold font-mono">Shortage: -{formatCurrency(Math.abs(diff))}</span>
+                          </div>
+                        );
+                      } else {
+                        return (
+                          <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 flex items-center justify-between text-xs text-blue-800 dark:text-blue-300 font-medium">
+                            <span>✚ Cash Discrepancy:</span>
+                            <span className="font-bold font-mono">Surplus: +{formatCurrency(diff)}</span>
+                          </div>
+                        );
+                      }
+                    })()}
 
                     <div className="pt-2 flex justify-end gap-2">
                       <button
@@ -1391,7 +1466,7 @@ export default function PosPage() {
                         type="submit"
                         className="px-5 py-2 rounded-xl bg-status-error hover:opacity-90 font-bold text-white shadow-sm transition cursor-pointer"
                       >
-                        Close &amp; Finalize Shift
+                        End Shift &amp; Go Offline
                       </button>
                     </div>
                   </form>

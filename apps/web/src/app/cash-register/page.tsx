@@ -111,7 +111,8 @@ export default function CashRegisterPage() {
                     variant="destructive"
                     size="sm"
                     onClick={() => {
-                      setClosingCount(liveTotals?.expectedDrawerCash || 0);
+                      const expected = Number(liveTotals?.expectedDrawerCash ?? ((shift?.openingCash || 0) + (liveTotals?.cashSales || 0)));
+                      setClosingCount(expected > 0 ? expected.toFixed(2) : (shift?.openingCash || 0).toFixed(2));
                       setIsCloseModalOpen(true);
                     }}
                   >
@@ -283,9 +284,14 @@ export default function CashRegisterPage() {
                   </div>
 
                   <div>
-                    <label className="block text-text-muted font-medium mb-1">
-                      Actual Physical Cash Counted in Drawer (₹) *
-                    </label>
+                    <div className="flex justify-between items-center mb-1">
+                      <label className="block text-text-muted font-medium">
+                        Actual Physical Cash Counted in Drawer (₹) *
+                      </label>
+                      <span className="text-[10px] text-accent-primary font-semibold bg-accent-primary/10 px-1.5 py-0.5 rounded">
+                        Auto-Calculated (Editable)
+                      </span>
+                    </div>
                     <input
                       type="number"
                       value={closingCount}
