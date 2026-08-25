@@ -170,7 +170,22 @@ export default function SuperAdminBranchesPage() {
     },
   });
 
-  const allBranches = extractDataArray(branchesData);
+  const rawBranches = extractDataArray(branchesData);
+  const userBranchesList = Array.isArray(user?.branches) ? user.branches : [];
+  const allBranches: any[] = rawBranches.length > 0
+    ? rawBranches
+    : userBranchesList.map((b: any) => ({
+        id: b.id || b.branchId,
+        name: b.name || b.branch?.name || 'Branch',
+        code: b.code || b.branch?.code || 'BR',
+        address: b.address || b.branch?.address || 'Main Road',
+        city: b.city || b.branch?.city || 'Main City',
+        state: b.state || b.branch?.state || 'State',
+        phone: b.phone || b.branch?.phone || '+91 9999999999',
+        email: b.email || b.branch?.email,
+        isActive: b.isActive !== undefined ? b.isActive : true,
+        isDefault: b.isDefault !== undefined ? b.isDefault : false,
+      }));
   const allUsers = extractDataArray(usersData);
 
   const filtered = allBranches.filter(

@@ -21,7 +21,16 @@ async function bootstrap() {
     origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Requested-With',
+      'Accept',
+      'x-branch-id',
+      'X-Branch-Id',
+      'x-custom-note',
+      'X-Custom-Note',
+    ],
   });
 
   // 3. Global Input Validation Pipe
