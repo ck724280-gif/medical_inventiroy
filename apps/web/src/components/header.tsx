@@ -46,6 +46,7 @@ export function Header() {
       const res = await apiClient.get('/branches');
       return Array.isArray(res.data) ? res.data : (res.data?.data || []);
     },
+    enabled: !!user,
     staleTime: 10000,
   });
 

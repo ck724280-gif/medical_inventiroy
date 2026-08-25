@@ -29,7 +29,6 @@ import {
 
 import { Sidebar } from '../../components/sidebar';
 import { Header } from '../../components/header';
-import { PageHeader } from '../../components/ui/page-header';
 import { apiClient } from '../../lib/api-client';
 import { useAuthStore } from '../../stores/auth-store';
 import { useBrandingStore } from '../../stores/branding-store';
@@ -75,7 +74,7 @@ export default function OpeningClosingStockPage() {
   const [pasteText, setPasteText] = useState('');
 
   // Fetch Recent Opening Stock Audit
-  const { data: recentImports, isLoading: loadingRecent, refetch: refetchRecent } = useQuery({
+  const { data: recentImports, isLoading: loadingRecent } = useQuery({
     queryKey: ['recent-opening-stock', selectedBranchId],
     queryFn: async () => {
       const res = await apiClient.get('/inventory/opening-stock/recent', {
@@ -88,7 +87,7 @@ export default function OpeningClosingStockPage() {
 
   // Calculate live stats for Opening Stock Grid
   const openingStats = useMemo(() => {
-    const valid = rows.filter((r) => r.medicineName?.trim());
+    const valid = rows.filter((r) => r.medicineName && String(r.medicineName).trim().length > 0);
     const totalUnits = valid.reduce((sum, r) => sum + (Number(r.qty) || 0), 0);
     const totalCost = valid.reduce((sum, r) => sum + (Number(r.qty) || 0) * (Number(r.purchasePrice) || 0), 0);
     const totalMrp = valid.reduce((sum, r) => sum + (Number(r.qty) || 0) * (Number(r.mrp) || 0), 0);
@@ -104,15 +103,15 @@ export default function OpeningClosingStockPage() {
   const importMutation = useMutation({
     mutationFn: async (payloadRows: any[]) => {
       const formatted = payloadRows.map((r) => ({
-        medicineName: r.medicineName || r['Medicine Name'] || r.name,
+        medicineName: String(r.medicineName || r['Medicine Name'] || r.name || '').trim(),
         sku: r.sku || r['SKU'] || undefined,
-        batchNumber: r.batchNumber || r['Batch Number'] || r.batch,
-        expiryDate: r.expiryDate || r['Expiry Date'] || r.expiry,
-        qty: parseInt(r.qty || r['Quantity'] || '0') || 0,
-        purchasePrice: parseFloat(r.purchasePrice || r['Purchase Price'] || '0') || 0,
-        sellingPrice: parseFloat(r.sellingPrice || r['Selling Price'] || '0') || 0,
-        mrp: parseFloat(r.mrp || r['MRP'] || '0') || 0,
-        taxPercent: parseFloat(r.taxPercent || r['GST %'] || '12') || 12,
+        batchNumber: r.batchNumber || r['Batch Number'] || r.batch || 'B-' + new Date().getFullYear(),
+        expiryDate: r.expiryDate || r['Expiry Date'] || r.expiry || undefined,
+        qty: parseInt(String(r.qty || r['Quantity'] || '0'), 10) || 0,
+        purchasePrice: parseFloat(String(r.purchasePrice || r['Purchase Price'] || '0')) || 0,
+        sellingPrice: parseFloat(String(r.sellingPrice || r['Selling Price'] || '0')) || 0,
+        mrp: parseFloat(String(r.mrp || r['MRP'] || '0')) || 0,
+        taxPercent: parseFloat(String(r.taxPercent || r['GST %'] || '12')) || 12,
         rackLocation: r.rackLocation || r['Location'] || undefined,
       }));
 
@@ -193,7 +192,7 @@ export default function OpeningClosingStockPage() {
         else if (h.includes('sku') || h.includes('barcode')) rowObj.sku = val;
         else if (h.includes('batch')) rowObj.batchNumber = val;
         else if (h.includes('expiry') || h.includes('exp')) rowObj.expiryDate = val;
-        else if (h.includes('qty') || h.includes('quantity')) rowObj.qty = parseInt(val) || 10;
+        else if (h.includes('qty') || h.includes('quantity')) rowObj.qty = parseInt(val, 10) || 10;
         else if (h.includes('cost') || h.includes('purchase')) rowObj.purchasePrice = parseFloat(val) || 0;
         else if (h.includes('sell') || h.includes('rate')) rowObj.sellingPrice = parseFloat(val) || 0;
         else if (h.includes('mrp')) rowObj.mrp = parseFloat(val) || 0;
@@ -230,7 +229,7 @@ export default function OpeningClosingStockPage() {
           sku: cols[1] || '',
           batchNumber: cols[2] || 'B-' + new Date().getFullYear(),
           expiryDate: cols[3] || '2027-12-31',
-          qty: parseInt(cols[4]) || 10,
+          qty: parseInt(cols[4], 10) || 10,
           purchasePrice: parseFloat(cols[5]) || 0,
           sellingPrice: parseFloat(cols[6]) || 0,
           mrp: parseFloat(cols[7]) || 0,
@@ -271,17 +270,6 @@ export default function OpeningClosingStockPage() {
   // ----------------------------------------------------
   // CLOSING STOCK STATE & HANDLERS
   // ----------------------------------------------------
-  const { data: closingStockData, isLoading: loadingClosing, refetch: refetchClosing } = useQuery({
-    queryKey: ['inventory-closing-stock', selectedBranchId],
-    queryFn: async () => {
-      const res = await apiClient.get('/reports/inventory', {
-        params: { branchId: selectedBranchId || undefined },
-      });
-      return res.data?.data || res.data || { items: [], summary: {} };
-    },
-    enabled: activeTab === 'closing',
-  });
-
   const { data: fullBatchesData, isLoading: loadingBatches } = useQuery({
     queryKey: ['inventory-overview-batches', selectedBranchId],
     queryFn: async () => {
@@ -293,7 +281,7 @@ export default function OpeningClosingStockPage() {
     enabled: activeTab === 'closing',
   });
 
-  // Flattened Live Batches for Closing Stock
+  // Flattened Live Batches for Closing Stock with safe string extraction
   const allClosingBatches = useMemo(() => {
     const rawList = Array.isArray(fullBatchesData)
       ? fullBatchesData
@@ -301,42 +289,64 @@ export default function OpeningClosingStockPage() {
 
     const list: any[] = [];
     rawList.forEach((med: any) => {
+      if (!med) return;
+
+      const medName = typeof med.name === 'string' ? med.name : 'Medicine';
+      const generic = typeof med.genericName === 'string' ? med.genericName : '';
+      const skuStr = typeof med.sku === 'string' ? med.sku : 'N/A';
+      const catName = typeof med.category === 'object' && med.category?.name
+        ? String(med.category.name)
+        : (typeof med.category === 'string' ? med.category : 'General');
+      const unitStr = typeof med.baseUnit === 'object' && (med.baseUnit?.abbreviation || med.baseUnit?.name)
+        ? String(med.baseUnit.abbreviation || med.baseUnit.name)
+        : (typeof med.baseUnit === 'string' ? med.baseUnit : 'PCS');
+
       if (Array.isArray(med.batches) && med.batches.length > 0) {
         med.batches.forEach((b: any) => {
+          if (!b) return;
+          const qty = Number(b.currentQty) || 0;
+          const cost = Number(b.purchasePrice) || 0;
+          const sell = Number(b.sellingPrice) || 0;
+          const mrp = Number(b.mrp) || 0;
+
           list.push({
-            id: b.id || med.id + '_' + b.batchNumber,
-            medicineName: med.name,
-            genericName: med.genericName,
-            sku: med.sku || 'N/A',
-            category: med.category?.name || med.category || 'General',
-            unit: med.baseUnit?.abbreviation || med.baseUnit || 'PCS',
-            batchNumber: b.batchNumber,
-            expiryDate: b.expiryDate,
-            currentQty: b.currentQty || 0,
-            purchasePrice: b.purchasePrice || 0,
-            sellingPrice: b.sellingPrice || 0,
-            mrp: b.mrp || 0,
-            purchaseValuation: (b.currentQty || 0) * (b.purchasePrice || 0),
-            mrpValuation: (b.currentQty || 0) * (b.mrp || 0),
+            id: String(b.id || (med.id + '_' + b.batchNumber)),
+            medicineName: medName,
+            genericName: generic,
+            sku: skuStr,
+            category: catName,
+            unit: unitStr,
+            batchNumber: String(b.batchNumber || 'N/A'),
+            expiryDate: b.expiryDate || null,
+            currentQty: qty,
+            purchasePrice: cost,
+            sellingPrice: sell,
+            mrp: mrp,
+            purchaseValuation: qty * cost,
+            mrpValuation: qty * mrp,
           });
         });
       } else {
-        // Fallback for medicines with stock aggregate
+        const qty = Number(med.totalStock || med.stock) || 0;
+        const cost = Number(med.purchasePrice) || 0;
+        const sell = Number(med.sellingPrice) || 0;
+        const mrp = Number(med.mrp) || 0;
+
         list.push({
-          id: med.id,
-          medicineName: med.name,
-          genericName: med.genericName,
-          sku: med.sku || 'N/A',
-          category: med.category?.name || med.category || 'General',
-          unit: med.baseUnit?.abbreviation || med.baseUnit || 'PCS',
+          id: String(med.id || Math.random()),
+          medicineName: medName,
+          genericName: generic,
+          sku: skuStr,
+          category: catName,
+          unit: unitStr,
           batchNumber: 'Primary Batch',
           expiryDate: null,
-          currentQty: med.totalStock || med.stock || 0,
-          purchasePrice: med.purchasePrice || 0,
-          sellingPrice: med.sellingPrice || 0,
-          mrp: med.mrp || 0,
-          purchaseValuation: (med.totalStock || med.stock || 0) * (med.purchasePrice || 0),
-          mrpValuation: (med.totalStock || med.stock || 0) * (med.mrp || 0),
+          currentQty: qty,
+          purchasePrice: cost,
+          sellingPrice: sell,
+          mrp: mrp,
+          purchaseValuation: qty * cost,
+          mrpValuation: qty * mrp,
         });
       }
     });
@@ -346,12 +356,13 @@ export default function OpeningClosingStockPage() {
   // Filtered Closing Batches
   const filteredClosingBatches = useMemo(() => {
     return allClosingBatches.filter((item) => {
+      const q = closingSearch.toLowerCase().trim();
       const matchSearch =
-        closingSearch === '' ||
-        item.medicineName?.toLowerCase().includes(closingSearch.toLowerCase()) ||
-        item.genericName?.toLowerCase().includes(closingSearch.toLowerCase()) ||
-        item.sku?.toLowerCase().includes(closingSearch.toLowerCase()) ||
-        item.batchNumber?.toLowerCase().includes(closingSearch.toLowerCase());
+        q === '' ||
+        String(item.medicineName || '').toLowerCase().includes(q) ||
+        String(item.genericName || '').toLowerCase().includes(q) ||
+        String(item.sku || '').toLowerCase().includes(q) ||
+        String(item.batchNumber || '').toLowerCase().includes(q);
 
       const matchCategory =
         closingCategory === 'ALL' || item.category === closingCategory;
@@ -376,7 +387,7 @@ export default function OpeningClosingStockPage() {
   const categoriesList = useMemo(() => {
     const cats = new Set<string>();
     allClosingBatches.forEach((b) => {
-      if (b.category) cats.add(b.category);
+      if (b.category && typeof b.category === 'string') cats.add(b.category);
     });
     return Array.from(cats);
   }, [allClosingBatches]);
@@ -546,7 +557,7 @@ export default function OpeningClosingStockPage() {
 
                 <button
                   onClick={() => {
-                    const valid = rows.filter((r) => r.medicineName?.trim());
+                    const valid = rows.filter((r) => r.medicineName && String(r.medicineName).trim().length > 0);
                     if (valid.length === 0) {
                       alert('Please enter at least one medicine with a name.');
                       return;
@@ -819,7 +830,7 @@ export default function OpeningClosingStockPage() {
                             Loading import records...
                           </td>
                         </tr>
-                      ) : (recentImports || []).length === 0 ? (
+                      ) : (!recentImports || recentImports.length === 0) ? (
                         <tr>
                           <td colSpan={6} className="py-6 text-center text-slate-400">
                             No opening stock batches imported recently for this branch.
@@ -830,7 +841,7 @@ export default function OpeningClosingStockPage() {
                           <tr key={idx} className="hover:bg-surface-raised/40">
                             <td className="py-2 px-3 text-text-muted font-mono">{formatDate(b.createdAt)}</td>
                             <td className="py-2 px-3 font-semibold text-text-primary">
-                              {b.medicine?.name || b.medicineName || 'Medicine'}
+                              {typeof b.medicine === 'object' && b.medicine?.name ? b.medicine.name : (b.medicineName || 'Medicine')}
                             </td>
                             <td className="py-2 px-3 font-mono text-accent-primary">{b.batchNumber}</td>
                             <td className="py-2 px-3 text-center font-bold font-mono text-text-primary">
@@ -864,7 +875,7 @@ export default function OpeningClosingStockPage() {
                   <h4 className="text-lg font-bold font-mono text-text-primary mt-1">
                     {closingTotals.totalItems} Batches
                   </h4>
-                  <span className="text-[10px] text-slate-400">{closingStockData?.summary?.totalMedicines || 0} distinct medicines</span>
+                  <span className="text-[10px] text-slate-400">Batches currently in inventory</span>
                 </div>
 
                 <div className="bg-surface-base p-4 rounded-2xl border border-border-default shadow-sm">
@@ -985,7 +996,7 @@ export default function OpeningClosingStockPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border-default">
-                      {loadingBatches || loadingClosing ? (
+                      {loadingBatches ? (
                         <tr>
                           <td colSpan={10} className="py-12 text-center text-slate-400">
                             <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />

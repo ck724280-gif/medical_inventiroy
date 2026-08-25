@@ -1,46 +1,62 @@
 # MedCare — Advanced Medical Inventory & Pharmacy ERP / POS System
 
-Production-grade, single-business (100% white-label configurable, non-multi-tenant SaaS), multi-branch ready Medical Inventory & Pharmacy ERP/POS system built to the master specification.
+[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/ck724280-gif/medical_inventiroy)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Next.js](https://img.shields.io/badge/Next.js-14.2-black)](https://nextjs.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-10.0-red)](https://nestjs.com/)
+[![Prisma](https://img.shields.io/badge/Prisma-5.0-blue)](https://www.prisma.io/)
+[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan)](https://tailwindcss.com/)
+
+**MedCare** is a production-grade, single-business (100% white-label configurable, non-multi-tenant SaaS), multi-branch Medical Inventory & Pharmacy ERP/POS ecosystem built with high-velocity desktop and mobile workflows, strict FEFO drug dispensing, statutory compliance (GSTR-1, GSTR-3B, Schedule H/H1 registers), Cash Register shift management, and universal thermal/A4 printing.
 
 ---
 
-## 🌟 Core Architectural Features
+## 🌟 Key Architecture & Feature Highlights
 
-### 1. Business & Single-Tenant White-Label Architecture
-- **Single Medical Business Focus**: Purpose-built for independent pharmacies and hospital healthcare retail stores. No tenant IDs or complex tenant switching.
-- **Dynamic White-Labeling**: Store name, address, phone, GSTIN, pharmacy drug license, logos, and UI theme colors (`--color-primary`, `--color-secondary`) are dynamically loaded from database settings (`/api/settings/public`).
+### 1. 🏢 Single Unified Database with Branch-Wise Isolation
+- **One Shared Database**: Built on a single, high-performance PostgreSQL database for simplicity, centralized backups, and consolidated reporting.
+- **Strict Data Partitioning via `branchId`**: Every operational entity (`SalesInvoice`, `PurchaseInvoice`, `Customer`, `Batch`, `StockMovement`, `Expense`, `CashRegisterShift`) is partitioned by branch.
+- **Instant Branch Context Switching**: Owners and Super Admins can switch active store branch contexts on the fly from the top header or Control Center without logging out.
 
-### 2. Batch Inventory & FEFO Engine
-- **First Expiry, First Out (FEFO)**: When billing or dispensing medicines, the system automatically allocates from the earliest-expiring active batch.
-- **Expiry Protection**: Expired batches are strictly blocked from sale.
-- **Expiry Dashboard**: Real-time bracket classification for Expired, Expiring in 7 Days, Expiring in 30 Days, Expiring in 60 Days, and Expiring in 90 Days.
-- **Stock Movement Ledger**: Immutable ledger tracking every stock change (`PURCHASE`, `SALE`, `ADJUSTMENT`, `TRANSFER_IN`, `TRANSFER_OUT`, `SALES_RETURN`, `PURCHASE_RETURN`, `OPENING_STOCK`).
+---
 
-### 3. High-Speed POS Billing & Thermal Printing
-- **Desktop-First Keyboard Workflow**: Dedicated keyboard shortcuts (F1 Barcode Scan, F2 Medicine Search, F9 Checkout).
-- **Default Thermal Output**: Optimized 58mm and 80mm ESC/POS compatible thermal receipt output prioritized alongside A4 tax invoices and PDFKit PDF bills.
-- **Payment Flexibility**: Cash, UPI/QR, Card, Bank Transfer, and Split Payments.
-- **Hold & Resume Bills**: Suspend active customer carts and resume instantly.
+### 2. ⚡ High-Speed POS Billing & Cash Register Sessions
+- **Cashier Register Shift Enforcement**: Cashiers must open a cash register session with initial opening cash. Physical cash in drawer is auto-calculated with manual editable reconciliation upon closing.
+- **Desktop Keyboard Accelerators**: Complete POS operations operable without mouse (`F1` Scan, `F2` Search, `F9` Pay, `Ctrl+K` Universal ERP Search).
+- **Payment Split Support**: Accept Cash, UPI/QR (with dynamic pharmacy UPI QR code), Card, Bank Transfer, and Credit ledger.
+- **Hold & Resume Carts**: Park ongoing bills and retrieve them anytime.
 
-### 4. Purchasing & Receiving Workflows
-- **Draft -> Confirm Lifecycle**: Inward stock is only added to live inventory upon explicit confirmation.
-- **Batch Details Verification**: Captures batch numbers, manufacturing dates, expiry dates, supplier purchase prices, MRP, and selling rates.
-- **Supplier Ledger**: Outstanding payable balances update transactionally.
+---
 
-### 5. Sales & Purchase Returns
-- **Condition Routing**: Returns evaluated as `RESALABLE` (restores live stock), `DAMAGED` (increments damaged stock), or `EXPIRED` (increments expired stock).
-- **Immutable Audit**: Records bidirectional stock movements and updates financial balances.
+### 3. 📦 Opening & Closing Stock Management (`/import`)
+- **Dual Dedicated Tabs**:
+  - **Opening Stock (Import & Bulk Grid)**: Drag & Drop CSV spreadsheet upload, copy-paste from Excel sheets, downloadable CSV sample templates, live editable matrix, real-time cost & MRP valuation calculators, and batch audit logs.
+  - **Closing Stock (Live Valuation & Export)**: Live batch-wise inventory register with physical stock on shelf, purchase valuation, MRP value, and gross margin calculations.
+- **Multi-Format Exports**: Export live stock anytime in **Microsoft Excel (.xlsx)**, **CSV (.csv)**, or **Print / Save as PDF** via formatted browser print styles.
 
-### 6. Accurate Financials & Real-Time Analytics
-- **Cost of Goods Sold (COGS)**: Gross profit computed from actual sold item batch purchase costs (`SellingPrice - BatchPurchasePrice`).
-- **Net Profit Estimates**: Computes `GrossProfit - TotalExpenses`.
-- **Exporting**: Excel (`.xlsx`) and PDF generation for all inventory valuations and sales reports.
+---
 
-### 7. 3D Spatial Experience
-- **Interactive 3D Web Elements**: Floating medical capsule canvas rendered using Three.js / React Three Fiber pursuant to the `3d-web-experience` design standard.
+### 4. 📊 Reports & Legal Analytics (`/reports`)
+- **P&L Summary**: Live Gross Revenue, COGS (Cost of Goods Sold), Operating Expenses, and Net Profit margins.
+- **Sales Ledger**: Chronological invoices ledger with subtotal, tax, discounts, customer info, and one-click Excel export.
+- **Purchase Ledger**: Inward supply bills with vendor names, GSTIN, taxable subtotal, tax breakdown, and Excel export.
+- **Inventory Valuation**: Live batch and medicine valuations with cost vs retail MRP margins.
+- **GST Returns**: Automated GSTR-1 (B2B and B2C tables) and GSTR-3B monthly return summaries with Input Tax Credit (ITC) calculations.
+- **HSN Code Summary**: HSN code-wise quantity, taxable value, and GST rate breakdowns.
+- **Schedule H / H1 / X Controlled Drug Register**: Statutory register tracking Patient Name/Age, Prescribing Doctor & Reg #, Dispensed Drug, Batch, Expiry, and Quantity.
 
-### 8. Cross-Platform Mobile Application
-- **Expo / React Native App**: Mobile billing counter with live barcode camera scanning and Bluetooth thermal printer hooks.
+---
+
+### 5. 🖨️ Universal Print System & 20+ Layouts
+- **20+ Print Templates**: Thermal 58mm, Thermal 80mm, A4 Standard, A5 Compact, Minimalist, Classic Medical Rx, Luxury Modern, Dark Theme, and Barcode Label sheets.
+- **Thermal Receipt Customizer**: Super Admins can toggle individual fields (Pharmacy Logo, Drug License #, GSTIN, Doctor details, Customer balance, HSN breakdown, Greetings, QR Code, Footer notes) with live interactive previews.
+
+---
+
+### 6. 💊 FEFO Expiry & Batch Inventory Engine
+- **First Expiry, First Out (FEFO)**: Automatically suggests and dispenses batches with the earliest expiry date.
+- **Expiry Protection**: Hard-blocks expired batches from being billed.
+- **Stock Movement Ledger**: Immutable audit log of all stock changes (`PURCHASE`, `SALE`, `ADJUSTMENT`, `TRANSFER_IN`, `TRANSFER_OUT`, `SALES_RETURN`, `PURCHASE_RETURN`, `OPENING_STOCK`).
 
 ---
 
@@ -49,7 +65,7 @@ Production-grade, single-business (100% white-label configurable, non-multi-tena
 ```
 medical_inventory/
 ├── apps/
-│   ├── api/          # NestJS Backend REST API (20+ feature domains)
+│   ├── api/          # NestJS 10 Backend REST API (20+ feature modules)
 │   ├── web/          # Next.js 14 App Router Web Client & POS Terminal
 │   └── mobile/       # React Native / Expo Mobile POS & Barcode Scanner
 ├── packages/
@@ -66,68 +82,83 @@ medical_inventory/
 
 ---
 
-## 🚀 Quickstart Guide
+## 🚀 Quickstart & Setup Guide
 
 ### 1. Prerequisites
 - **Node.js**: `v20+` or `v24+`
-- **PostgreSQL**: PostgreSQL 14+ instance running locally or via Docker
-- **npm** or **pnpm**
+- **PostgreSQL**: PostgreSQL 14+ database instance
+- **npm** (or **pnpm**)
 
-### 2. Environment Configuration
-Copy `.env.example` to `.env` in the root:
-```bash
-cp .env.example .env
-```
-Ensure your `DATABASE_URL` is set:
+### 2. Environment Variables
+Create a `.env` file in the root directory:
 ```env
+# Database Connection (PostgreSQL)
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/medcare_db?schema=public"
+
+# Authentication Secrets
 JWT_ACCESS_SECRET="your-jwt-access-secret-key-at-least-32-chars-long"
 JWT_REFRESH_SECRET="your-jwt-refresh-secret-key-at-least-32-chars-long"
+
+# Ports & URLs
+PORT=4000
+NEXT_PUBLIC_API_URL="http://localhost:4000/api"
 ```
 
 ### 3. Database Migration & Seed
 ```bash
-# Generate Prisma Client
+# Generate Prisma client
 npx prisma generate
 
-# Apply Schema Migrations
+# Run migrations
 npx prisma migrate dev --name init
 
-# Run Seed Scripts
+# Seed database with default roles, admin user, and medicine categories
 npm run seed
 ```
 
-**Default Admin Credentials**:
+**Default Super Admin Credentials**:
 - **Email**: `admin@medcare.com`
 - **Password**: `Admin@123456`
 
-### 4. Running the System
-
+### 4. Running Locally
 ```bash
-# Run NestJS Backend API (Port 4000)
+# Start NestJS Backend API (Port 4000)
 npm run dev:api
 
-# Run Next.js Web POS & Admin Portal (Port 3000)
+# Start Next.js Web Frontend (Port 3000)
 npm run dev:web
 
-# Run Expo Mobile App (Optional)
-npm run dev:mobile
+# Or run all simultaneously with Turborepo
+npm run dev
 ```
 
-- **Web Dashboard & POS**: [http://localhost:3000](http://localhost:3000)
-- **Backend API & Swagger Docs**: [http://localhost:4000/docs](http://localhost:4000/docs)
+- **Web Application**: [http://localhost:3000](http://localhost:3000)
+- **API Swagger Documentation**: [http://localhost:4000/docs](http://localhost:4000/docs)
 
 ---
 
 ## 🔒 Default Role Permissions Matrix
 
-| Module | OWNER | ADMIN | MANAGER | PHARMACIST | CASHIER | INVENTORY |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
-| POS Billing (`sale.create`) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Discount Overrides (`sale.discount`) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| View Medicine Catalog (`medicine.view`)| ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Manage Medicines (`medicine.create`) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Inventory Adjustments (`inventory.adjust`)| ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Inward Purchases (`purchase.create`) | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Financial Reports (`report.view`) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| White-Label Settings (`settings.manage`)| ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Module / Permission | SUPER ADMIN | BRANCH MANAGER | PHARMACIST | CASHIER | INVENTORY |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| POS Billing (`sale.create`) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Cash Register Shift (`sale.create`) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Discount Overrides (`sale.discount`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Medicine Catalog (`medicine.view`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Inventory & Batches (`inventory.view`) | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Inward Purchases (`purchase.create`) | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Opening / Closing Stock (`inventory.adjust`) | ✅ | ✅ | ❌ | ❌ | ✅ |
+| Reports & Analytics (`report.view`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Super Admin & Branches (`super_admin.access`) | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+---
+
+## 🚢 Deployment on Render / Cloud
+1. **API Service**: Deploy `apps/api` as a Node.js Web Service on Render with `npm run build:api` and start command `node dist/apps/api/main.js`.
+2. **Web Service**: Deploy `apps/web` on Vercel or Render with `npm run build:web` and `npm run start:web`.
+3. Set `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `NEXT_PUBLIC_API_URL` in the cloud environment settings.
+
+---
+
+## 📄 License
+This project is licensed under the MIT License.
