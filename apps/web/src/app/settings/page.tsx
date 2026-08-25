@@ -61,6 +61,34 @@ const INDIAN_STATES = [
 ];
 
 export default function SettingsPage() {
+  const { user } = useAuthStore();
+  const [deleteModalBranch, setDeleteModalBranch] = useState<any | null>(null);
+  const [adminEmail, setAdminEmail] = useState(user?.email || 'chiku542254@gmail.com');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [confirmBranchCode, setConfirmBranchCode] = useState('');
+
+  const secureDeleteMutation = useMutation({
+    mutationFn: async ({ branchId, email, password }: { branchId: string; email: string; password?: string }) => {
+      const res = await apiClient.post(`/branches/${branchId}/secure-delete`, { email, password });
+      return res.data;
+    },
+    onSuccess: (res: any) => {
+      queryClient.invalidateQueries({ queryKey: ['settings-branches'] });
+      queryClient.invalidateQueries({ queryKey: ['super-admin-branches-list'] });
+      queryClient.invalidateQueries({ queryKey: ['active-branches-list'] });
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
+
+      setDeleteModalBranch(null);
+      setAdminPassword('');
+      setConfirmBranchCode('');
+      alert(res?.message || 'Store branch deleted permanently after Super Admin re-authentication.');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Failed to delete branch. Please verify Super Admin password.');
+    },
+  });
+
   const { selectedBranchId } = useAuthStore();
   const queryClient = useQueryClient();
   const { fetchBranding, updateLogoImmediately, logo: currentStoreLogo } = useBrandingStore();
@@ -348,9 +376,10 @@ export default function SettingsPage() {
       alert('Cannot delete the primary default store branch.');
       return;
     }
-    if (confirm(`Are you sure you want to delete or deactivate branch "${b.name}" (${b.code})?`)) {
-      deleteBranchMutation.mutate(b.id);
-    }
+    setDeleteModalBranch(b);
+    setAdminEmail(user?.email || 'chiku542254@gmail.com');
+    setAdminPassword('');
+    setConfirmBranchCode('');
   };
 
   const uploadLogoMutation = useMutation({
@@ -1597,6 +1626,123 @@ export default function SettingsPage() {
             </div>
           )}
   
+        
+        {/* Super Admin Re-Authentication Branch Delete Modal */}
+        {deleteModalBranch && (
+          <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-surface-base border border-red-500/30 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 animate-scale-in text-xs text-text-primary">
+              <div className="flex justify-between items-center pb-3 border-b border-border-default">
+                <div className="flex items-center gap-2 text-red-600 dark:text-red-400 font-bold text-sm">
+                  <AlertCircle className="w-5 h-5" />
+                  <span>Super Admin Verification Required</span>
+                </div>
+                <button
+                  onClick={() => setDeleteModalBranch(null)}
+                  className="text-text-muted hover:text-text-primary font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl space-y-1 text-red-700 dark:text-red-300">
+                <p className="font-bold">⚠️ Permanent Deletion:</p>
+                <p className="text-[11px]">
+                  You are deleting branch <strong>{deleteModalBranch.name} ({deleteModalBranch.code})</strong>. To prevent unauthorized deletions, re-enter your Super Admin credentials.
+                </p>
+              </div>
+
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!adminEmail.trim() || !adminPassword.trim()) {
+                    alert('Please enter your Super Admin email and password.');
+                    return;
+                  }
+                  if (confirmBranchCode.trim().toUpperCase() !== deleteModalBranch.code.trim().toUpperCase()) {
+                    alert(`Confirmation failed. Please type "${deleteModalBranch.code}" to confirm.`);
+                    return;
+                  }
+                  secureDeleteMutation.mutate({
+                    branchId: deleteModalBranch.id,
+                    email: adminEmail.trim(),
+                    password: adminPassword.trim(),
+                  });
+                }}
+                className="space-y-3 pt-1"
+              >
+                <div>
+                  <label className="block text-text-secondary font-semibold mb-1">
+                    Super Admin User ID / Email *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={adminEmail}
+                    onChange={(e) => setAdminEmail(e.target.value)}
+                    placeholder="Super Admin login email"
+                    className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-red-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-text-secondary font-semibold mb-1">
+                    Super Admin Password *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showAdminPassword ? 'text' : 'password'}
+                      required
+                      value={adminPassword}
+                      onChange={(e) => setAdminPassword(e.target.value)}
+                      placeholder="Enter your Super Admin password"
+                      className="w-full pl-3 pr-9 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-red-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAdminPassword(!showAdminPassword)}
+                      className="absolute right-2.5 top-2.5 text-text-muted hover:text-text-primary"
+                    >
+                      {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-text-secondary font-semibold mb-1">
+                    Type Branch Code <strong className="text-red-500 font-mono">"{deleteModalBranch.code}"</strong> to Confirm *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={confirmBranchCode}
+                    onChange={(e) => setConfirmBranchCode(e.target.value.toUpperCase())}
+                    placeholder={deleteModalBranch.code}
+                    className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-xl text-text-primary focus:outline-none focus:border-red-500 font-mono uppercase font-bold"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-3 border-t border-border-default">
+                  <button
+                    type="button"
+                    onClick={() => setDeleteModalBranch(null)}
+                    className="px-4 py-2 bg-surface-raised hover:bg-surface-page text-text-secondary rounded-xl font-semibold"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={secureDeleteMutation.isPending}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {secureDeleteMutation.isPending ? 'Verifying & Deleting...' : 'Re-Authenticate & Delete'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         </main>
       </div>
     </div>

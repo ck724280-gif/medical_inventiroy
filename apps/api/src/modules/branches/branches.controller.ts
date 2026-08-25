@@ -44,6 +44,15 @@ export class BranchesController {
     return this.branchesService.update(id, dto);
   }
 
+
+  @Post(':id/secure-delete')
+  async secureDelete(
+    @Param('id') id: string,
+    @Body() body: { email: string; password?: string }
+  ) {
+    return this.branchesService.secureDelete(id, body);
+  }
+
   @Delete(':id')
   @RequirePermissions('branch.manage')
   @Auditable('delete_branch', 'Branch')
