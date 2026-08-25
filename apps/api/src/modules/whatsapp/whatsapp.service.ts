@@ -39,15 +39,20 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   
   async resolveBranchId(branchId?: string): Promise<string> {
-    if (branchId && branchId.trim()) return branchId.trim();
-    const branch = await this.prisma.branch.findFirst({
+    if (branchId && branchId.trim()) {
+      const branch = await this.prisma.branch.findUnique({
+        where: { id: branchId.trim() },
+      });
+      if (branch) return branch.id;
+    }
+    const defaultBranch = await this.prisma.branch.findFirst({
       where: { OR: [{ isDefault: true }, { isActive: true }] },
       orderBy: { isDefault: 'desc' },
     });
-    if (!branch) {
+    if (!defaultBranch) {
       throw new BadRequestException('No active store branch found to bind WhatsApp.');
     }
-    return branch.id;
+    return defaultBranch.id;
   }
 
   constructor(private prisma: PrismaService) {

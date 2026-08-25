@@ -166,6 +166,18 @@ export default function WhatsAppHubPage() {
     return true;
   });
 
+  // Fetch Active Branches
+  const { data: branchesData } = useQuery({
+    queryKey: ['branches'],
+    queryFn: async () => {
+      const res = await apiClient.get('/branches');
+      return res.data?.data || res.data || [];
+    },
+  });
+
+  const branchList: any[] = Array.isArray(branchesData) ? branchesData : [];
+  const currentBranch = branchList.find((b) => b.id === selectedBranchId) || branchList[0];
+
   return (
     <div className="flex h-screen bg-[#111b21] text-[#e9edef] overflow-hidden font-sans select-none">
       <Sidebar />
@@ -191,8 +203,8 @@ export default function WhatsAppHubPage() {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-[#8696a0] font-mono">
-                    Branch: {selectedBranchId || 'Primary HQ'}
+                  <span className="text-xs text-[#00a884] font-medium px-3 py-1 bg-[#202c33] border border-[#2a3942] rounded-xl">
+                    🏢 {currentBranch ? `${currentBranch.name} (${currentBranch.code})` : 'Main Dispensary'}
                   </span>
                 </div>
               </div>
