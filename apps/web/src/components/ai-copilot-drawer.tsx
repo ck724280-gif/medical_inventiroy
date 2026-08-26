@@ -42,6 +42,17 @@ export function AiCopilotDrawer() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [executingAction, setExecutingAction] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number; moved: boolean }>({
+    startX: 0,
+    startY: 0,
+    initialX: 0,
+    initialY: 0,
+    moved: false,
+  });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'model',
@@ -53,7 +64,72 @@ export function AiCopilotDrawer() {
 
   useEffect(() => {
     setMounted(true);
+    // Load saved position
+    try {
+      const saved = localStorage.getItem('ai_copilot_float_pos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          const clampedX = Math.max(8, Math.min(window.innerWidth - 170, parsed.x));
+          const clampedY = Math.max(8, Math.min(window.innerHeight - 60, parsed.y));
+          setPosition({ x: clampedX, y: clampedY });
+        }
+      }
+    } catch {}
   }, []);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+    const rect = buttonRef.current?.getBoundingClientRect();
+    const currentX = rect ? rect.left : window.innerWidth - 180;
+    const currentY = rect ? rect.top : window.innerHeight - 80;
+
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: currentX,
+      initialY: currentY,
+      moved: false,
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const dx = moveEvent.clientX - dragStartRef.current.startX;
+      const dy = moveEvent.clientY - dragStartRef.current.startY;
+
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        dragStartRef.current.moved = true;
+        setIsDragging(true);
+      }
+
+      const btnWidth = buttonRef.current?.offsetWidth || 160;
+      const btnHeight = buttonRef.current?.offsetHeight || 48;
+
+      const newX = Math.max(8, Math.min(window.innerWidth - btnWidth - 8, dragStartRef.current.initialX + dx));
+      const newY = Math.max(8, Math.min(window.innerHeight - btnHeight - 8, dragStartRef.current.initialY + dy));
+
+      setPosition({ x: newX, y: newY });
+    };
+
+    const handlePointerUp = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+
+      setTimeout(() => {
+        setIsDragging(false);
+      }, 50);
+
+      if (dragStartRef.current.moved && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        try {
+          localStorage.setItem('ai_copilot_float_pos', JSON.stringify({ x: rect.left, y: rect.top }));
+        } catch {}
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+  };
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -176,15 +252,33 @@ export function AiCopilotDrawer() {
 
   return (
     <>
-      {/* Floating Action Sparkles Button */}
+      {/* Floatable & Draggable Action Sparkles Button */}
       <button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-full shadow-2xl hover:shadow-indigo-500/25 transition-all transform hover:scale-105 active:scale-95 group font-medium text-xs border border-white/20"
-        title="Open AI Action Co-Pilot (Ctrl+J)"
+        ref={buttonRef}
+        onPointerDown={handlePointerDown}
+        onClick={() => {
+          if (!dragStartRef.current.moved) {
+            setIsOpen(true);
+          }
+        }}
+        style={
+          position
+            ? {
+                left: `${position.x}px`,
+                top: `${position.y}px`,
+                right: 'auto',
+                bottom: 'auto',
+              }
+            : undefined
+        }
+        className={`fixed z-40 flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-full shadow-2xl hover:shadow-indigo-500/25 transition-shadow select-none touch-none cursor-grab active:cursor-grabbing font-medium text-xs border border-white/20 ${
+          !position ? 'bottom-6 right-6' : ''
+        } ${isDragging ? 'scale-105 shadow-indigo-500/50 ring-2 ring-white/50' : 'hover:scale-105 active:scale-95'}`}
+        title="Drag anywhere with Mouse or Finger • Click to open AI Co-Pilot (Ctrl+J)"
       >
-        <Sparkles className="w-4 h-4 animate-pulse text-yellow-300" />
-        <span className="font-semibold tracking-wide">AI Co-Pilot</span>
-        <span className="px-1.5 py-0.5 bg-black/30 rounded text-[10px] font-mono text-white/80">Ctrl+J</span>
+        <Sparkles className="w-4 h-4 animate-pulse text-yellow-300 pointer-events-none" />
+        <span className="font-semibold tracking-wide pointer-events-none">AI Co-Pilot</span>
+        <span className="px-1.5 py-0.5 bg-black/30 rounded text-[10px] font-mono text-white/80 pointer-events-none">Ctrl+J</span>
       </button>
 
       {/* Interactive Drawer */}

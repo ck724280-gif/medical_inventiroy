@@ -40,6 +40,17 @@ export function AiAssistantWidget() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [inputMessage, setInputMessage] = useState('');
   const [loading, setLoading] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number; moved: boolean }>({
+    startX: 0,
+    startY: 0,
+    initialX: 0,
+    initialY: 0,
+    moved: false,
+  });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -51,6 +62,73 @@ export function AiAssistantWidget() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ai_assistant_widget_pos');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (typeof parsed.x === 'number' && typeof parsed.y === 'number') {
+          const clampedX = Math.max(8, Math.min(window.innerWidth - 170, parsed.x));
+          const clampedY = Math.max(8, Math.min(window.innerHeight - 60, parsed.y));
+          setPosition({ x: clampedX, y: clampedY });
+        }
+      }
+    } catch {}
+  }, []);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+
+    const rect = buttonRef.current?.getBoundingClientRect();
+    const currentX = rect ? rect.left : window.innerWidth - 180;
+    const currentY = rect ? rect.top : window.innerHeight - 80;
+
+    dragStartRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      initialX: currentX,
+      initialY: currentY,
+      moved: false,
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const dx = moveEvent.clientX - dragStartRef.current.startX;
+      const dy = moveEvent.clientY - dragStartRef.current.startY;
+
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+        dragStartRef.current.moved = true;
+        setIsDragging(true);
+      }
+
+      const btnWidth = buttonRef.current?.offsetWidth || 160;
+      const btnHeight = buttonRef.current?.offsetHeight || 48;
+
+      const newX = Math.max(8, Math.min(window.innerWidth - btnWidth - 8, dragStartRef.current.initialX + dx));
+      const newY = Math.max(8, Math.min(window.innerHeight - btnHeight - 8, dragStartRef.current.initialY + dy));
+
+      setPosition({ x: newX, y: newY });
+    };
+
+    const handlePointerUp = () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+
+      setTimeout(() => {
+        setIsDragging(false);
+      }, 50);
+
+      if (dragStartRef.current.moved && buttonRef.current) {
+        const rect = buttonRef.current.getBoundingClientRect();
+        try {
+          localStorage.setItem('ai_assistant_widget_pos', JSON.stringify({ x: rect.left, y: rect.top }));
+        } catch {}
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+  };
 
   // Check if user is Super Admin or Owner
   const isSuperAdmin =
@@ -260,23 +338,40 @@ export function AiAssistantWidget() {
 
   return (
     <>
-      {/* ── FLOATING TRIGGER BUTTON (Bottom-Right) ───────────────────── */}
+      {/* ── FLOATING TRIGGER BUTTON (Draggable / Floatable) ───────────────────── */}
       {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-40">
-          <button
-            type="button"
-            onClick={() => setIsOpen(true)}
-            className="group relative flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-600 bg-[length:200%_auto] hover:bg-right transition-all duration-300 text-white rounded-full shadow-2xl shadow-sky-600/50 hover:scale-105 active:scale-95 cursor-pointer font-bold text-xs"
-          >
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-300 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
-            </span>
-            <Bot className="w-5 h-5" />
-            <span className="tracking-wide">AI Co-pilot</span>
-            <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-          </button>
-        </div>
+        <button
+          ref={buttonRef}
+          type="button"
+          onPointerDown={handlePointerDown}
+          onClick={() => {
+            if (!dragStartRef.current.moved) {
+              setIsOpen(true);
+            }
+          }}
+          style={
+            position
+              ? {
+                  left: `${position.x}px`,
+                  top: `${position.y}px`,
+                  right: 'auto',
+                  bottom: 'auto',
+                }
+              : undefined
+          }
+          className={`fixed z-40 group flex items-center gap-2.5 px-4 py-3 bg-gradient-to-r from-sky-600 via-indigo-600 to-sky-600 bg-[length:200%_auto] hover:bg-right transition-shadow text-white rounded-full shadow-2xl shadow-sky-600/50 select-none touch-none cursor-grab active:cursor-grabbing font-bold text-xs ${
+            !position ? 'bottom-6 right-6' : ''
+          } ${isDragging ? 'scale-105 ring-2 ring-white/50' : 'hover:scale-105 active:scale-95'}`}
+          title="Drag anywhere with Mouse or Finger • Click to open AI Co-pilot"
+        >
+          <span className="relative flex h-3 w-3 pointer-events-none">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-sky-300 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+          </span>
+          <Bot className="w-5 h-5 pointer-events-none" />
+          <span className="tracking-wide pointer-events-none">AI Co-pilot</span>
+          <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse pointer-events-none" />
+        </button>
       )}
 
       {/* ── CHAT WINDOW MODAL / DRAWER ─────────────────────────────── */}
