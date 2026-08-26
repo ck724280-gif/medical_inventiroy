@@ -89,11 +89,11 @@
 /* 🌙 DARK MODE SEMANTIC VARIABLES (INDEPENDENTLY DESIGNED) */
 .dark {
   /* Surfaces */
-  --surface-page: #0d1117;
-  --surface-base: #161b22;
-  --surface-raised: #1c2128;
-  --surface-overlay: #1c2128;
-  --surface-sunken: #090d12;
+  --surface-page: var(--dark-page-override, #0d1117);
+  --surface-base: var(--dark-base-override, #161b22);
+  --surface-raised: var(--dark-raised-override, #1c2128);
+  --surface-overlay: var(--dark-raised-override, #1c2128);
+  --surface-sunken: var(--dark-page-override, #090d12);
   --surface-hover: #21262d;
   --surface-active: #30363d;
 
@@ -172,7 +172,8 @@ body {
   padding: 0;
   background-color: var(--surface-page);
   color: var(--text-primary);
-  font-family: var(--font-inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-family: var(--app-font-family, var(--font-inter, 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif));
+  font-size: var(--app-font-size, 14px);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;

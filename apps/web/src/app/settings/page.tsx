@@ -46,8 +46,15 @@ import { PageHeader } from '../../components/ui/page-header';
 import { apiClient } from '../../lib/api-client';
 import { useBrandingStore } from '../../stores/branding-store';
 import { PrintStudioCustomizer } from '../../components/print-studio-customizer';
-import { PaperWidth } from '@medical-inventory/shared-types';
 import { useAuthStore } from '../../stores/auth-store';
+import {
+  useCustomThemeStore,
+  FONT_OPTIONS,
+  COLOR_PRESETS,
+  FontDensity,
+  RadiusPreset,
+  DarkBackgroundMode,
+} from '../../stores/custom-theme-store';
 
 const INDIAN_STATES = [
   'Jharkhand', 'Bihar', 'West Bengal', 'Uttar Pradesh', 'Maharashtra',
@@ -92,8 +99,26 @@ export default function SettingsPage() {
   const { selectedBranchId } = useAuthStore();
   const queryClient = useQueryClient();
   const { fetchBranding, updateLogoImmediately, logo: currentStoreLogo } = useBrandingStore();
-  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'receipt' | 'staff' | 'ai'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'appearance' | 'receipt' | 'staff' | 'ai'>('business');
   const [savedBanner, setSavedBanner] = useState(false);
+  const {
+    fontId,
+    customFontName,
+    fontSizeScale,
+    radiusStyle,
+    colorPresetId,
+    customPrimaryColor,
+    isCustomColorActive,
+    darkBackgroundMode,
+    setFontId,
+    setCustomFontName,
+    setFontSizeScale,
+    setRadiusStyle,
+    setColorPresetId,
+    setCustomPrimaryColor,
+    setDarkBackgroundMode,
+    resetToDefaults: resetCustomTheme,
+  } = useCustomThemeStore();
   const [showApiKey, setShowApiKey] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [aiForm, setAiForm] = useState({
@@ -499,6 +524,7 @@ export default function SettingsPage() {
             {[
               { id: 'business', label: 'Business Profile & Branding', icon: Building2 },
               { id: 'branches', label: 'Store Branches', icon: Layers },
+              { id: 'appearance', label: 'UI Theme, Fonts & Colors', icon: Palette },
               { id: 'receipt', label: 'Thermal & Universal Print Setup', icon: Printer },
               { id: 'staff', label: 'Staff & User Roles', icon: Users },
               { id: 'ai', label: 'AI Co-Pilot & Chatbot API', icon: Sparkles },
@@ -1096,7 +1122,7 @@ export default function SettingsPage() {
               <PrintStudioCustomizer
                 initialData={receiptData}
                 businessData={businessData}
-                onSave={(payload) => saveReceiptMutation.mutate(payload)}
+                onSave={(payload: any) => saveReceiptMutation.mutate(payload)}
                 isSaving={saveReceiptMutation.isPending}
               />
             </div>
@@ -1601,6 +1627,373 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* TAB 3: UI Theme, Fonts & Appearance Studio */}
+          {activeTab === 'appearance' && (
+            <div className="space-y-6 max-w-5xl">
+              {/* Header Info */}
+              <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-accent-subtle border border-accent-subtle-border flex items-center justify-center text-accent-primary">
+                      <Palette className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-base text-text-primary">
+                        UI Theme, Typography & Appearance Studio
+                      </h3>
+                      <p className="text-xs text-text-muted">
+                        Manually customize font styles, primary accent colors, UI corner roundness, and dark atmosphere across the entire ERP.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetCustomTheme();
+                        setSavedBanner(true);
+                        setTimeout(() => setSavedBanner(false), 3000);
+                      }}
+                      className="px-3.5 py-2 rounded-xl border border-border-default hover:bg-surface-hover text-xs font-semibold text-text-secondary flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Reset Factory Defaults
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSavedBanner(true);
+                        setTimeout(() => setSavedBanner(false), 3000);
+                      }}
+                      className="px-4 py-2 rounded-xl bg-accent-primary hover:bg-accent-hover text-white text-xs font-bold shadow-md transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Save & Apply Customization
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 1: Typography & Font Style */}
+              <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-border-default">
+                  <div>
+                    <h4 className="font-bold text-sm text-text-primary flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-accent-primary" />
+                      Global Font Style & Typography
+                    </h4>
+                    <p className="text-xs text-text-muted">
+                      Select a font family to apply modern, high-legibility typography across all screens, tables, and POS billing.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {FONT_OPTIONS.map((font) => {
+                    const isSelected = fontId === font.id;
+                    return (
+                      <button
+                        key={font.id}
+                        type="button"
+                        onClick={() => setFontId(font.id)}
+                        className={`p-4 rounded-xl border text-left transition-all cursor-pointer relative flex flex-col justify-between h-32 ${
+                          isSelected
+                            ? 'border-accent-primary bg-accent-subtle ring-2 ring-accent-primary/30 shadow-md'
+                            : 'border-border-default hover:border-border-strong hover:bg-surface-hover bg-surface-raised/40'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <span className="font-bold text-xs text-text-primary block">{font.name}</span>
+                            <span className="text-[10px] text-text-muted uppercase font-mono">{font.category}</span>
+                          </div>
+                          {isSelected && (
+                            <span className="w-5 h-5 rounded-full bg-accent-primary text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                              ✓
+                            </span>
+                          )}
+                        </div>
+
+                        <div
+                          className="text-xs text-text-secondary line-clamp-2 leading-relaxed"
+                          style={{ fontFamily: font.fontFamily }}
+                        >
+                          {font.sampleText}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom Font Name Input */}
+                <div className="p-4 rounded-xl bg-surface-raised border border-border-default flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <span className="font-semibold text-xs text-text-primary">Use Custom System / Web Font</span>
+                    <p className="text-[11px] text-text-muted">Enter any local OS font or web font name installed on your system (e.g. Segoe UI, Arial, Cinzel)</p>
+                  </div>
+                  <div className="flex items-center gap-2 w-full sm:w-72">
+                    <input
+                      type="text"
+                      placeholder="e.g. Segoe UI, Arial, Cinzel"
+                      value={customFontName || ''}
+                      onChange={(e) => setCustomFontName(e.target.value)}
+                      className="flex-1 px-3 py-1.5 bg-surface-base border border-border-default rounded-xl text-xs text-text-primary focus:outline-none focus:border-accent-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 2: Primary Accent Color Palette & Custom Hex */}
+              <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-6 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-border-default">
+                  <div>
+                    <h4 className="font-bold text-sm text-text-primary flex items-center gap-2">
+                      <Palette className="w-4 h-4 text-accent-primary" />
+                      Primary Theme & Accent Color
+                    </h4>
+                    <p className="text-xs text-text-muted">
+                      Choose a curated color theme or enter your pharmacy's custom brand color.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Preset Swatches */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                  {COLOR_PRESETS.map((preset) => {
+                    const isSelected = !isCustomColorActive && colorPresetId === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setColorPresetId(preset.id)}
+                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex items-center gap-3 ${
+                          isSelected
+                            ? 'border-accent-primary bg-accent-subtle ring-2 ring-accent-primary/30 shadow-md'
+                            : 'border-border-default hover:border-border-strong hover:bg-surface-hover bg-surface-raised/40'
+                        }`}
+                      >
+                        <div
+                          className="w-7 h-7 rounded-lg shadow-inner flex items-center justify-center text-white font-bold text-xs flex-shrink-0"
+                          style={{ backgroundColor: preset.primary }}
+                        >
+                          {isSelected ? '✓' : ''}
+                        </div>
+                        <span className="font-semibold text-xs text-text-primary truncate">{preset.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Custom Color Picker */}
+                <div className="p-4 rounded-xl bg-surface-raised border border-border-default flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <span className="font-semibold text-xs text-text-primary">Custom Brand Color (Hex / Picker)</span>
+                    <p className="text-[11px] text-text-muted">Pick any custom hex code to match your pharmacy logo & identity exactly.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={customPrimaryColor || '#0284c7'}
+                      onChange={(e) => setCustomPrimaryColor(e.target.value)}
+                      className="w-10 h-10 rounded-xl cursor-pointer border-0 p-0 bg-transparent"
+                    />
+                    <input
+                      type="text"
+                      value={customPrimaryColor || '#0284c7'}
+                      onChange={(e) => setCustomPrimaryColor(e.target.value)}
+                      placeholder="#0284c7"
+                      className="w-28 px-3 py-1.5 bg-surface-base border border-border-default rounded-xl text-xs font-mono font-bold text-text-primary focus:outline-none focus:border-accent-primary"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: UI Density, Scaling & Corner Roundness */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Font Density */}
+                <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-6 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-sm text-text-primary">Text Size & Density</h4>
+                    <p className="text-xs text-text-muted">Adjust scale for compact POS counters or larger readability.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'compact', label: 'Compact (13px)', desc: 'High density for busy POS' },
+                      { id: 'normal', label: 'Normal (14px)', desc: 'Balanced standard' },
+                      { id: 'relaxed', label: 'Relaxed (15px)', desc: 'Spacious & comfortable' },
+                      { id: 'large', label: 'Large (16px)', desc: 'High visibility' },
+                    ].map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        onClick={() => setFontSizeScale(d.id as FontDensity)}
+                        className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                          fontSizeScale === d.id
+                            ? 'border-accent-primary bg-accent-subtle ring-1 ring-accent-primary text-text-primary'
+                            : 'border-border-default hover:bg-surface-hover text-text-secondary'
+                        }`}
+                      >
+                        <div className="font-bold text-xs">{d.label}</div>
+                        <div className="text-[10px] text-text-muted mt-0.5">{d.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Corner Radius */}
+                <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-6 space-y-4">
+                  <div>
+                    <h4 className="font-bold text-sm text-text-primary">Corner Roundness</h4>
+                    <p className="text-xs text-text-muted">Select border radius style for cards, modals, and buttons.</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: 'sharp', label: 'Sharp (4px)', desc: 'Classic compact ERP style' },
+                      { id: 'modern', label: 'Modern (8px)', desc: 'Clean balanced radius' },
+                      { id: 'rounded', label: 'Rounded (14px)', desc: 'Soft modern app style' },
+                      { id: 'extra_rounded', label: 'Extra Rounded (20px)', desc: 'Ultra smooth aesthetic' },
+                    ].map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setRadiusStyle(r.id as RadiusPreset)}
+                        className={`p-3 rounded-xl border text-left transition cursor-pointer ${
+                          radiusStyle === r.id
+                            ? 'border-accent-primary bg-accent-subtle ring-1 ring-accent-primary text-text-primary'
+                            : 'border-border-default hover:bg-surface-hover text-text-secondary'
+                        }`}
+                      >
+                        <div className="font-bold text-xs">{r.label}</div>
+                        <div className="text-[10px] text-text-muted mt-0.5">{r.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 4: Dark Atmosphere Surface Tone */}
+              <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-6 space-y-4">
+                <div>
+                  <h4 className="font-bold text-sm text-text-primary">Dark Theme Surface Atmosphere</h4>
+                  <p className="text-xs text-text-muted">Choose your preferred dark background undertone.</p>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { id: 'slate_deep', label: 'Slate Deep', desc: 'GitHub Dark (#0d1117)', color: '#0d1117' },
+                    { id: 'pure_oled', label: 'Pure OLED', desc: 'Deep Pitch Black (#000000)', color: '#000000' },
+                    { id: 'midnight_navy', label: 'Midnight Navy', desc: 'Navy Indigo (#0b1120)', color: '#0b1120' },
+                    { id: 'zinc_modern', label: 'Charcoal Zinc', desc: 'Neutral Grey (#121214)', color: '#121214' },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setDarkBackgroundMode(m.id as DarkBackgroundMode)}
+                      className={`p-3 rounded-xl border text-left transition cursor-pointer flex items-center gap-3 ${
+                        darkBackgroundMode === m.id
+                          ? 'border-accent-primary bg-accent-subtle ring-2 ring-accent-primary/30'
+                          : 'border-border-default hover:bg-surface-hover'
+                      }`}
+                    >
+                      <div className="w-5 h-5 rounded-md border border-white/20 shadow-inner flex-shrink-0" style={{ backgroundColor: m.color }} />
+                      <div>
+                        <div className="font-bold text-xs text-text-primary">{m.label}</div>
+                        <div className="text-[10px] text-text-muted">{m.desc}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Section 5: Live Interactive ERP Component Preview */}
+              <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm p-6 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-border-default">
+                  <div>
+                    <h4 className="font-bold text-sm text-text-primary flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-accent-primary" />
+                      Live ERP Component Preview
+                    </h4>
+                    <p className="text-xs text-text-muted">
+                      See how your chosen font style and colors look on real ERP buttons, badges, and POS cards.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-2xl bg-surface-raised border border-border-default space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {/* Card 1: Sample POS Medicine */}
+                    <div className="p-4 rounded-xl bg-surface-base border border-border-default shadow-sm space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <span className="font-bold text-sm text-text-primary block">Amoxicillin 500mg</span>
+                          <span className="text-[11px] text-text-muted">Batch: #AMX-2026 · Exp: Dec 2027</span>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent-subtle text-accent-primary border border-accent-subtle-border">
+                          In Stock (450)
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-border-default">
+                        <span className="font-mono font-bold text-base text-text-primary">₹85.00</span>
+                        <button
+                          type="button"
+                          className="px-3 py-1.5 rounded-lg bg-accent-primary hover:bg-accent-hover text-white text-xs font-bold shadow-sm transition"
+                        >
+                          + Add to Bill
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card 2: Interactive Controls */}
+                    <div className="p-4 rounded-xl bg-surface-base border border-border-default shadow-sm space-y-3">
+                      <span className="font-bold text-xs text-text-primary block">Interactive Input & Focus</span>
+                      <input
+                        type="text"
+                        defaultValue="Scan barcode or type medicine name..."
+                        className="w-full px-3 py-2 bg-surface-page border border-border-default rounded-lg text-xs text-text-primary focus:outline-none focus:border-accent-primary focus:ring-2 focus:ring-accent-subtle"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="flex-1 py-1.5 rounded-lg bg-accent-primary text-white text-xs font-bold"
+                        >
+                          Primary Action
+                        </button>
+                        <button
+                          type="button"
+                          className="flex-1 py-1.5 rounded-lg bg-surface-raised border border-border-default text-text-primary text-xs font-semibold"
+                        >
+                          Secondary
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Card 3: Status Indicators */}
+                    <div className="p-4 rounded-xl bg-surface-base border border-border-default shadow-sm space-y-2.5">
+                      <span className="font-bold text-xs text-text-primary block">Badge & Chip Hierarchy</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-accent-subtle text-accent-primary border border-accent-subtle-border">
+                          Accent Pill
+                        </span>
+                        <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                          Paid In Full
+                        </span>
+                        <span className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                          Pending Due
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-text-secondary pt-1">
+                        Typography is rendering cleanly with automatic anti-aliasing and subpixel geometry.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
   
