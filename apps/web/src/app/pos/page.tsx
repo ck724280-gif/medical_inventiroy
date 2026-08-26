@@ -604,6 +604,8 @@ export default function PosPage() {
         })),
         payments,
         invoiceDiscountPercent: cart.invoiceDiscountPercent,
+        roundOffAmount: cart.getRoundOffAmount(),
+        roundOffMode: cart.roundOffMode,
         paperWidth: cart.paperWidth,
         notes: cart.notes,
         shiftId: currentShift?.shiftId || undefined,
@@ -1279,17 +1281,83 @@ export default function PosPage() {
                 <span>Items Subtotal:</span>
                 <span className="font-mono font-medium text-text-primary">₹{cart.getSubtotal().toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-xs text-text-muted">
-                <span>Discount Total:</span>
-                <span className="font-mono text-status-success font-semibold">-₹{cart.getDiscountTotal().toFixed(2)}</span>
-              </div>
+              {cart.getDiscountTotal() > 0 && (
+                <div className="flex justify-between text-xs text-text-muted">
+                  <span>Discount Total:</span>
+                  <span className="font-mono text-status-success font-semibold">-₹{cart.getDiscountTotal().toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-xs text-text-muted">
                 <span>Tax / GST:</span>
                 <span className="font-mono font-medium text-text-primary">₹{cart.getTaxTotal().toFixed(2)}</span>
               </div>
 
+              {/* Round Off Setting & Display */}
+              <div className="flex justify-between items-center text-xs text-text-muted">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-medium text-text-secondary">Round Off:</span>
+                  <div className="inline-flex rounded-md border border-border bg-surface-base p-0.5 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => cart.setRoundOffMode('floor')}
+                      className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
+                        cart.roundOffMode === 'floor'
+                          ? 'bg-accent text-white font-bold shadow-xs'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                      title="Floor: Always round down paise (e.g., ₹33.67 -> ₹33, ₹33.34 -> ₹33)"
+                    >
+                      Down (₹33)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cart.setRoundOffMode('nearest')}
+                      className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
+                        cart.roundOffMode === 'nearest'
+                          ? 'bg-accent text-white font-bold shadow-xs'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                      title="Nearest: 0.50+ round up, else down"
+                    >
+                      Nearest
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => cart.setRoundOffMode('none')}
+                      className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
+                        cart.roundOffMode === 'none'
+                          ? 'bg-accent text-white font-bold shadow-xs'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                      title="Exact: Keep paise (₹33.67)"
+                    >
+                      Exact
+                    </button>
+                  </div>
+                </div>
+                <span
+                  className={`font-mono font-semibold ${
+                    cart.getRoundOffAmount() < 0
+                      ? 'text-status-success'
+                      : cart.getRoundOffAmount() > 0
+                      ? 'text-amber-500'
+                      : 'text-text-secondary'
+                  }`}
+                >
+                  {cart.getRoundOffAmount() > 0 ? '+' : ''}
+                  ₹{cart.getRoundOffAmount().toFixed(2)}
+                </span>
+              </div>
+
               <div className="flex justify-between items-baseline pt-2 border-t border-border">
-                <span className="font-bold text-text-primary text-sm">TOTAL PAYABLE:</span>
+                <div>
+                  <span className="font-bold text-text-primary text-sm">TOTAL PAYABLE:</span>
+                  {cart.roundOffMode !== 'none' && cart.getRoundOffAmount() !== 0 && (
+                    <span className="block text-[10px] text-text-muted font-mono">
+                      (Exact: ₹{cart.getRawTotal().toFixed(2)})
+                    </span>
+                  )}
+                </div>
                 <span className="text-2xl font-extrabold text-text-primary font-mono tracking-tight">
                   ₹{cart.getGrandTotal().toFixed(2)}
                 </span>

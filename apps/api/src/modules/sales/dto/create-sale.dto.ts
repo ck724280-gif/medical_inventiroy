@@ -144,6 +144,14 @@ export class CheckoutSaleDto {
   invoiceDiscountPercent?: number;
 
   @IsOptional()
+  @IsNumber()
+  roundOffAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  roundOffMode?: string;
+
+  @IsOptional()
   @IsEnum(PaperWidth)
   paperWidth?: PaperWidth;
 

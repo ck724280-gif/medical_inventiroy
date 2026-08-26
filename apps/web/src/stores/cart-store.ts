@@ -4,6 +4,8 @@ import {
   calculateDetailedLineTotal,
   calculateCashChange,
   roundToDecimals,
+  calculateRoundOff,
+  RoundOffMode,
 } from '@medical-inventory/shared-utils';
 
 export interface BatchOption {
@@ -64,6 +66,7 @@ interface CartState {
   } | null;
   payments: PaymentSplit[];
   invoiceDiscountPercent: number;
+  roundOffMode: RoundOffMode;
   paperWidth: PaperWidth;
   notes: string;
   receivedCash: number;
@@ -85,6 +88,7 @@ interface CartState {
   clearCart: () => void;
   setCustomer: (customer: CartState['customer']) => void;
   setInvoiceDiscount: (percent: number) => void;
+  setRoundOffMode: (mode: RoundOffMode) => void;
   setPaperWidth: (width: PaperWidth) => void;
   setNotes: (notes: string) => void;
   setPayments: (payments: PaymentSplit[]) => void;
@@ -97,6 +101,8 @@ interface CartState {
   getSubtotal: () => number;
   getDiscountTotal: () => number;
   getTaxTotal: () => number;
+  getRawTotal: () => number;
+  getRoundOffAmount: () => number;
   getGrandTotal: () => number;
   getTotalPaid: () => number;
   getBalanceDue: () => number;
@@ -114,6 +120,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   customer: null,
   payments: [{ paymentMode: PaymentMode.CASH, amount: 0 }],
   invoiceDiscountPercent: 0,
+  roundOffMode: 'floor',
   paperWidth: PaperWidth.WIDTH_58MM,
   notes: '',
   receivedCash: 0,
@@ -392,6 +399,14 @@ export const useCartStore = create<CartState>((set, get) => ({
       receivedCash: total,
     });
   },
+  setRoundOffMode: (roundOffMode) => {
+    set({ roundOffMode });
+    const total = get().getGrandTotal();
+    set({
+      payments: [{ paymentMode: PaymentMode.CASH, amount: total }],
+      receivedCash: total,
+    });
+  },
   setPaperWidth: (paperWidth) => set({ paperWidth }),
   setNotes: (notes) => set({ notes }),
 
@@ -435,13 +450,25 @@ export const useCartStore = create<CartState>((set, get) => ({
     return roundToDecimals(total);
   },
 
-  getGrandTotal: () => {
+  getRawTotal: () => {
     const itemsTotal = get().items.reduce((sum, item) => sum + item.lineTotal, 0);
     if (get().invoiceDiscountPercent > 0) {
       const invDisc = (itemsTotal * get().invoiceDiscountPercent) / 100;
       return Math.max(0, roundToDecimals(itemsTotal - invDisc));
     }
     return roundToDecimals(itemsTotal);
+  },
+
+  getRoundOffAmount: () => {
+    const raw = get().getRawTotal();
+    const mode = get().roundOffMode || 'floor';
+    return calculateRoundOff(raw, mode).roundOffAmount;
+  },
+
+  getGrandTotal: () => {
+    const raw = get().getRawTotal();
+    const mode = get().roundOffMode || 'floor';
+    return calculateRoundOff(raw, mode).roundedTotal;
   },
 
   getTotalPaid: () => {

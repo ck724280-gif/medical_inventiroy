@@ -126,3 +126,24 @@ export function calculateCashChange(grandTotal: number, receivedAmount: number):
   };
 }
 
+export type RoundOffMode = 'floor' | 'nearest' | 'none';
+
+export function calculateRoundOff(
+  amount: number,
+  mode: RoundOffMode = 'floor'
+): { roundOffAmount: number; roundedTotal: number } {
+  const raw = Number(amount || 0);
+  if (mode === 'none') {
+    return { roundOffAmount: 0, roundedTotal: Number(raw.toFixed(2)) };
+  }
+  if (mode === 'nearest') {
+    const rounded = Math.round(raw);
+    const roundOffAmount = Number((rounded - raw).toFixed(2));
+    return { roundOffAmount, roundedTotal: rounded };
+  }
+  // Default: 'floor' (Always round down to nearest rupee: 33.67 -> 33.00, 33.34 -> 33.00)
+  const rounded = Math.floor(raw);
+  const roundOffAmount = Number((rounded - raw).toFixed(2));
+  return { roundOffAmount, roundedTotal: rounded };
+}
+

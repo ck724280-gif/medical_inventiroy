@@ -532,6 +532,19 @@ export class SalesService {
           grandTotal = Math.max(0, roundToDecimals(grandTotal - invDiscount));
         }
 
+        // Apply Round-off (Default: floor / round down to whole rupee as requested: 33.67 -> 33.00, 33.34 -> 33.00)
+        let roundOff = 0;
+        if (dto.roundOffAmount !== undefined && dto.roundOffAmount !== null) {
+          roundOff = roundToDecimals(dto.roundOffAmount);
+        } else if (dto.roundOffMode === 'nearest') {
+          roundOff = roundToDecimals(Math.round(grandTotal) - grandTotal);
+        } else if (dto.roundOffMode === 'none') {
+          roundOff = 0;
+        } else {
+          roundOff = roundToDecimals(Math.floor(grandTotal) - grandTotal);
+        }
+        grandTotal = Math.max(0, roundToDecimals(grandTotal + roundOff));
+
         // 5. Payment Validation & Credit Sales Limit Checks
         const paymentsList = dto.payments || [{ paymentMode: PaymentMode.CASH, amount: grandTotal }];
         const totalPaid = roundToDecimals(

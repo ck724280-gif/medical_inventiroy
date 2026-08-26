@@ -316,6 +316,18 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
                       <span className="font-semibold">₹{Number(data?.taxTotal || 0).toFixed(2)}</span>
                     </div>
                   )}
+                  {(() => {
+                    const roundOffVal = (data as any)?.roundOff !== undefined 
+                      ? Number((data as any).roundOff) 
+                      : Number((Number(data?.grandTotal || 0) - (Number(data?.subtotal || 0) - Number(data?.discountTotal || 0) + Number(data?.taxTotal || 0))).toFixed(2));
+                    if (roundOffVal === 0) return null;
+                    return (
+                      <div className="flex justify-between py-1 text-gray-700">
+                        <span>Round Off:</span>
+                        <span className="font-semibold">{roundOffVal > 0 ? '+' : ''}₹{roundOffVal.toFixed(2)}</span>
+                      </div>
+                    );
+                  })()}
 
                   <div className="border-t-2 border-black my-2" />
 
@@ -432,6 +444,18 @@ export function ThermalReceiptPreview({ data, onClose }: ThermalReceiptPreviewPr
                     <span>₹{Number(data?.taxTotal || 0).toFixed(2)}</span>
                   </div>
                 )}
+                {(() => {
+                  const roundOffVal = (data as any)?.roundOff !== undefined 
+                    ? Number((data as any).roundOff) 
+                    : Number((Number(data?.grandTotal || 0) - (Number(data?.subtotal || 0) - Number(data?.discountTotal || 0) + Number(data?.taxTotal || 0))).toFixed(2));
+                  if (roundOffVal === 0) return null;
+                  return (
+                    <div className="flex justify-between text-gray-800">
+                      <span>Round Off:</span>
+                      <span>{roundOffVal > 0 ? '+' : ''}₹{roundOffVal.toFixed(2)}</span>
+                    </div>
+                  );
+                })()}
                 <div className="border-t border-black my-1" />
                 <div className="flex justify-between font-bold text-xs">
                   <span>TOTAL:</span>
