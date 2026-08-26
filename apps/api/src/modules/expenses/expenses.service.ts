@@ -57,6 +57,17 @@ export class ExpensesService {
     return JSON.stringify(meta);
   }
 
+  private async resolveBranchId(branchId?: string): Promise<string | undefined> {
+    if (!branchId || branchId === 'all' || branchId === 'ALL') return undefined;
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        OR: [{ id: branchId }, { code: branchId }],
+      },
+      select: { id: true },
+    });
+    return branch?.id || branchId;
+  }
+
   async findAll(query?: {
     branchId?: string;
     category?: string;
@@ -70,25 +81,46 @@ export class ExpensesService {
     const limit = Number(query?.limit) || 100;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
-    if (query?.branchId) {
-      where.OR = [{ branchId: query.branchId }, { branchId: null }];
+    const resolvedBranchId = await this.resolveBranchId(query?.branchId);
+    const andConditions: any[] = [];
+
+    if (resolvedBranchId) {
+      andConditions.push({
+        OR: [{ branchId: resolvedBranchId }, { branchId: null }],
+      });
     }
-    if (query?.category && query.category.trim()) where.category = query.category.trim();
+
+    if (query?.category && query.category.trim()) {
+      andConditions.push({ category: query.category.trim() });
+    }
+
     if (query?.startDate || query?.endDate) {
-      where.date = {};
-      if (query?.startDate) where.date.gte = new Date(query.startDate);
-      if (query?.endDate) where.date.lte = new Date(query.endDate);
+      const dateFilter: any = {};
+      if (query?.startDate) {
+        const s = new Date(query.startDate.includes('T') ? query.startDate : `${query.startDate}T00:00:00.000Z`);
+        s.setUTCHours(0, 0, 0, 0);
+        dateFilter.gte = s;
+      }
+      if (query?.endDate) {
+        const e = new Date(query.endDate.includes('T') ? query.endDate : `${query.endDate}T23:59:59.999Z`);
+        e.setUTCHours(23, 59, 59, 999);
+        dateFilter.lte = e;
+      }
+      andConditions.push({ date: dateFilter });
     }
 
     if (query?.search && query.search.trim()) {
       const q = query.search.trim();
-      where.OR = [
-        { notes: { contains: q, mode: 'insensitive' } },
-        { category: { contains: q, mode: 'insensitive' } },
-        { paymentMethod: { contains: q, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { notes: { contains: q, mode: 'insensitive' } },
+          { category: { contains: q, mode: 'insensitive' } },
+          { paymentMethod: { contains: q, mode: 'insensitive' } },
+        ],
+      });
     }
+
+    const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
     const [total, rawExpenses] = await Promise.all([
       this.prisma.expense.count({ where }),
@@ -196,11 +228,24 @@ export class ExpensesService {
     },
     userId: string
   ) {
+    let branchId = await this.resolveBranchId(data.branchId);
+    if (!branchId) {
+      const userMembership = await this.prisma.branchMembership.findFirst({
+        where: { userId },
+        select: { branchId: true },
+      });
+      branchId = userMembership?.branchId;
+    }
+    if (!branchId) {
+      const defaultBranch = await this.prisma.branch.findFirst({ select: { id: true } });
+      branchId = defaultBranch?.id || '';
+    }
+
     const serializedNotes = this.serializeExpenseNotes(data);
 
     return this.prisma.expense.create({
       data: {
-        branchId: data.branchId,
+        branchId: branchId || undefined,
         category: data.category || 'MISCELLANEOUS',
         amount: Number(data.amount) || 0,
         date: data.date ? new Date(data.date) : new Date(),

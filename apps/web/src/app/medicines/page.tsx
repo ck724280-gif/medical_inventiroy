@@ -47,7 +47,24 @@ export default function MedicinesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingMedicine, setEditingMedicine] = useState<any | null>(null);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<{
+    name: string;
+    genericName: string;
+    brandName: string;
+    dosageForm: DosageForm;
+    categoryId: string;
+    sku: string;
+    barcode: string;
+    baseUnitId: string;
+    taxPercent: string | number;
+    mrp: string | number;
+    defaultPurchasePrice: string | number;
+    defaultSellingPrice: string | number;
+    stripsPerBox: string | number;
+    tabletsPerStrip: string | number;
+    drugSchedule: string;
+    prescriptionRequired: boolean;
+  }>({
     name: '',
     genericName: '',
     brandName: '',
@@ -56,12 +73,12 @@ export default function MedicinesPage() {
     sku: '',
     barcode: '',
     baseUnitId: '',
-    taxPercent: 12,
-    mrp: 0,
-    defaultPurchasePrice: 0,
-    defaultSellingPrice: 0,
-    stripsPerBox: 10,
-    tabletsPerStrip: 10,
+    taxPercent: '12',
+    mrp: '',
+    defaultPurchasePrice: '',
+    defaultSellingPrice: '',
+    stripsPerBox: '10',
+    tabletsPerStrip: '10',
     drugSchedule: 'OTC',
     prescriptionRequired: false,
   });
@@ -103,30 +120,13 @@ export default function MedicinesPage() {
   const units = extractDataArray(unitsResp);
 
   const createMutation = useMutation({
-    mutationFn: async (payload: any) => {
-      const isControlled = payload.drugSchedule !== 'OTC';
+    mutationFn: async (data: any) => {
       const body = {
-        name: payload.name.trim(),
-        genericName: payload.genericName?.trim() || undefined,
-        brandName: payload.brandName?.trim() || undefined,
-        dosageForm: payload.dosageForm,
-        categoryId: payload.categoryId?.trim() || undefined,
-        sku: payload.sku?.trim() || undefined,
-        barcode: payload.barcode?.trim() || undefined,
-        baseUnitId: payload.baseUnitId || units[0]?.id,
-        taxPercent: Number(payload.taxPercent || 0),
-        mrp: Number(payload.mrp || 0),
-        defaultPurchasePrice: Number(payload.defaultPurchasePrice || 0),
-        defaultSellingPrice: Number(payload.defaultSellingPrice || 0),
-        stripsPerBox: Number(payload.stripsPerBox || 10),
-        tabletsPerStrip: Number(payload.tabletsPerStrip || 10),
-        drugSchedule: payload.drugSchedule || 'OTC',
-        isScheduleH: payload.drugSchedule === 'SCHEDULE_H',
-        isScheduleH1: payload.drugSchedule === 'SCHEDULE_H1',
-        isScheduleX: payload.drugSchedule === 'SCHEDULE_X',
-        prescriptionRequired: isControlled || Boolean(payload.prescriptionRequired),
+        ...data,
+        isScheduleH: data.drugSchedule === 'SCHEDULE_H',
+        isScheduleH1: data.drugSchedule === 'SCHEDULE_H1',
+        isScheduleX: data.drugSchedule === 'SCHEDULE_X',
       };
-
       if (editingMedicine) {
         return apiClient.patch(`/medicines/${editingMedicine.id}`, body);
       }
@@ -177,12 +177,12 @@ export default function MedicinesPage() {
       sku: '',
       barcode: '',
       baseUnitId: units[0]?.id || '',
-      taxPercent: 12,
-      mrp: 0,
-      defaultPurchasePrice: 0,
-      defaultSellingPrice: 0,
-      stripsPerBox: 10,
-      tabletsPerStrip: 10,
+      taxPercent: '12',
+      mrp: '',
+      defaultPurchasePrice: '',
+      defaultSellingPrice: '',
+      stripsPerBox: '10',
+      tabletsPerStrip: '10',
       drugSchedule: 'OTC',
       prescriptionRequired: false,
     });
@@ -200,12 +200,12 @@ export default function MedicinesPage() {
       sku: med.sku || '',
       barcode: med.barcode || '',
       baseUnitId: med.baseUnitId || '',
-      taxPercent: med.taxPercent || 12,
-      mrp: med.mrp || 0,
-      defaultPurchasePrice: med.defaultPurchasePrice || 0,
-      defaultSellingPrice: med.defaultSellingPrice || 0,
-      stripsPerBox: med.stripsPerBox || 10,
-      tabletsPerStrip: med.tabletsPerStrip || 10,
+      taxPercent: med.taxPercent !== undefined && med.taxPercent !== null ? String(med.taxPercent) : '12',
+      mrp: med.mrp ? String(med.mrp) : '',
+      defaultPurchasePrice: med.defaultPurchasePrice ? String(med.defaultPurchasePrice) : '',
+      defaultSellingPrice: med.defaultSellingPrice ? String(med.defaultSellingPrice) : '',
+      stripsPerBox: med.stripsPerBox ? String(med.stripsPerBox) : '10',
+      tabletsPerStrip: med.tabletsPerStrip ? String(med.tabletsPerStrip) : '10',
       drugSchedule: med.drugSchedule || (med.isScheduleH ? 'SCHEDULE_H' : med.isScheduleH1 ? 'SCHEDULE_H1' : med.isScheduleX ? 'SCHEDULE_X' : 'OTC'),
       prescriptionRequired: Boolean(med.prescriptionRequired),
     });
@@ -495,7 +495,16 @@ export default function MedicinesPage() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                createMutation.mutate(formData);
+                const payload = {
+                  ...formData,
+                  mrp: parseFloat(String(formData.mrp)) || 0,
+                  defaultPurchasePrice: parseFloat(String(formData.defaultPurchasePrice)) || 0,
+                  defaultSellingPrice: parseFloat(String(formData.defaultSellingPrice)) || 0,
+                  taxPercent: parseFloat(String(formData.taxPercent)) || 0,
+                  stripsPerBox: parseInt(String(formData.stripsPerBox)) || 1,
+                  tabletsPerStrip: parseInt(String(formData.tabletsPerStrip)) || 1,
+                };
+                createMutation.mutate(payload);
               }}
               className="space-y-4 pt-2"
             >
@@ -593,17 +602,19 @@ export default function MedicinesPage() {
                     label="Strips per Box"
                     type="number"
                     min="1"
+                    placeholder="10"
                     value={formData.stripsPerBox}
                     onFocus={(e) => e.target.select()}
-                    onChange={(e) => setFormData({ ...formData, stripsPerBox: parseInt(e.target.value) || 1 })}
+                    onChange={(e) => setFormData({ ...formData, stripsPerBox: e.target.value })}
                   />
                   <Input
                     label="Tablets / Units per Strip"
                     type="number"
                     min="1"
+                    placeholder="10"
                     value={formData.tabletsPerStrip}
                     onFocus={(e) => e.target.select()}
-                    onChange={(e) => setFormData({ ...formData, tabletsPerStrip: parseInt(e.target.value) || 1 })}
+                    onChange={(e) => setFormData({ ...formData, tabletsPerStrip: e.target.value })}
                   />
                 </div>
               </Card>
@@ -659,18 +670,20 @@ export default function MedicinesPage() {
                   step="0.01"
                   min="0"
                   required
+                  placeholder="0.00"
                   value={formData.mrp}
                   onFocus={(e) => e.target.select()}
-                  onChange={(e) => setFormData({ ...formData, mrp: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, mrp: e.target.value })}
                 />
                 <Input
                   label="Default Cost Price (₹)"
                   type="number"
                   step="0.01"
                   min="0"
+                  placeholder="0.00"
                   value={formData.defaultPurchasePrice}
                   onFocus={(e) => e.target.select()}
-                  onChange={(e) => setFormData({ ...formData, defaultPurchasePrice: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, defaultPurchasePrice: e.target.value })}
                 />
                 <Input
                   label="Default Selling Price (₹) *"
@@ -678,18 +691,20 @@ export default function MedicinesPage() {
                   step="0.01"
                   min="0"
                   required
+                  placeholder="0.00"
                   value={formData.defaultSellingPrice}
                   onFocus={(e) => e.target.select()}
-                  onChange={(e) => setFormData({ ...formData, defaultSellingPrice: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, defaultSellingPrice: e.target.value })}
                 />
                 <Input
                   label="Tax (GST %)"
                   type="number"
                   step="0.1"
                   min="0"
+                  placeholder="12"
                   value={formData.taxPercent}
                   onFocus={(e) => e.target.select()}
-                  onChange={(e) => setFormData({ ...formData, taxPercent: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormData({ ...formData, taxPercent: e.target.value })}
                 />
               </div>
 

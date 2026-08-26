@@ -168,11 +168,11 @@ export default function CashRegisterPage() {
           ) : (
             <div className="space-y-6">
               {/* KPI Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <Card className="bg-surface-base border-border-default">
                   <CardContent className="pt-4 space-y-1">
                     <span className="text-[11px] font-semibold text-text-muted">Opening Float</span>
-                    <div className="text-xl font-bold text-text-primary">
+                    <div className="text-lg font-bold text-text-primary">
                       {formatCurrency(shift.openingCash || 0)}
                     </div>
                   </CardContent>
@@ -181,25 +181,43 @@ export default function CashRegisterPage() {
                 <Card className="bg-surface-base border-border-default">
                   <CardContent className="pt-4 space-y-1">
                     <span className="text-[11px] font-semibold text-text-muted">Live Cash Sales</span>
-                    <div className="text-xl font-bold text-status-success">
-                      {formatCurrency(liveTotals?.cashSales || 0)}
+                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                      +{formatCurrency(liveTotals?.cashSales || 0)}
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="bg-surface-base border-border-default">
                   <CardContent className="pt-4 space-y-1">
-                    <span className="text-[11px] font-semibold text-text-muted">Digital Sales (UPI/Card)</span>
-                    <div className="text-xl font-bold text-accent-primary">
-                      {formatCurrency((liveTotals?.upiSales || 0) + (liveTotals?.cardSales || 0))}
+                    <span className="text-[11px] font-semibold text-text-muted">Digital (UPI/Card)</span>
+                    <div className="text-lg font-bold text-sky-600 dark:text-sky-400">
+                      +{formatCurrency((liveTotals?.upiSales || 0) + (liveTotals?.cardSales || 0))}
                     </div>
                   </CardContent>
                 </Card>
 
                 <Card className="bg-surface-base border-border-default">
                   <CardContent className="pt-4 space-y-1">
-                    <span className="text-[11px] font-semibold text-text-muted">Expected Drawer Cash</span>
-                    <div className="text-xl font-black text-text-primary">
+                    <span className="text-[11px] font-semibold text-text-muted">Cash Expenses</span>
+                    <div className="text-lg font-bold text-amber-600 dark:text-amber-400">
+                      -{formatCurrency(liveTotals?.cashExpenses || 0)}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-surface-base border-border-default">
+                  <CardContent className="pt-4 space-y-1">
+                    <span className="text-[11px] font-semibold text-text-muted">Cash Returns</span>
+                    <div className="text-lg font-bold text-rose-600 dark:text-rose-400">
+                      -{formatCurrency(liveTotals?.cashRefunds || 0)}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-surface-base border-accent-primary/30 bg-accent-primary/5">
+                  <CardContent className="pt-4 space-y-1">
+                    <span className="text-[11px] font-bold text-accent-primary">Net Drawer Cash</span>
+                    <div className="text-lg font-black text-text-primary">
                       {formatCurrency(liveTotals?.expectedDrawerCash || 0)}
                     </div>
                   </CardContent>
@@ -211,7 +229,7 @@ export default function CashRegisterPage() {
                 <CardHeader className="border-b border-border-default pb-3 flex flex-row items-center justify-between">
                   <CardTitle className="text-sm font-semibold flex items-center gap-2">
                     <Clock className="w-4 h-4 text-accent-primary" />
-                    Session Details &amp; Operational Counters
+                    Session Details &amp; Operational Reconciliation
                   </CardTitle>
                   <span className="text-xs text-text-muted">
                     Opened: {formatDate(shift.openedAt)}
@@ -227,17 +245,35 @@ export default function CashRegisterPage() {
                   <div className="flex justify-between py-1.5 border-b border-border-default">
                     <span className="text-text-muted">Register Status</span>
                     <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                      Dispensary Counter (Active)
+                      Dispensary Counter (Active Live Session)
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-border-default">
                     <span className="text-text-muted">Completed Invoices</span>
                     <span className="font-bold text-text-primary">{liveTotals?.totalSalesCount || 0}</span>
                   </div>
-                  <div className="flex justify-between py-1.5">
+                  <div className="flex justify-between py-1.5 border-b border-border-default">
                     <span className="text-text-muted">Gross Turn Over (All Tenders)</span>
                     <span className="font-extrabold text-accent-primary text-sm">
                       {formatCurrency(liveTotals?.totalSalesAmount || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-border-default">
+                    <span className="text-text-muted">Petty Cash Expenses (Shift Payouts)</span>
+                    <span className="font-semibold text-amber-600 dark:text-amber-400">
+                      -{formatCurrency(liveTotals?.totalExpenses || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1.5 border-b border-border-default">
+                    <span className="text-text-muted">Sales Returns (Shift Refunds)</span>
+                    <span className="font-semibold text-rose-600 dark:text-rose-400">
+                      -{formatCurrency(liveTotals?.totalReturns || 0)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1.5 bg-surface-raised px-2 rounded-lg">
+                    <span className="font-bold text-text-primary">Expected Cash in Drawer (Physical Count Target)</span>
+                    <span className="font-black text-accent-primary text-sm">
+                      {formatCurrency(liveTotals?.expectedDrawerCash || 0)}
                     </span>
                   </div>
                 </CardContent>

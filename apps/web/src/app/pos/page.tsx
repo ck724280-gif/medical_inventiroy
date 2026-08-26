@@ -608,7 +608,7 @@ export default function PosPage() {
         roundOffMode: cart.roundOffMode,
         paperWidth: cart.paperWidth,
         notes: cart.notes,
-        shiftId: currentShift?.shiftId || undefined,
+        shiftId: currentShift?.shiftId || currentShift?.id || undefined,
         idempotencyKey: `POS-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         prescription: rxData || null,
       };
@@ -627,6 +627,11 @@ export default function PosPage() {
       cart.clearCart();
       setShowRxModal(false);
       refetchShift();
+      queryClient.invalidateQueries({ queryKey: ['sales-list'] });
+      queryClient.invalidateQueries({ queryKey: ['sales-report'] });
+      queryClient.invalidateQueries({ queryKey: ['current-cash-shift'] });
+      queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-kpi'] });
     } catch (err: any) {
       alert(err.response?.data?.message || 'Checkout failed. Please check stock and limits.');
     } finally {

@@ -21,69 +21,17 @@ export interface CloseShiftDto {
 export class CashRegistersService {
   constructor(private prisma: PrismaService) {}
 
-  /**
-   * Get currently active open shift for a user or branch
-   */
-  async getCurrentShift(userId: string, branchId?: string) {
-    const shift = await this.prisma.cashierShift.findFirst({
-      where: {
-        userId,
-        status: 'OPEN',
-        ...(branchId ? { branchId } : {}),
-      },
-      include: {
-        branch: { select: { id: true, name: true, code: true } },
-        user: { select: { id: true, firstName: true, lastName: true, email: true } },
-        _count: { select: { sales: true } },
-      },
-    });
-
-    if (!shift) return null;
-
-    // Aggregate live sales completed during this active shift
-    const salesBreakdown = await this.prisma.salesInvoice.findMany({
-      where: {
-        shiftId: shift.id,
-        status: 'COMPLETED',
-      },
-      include: {
-        payments: true,
-      },
-    });
-
-    let liveCashSales = 0;
-    let liveUpiSales = 0;
-    let liveCardSales = 0;
-    let liveCreditSales = 0;
-
-    for (const sale of salesBreakdown) {
-      for (const p of sale.payments) {
-        if (p.paymentMode === 'CASH') liveCashSales += p.amount;
-        else if (p.paymentMode === 'UPI') liveUpiSales += p.amount;
-        else if (p.paymentMode === 'CARD') liveCardSales += p.amount;
-        else if (p.paymentMode === 'CREDIT') liveCreditSales += p.amount;
-      }
+  private async resolveBranchId(userId: string, branchId?: string): Promise<string> {
+    if (branchId && branchId !== 'all' && branchId !== 'ALL') {
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          OR: [{ id: branchId }, { code: branchId }],
+        },
+        select: { id: true },
+      });
+      if (branch?.id) return branch.id;
     }
 
-    const liveTotalSales = liveCashSales + liveUpiSales + liveCardSales + liveCreditSales;
-    const expectedDrawerCash = shift.openingCash + liveCashSales;
-
-    return {
-      ...shift,
-      liveTotals: {
-        totalSalesCount: salesBreakdown.length,
-        totalSalesAmount: liveTotalSales,
-        cashSales: liveCashSales,
-        upiSales: liveUpiSales,
-        cardSales: liveCardSales,
-        creditSales: liveCreditSales,
-        expectedDrawerCash,
-      },
-    };
-  }
-
-  private async resolveBranchId(userId: string, branchId?: string): Promise<string> {
-    if (branchId) return branchId;
     const userWithBranches = await this.prisma.user.findUnique({
       where: { id: userId },
       include: { branches: true },
@@ -93,6 +41,141 @@ export class CashRegistersService {
     }
     const fallback = await this.prisma.branch.findFirst({ select: { id: true } });
     return fallback?.id || '';
+  }
+
+  /**
+   * Get currently active open shift for a user or branch
+   */
+  async getCurrentShift(userId: string, branchId?: string) {
+    const resolvedBranchId = branchId && branchId !== 'all' ? await this.resolveBranchId(userId, branchId) : undefined;
+
+    // First try finding an open shift for this user and branch
+    let shift = await this.prisma.cashierShift.findFirst({
+      where: {
+        userId,
+        status: 'OPEN',
+        ...(resolvedBranchId ? { branchId: resolvedBranchId } : {}),
+      },
+      include: {
+        branch: { select: { id: true, name: true, code: true } },
+        user: { select: { id: true, firstName: true, lastName: true, email: true } },
+        _count: { select: { sales: true } },
+      },
+      orderBy: { openedAt: 'desc' },
+    });
+
+    // Fallback: If no shift matched the specific branch filter, find ANY open shift for this user
+    if (!shift) {
+      shift = await this.prisma.cashierShift.findFirst({
+        where: {
+          userId,
+          status: 'OPEN',
+        },
+        include: {
+          branch: { select: { id: true, name: true, code: true } },
+          user: { select: { id: true, firstName: true, lastName: true, email: true } },
+          _count: { select: { sales: true } },
+        },
+        orderBy: { openedAt: 'desc' },
+      });
+    }
+
+    if (!shift) return null;
+
+    const endTime = shift.closedAt || new Date();
+
+    // Query sales, payments, returns, and expenses during active shift
+    const [salesBreakdown, paymentsBreakdown, returnsBreakdown, expensesBreakdown] = await Promise.all([
+      this.prisma.salesInvoice.findMany({
+        where: {
+          branchId: shift.branchId,
+          OR: [
+            { shiftId: shift.id },
+            {
+              createdByUserId: shift.userId,
+              createdAt: { gte: shift.openedAt, lte: endTime },
+            },
+          ],
+          status: { not: 'CANCELLED' },
+        },
+        include: {
+          payments: true,
+        },
+      }),
+      this.prisma.salesPayment.findMany({
+        where: {
+          salesInvoice: {
+            branchId: shift.branchId,
+            OR: [
+              { shiftId: shift.id },
+              {
+                createdByUserId: shift.userId,
+                createdAt: { gte: shift.openedAt, lte: endTime },
+              },
+            ],
+            status: { not: 'CANCELLED' },
+          },
+        },
+      }),
+      this.prisma.salesReturn.findMany({
+        where: {
+          branchId: shift.branchId,
+          createdAt: { gte: shift.openedAt, lte: endTime },
+        },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          branchId: shift.branchId,
+          date: { gte: shift.openedAt, lte: endTime },
+        },
+      }),
+    ]);
+
+    let liveCashSales = 0;
+    let liveUpiSales = 0;
+    let liveCardSales = 0;
+    let liveCreditSales = 0;
+
+    for (const p of paymentsBreakdown) {
+      if (p.paymentMode === 'CASH') liveCashSales += p.amount;
+      else if (p.paymentMode === 'UPI') liveUpiSales += p.amount;
+      else if (p.paymentMode === 'CARD') liveCardSales += p.amount;
+      else if (p.paymentMode === 'CREDIT') liveCreditSales += p.amount;
+    }
+
+    const liveTotalSales = liveCashSales + liveUpiSales + liveCardSales + liveCreditSales;
+
+    // Expenses during shift
+    const totalExpenses = expensesBreakdown.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const cashExpenses = expensesBreakdown
+      .filter((e) => (e.paymentMethod || 'CASH').toUpperCase() === 'CASH')
+      .reduce((sum, e) => sum + Number(e.amount || 0), 0);
+
+    // Sales Returns / Refunds during shift
+    const totalReturns = returnsBreakdown.reduce((sum, r) => sum + Number(r.refundAmount || 0), 0);
+    const cashRefunds = returnsBreakdown
+      .filter((r) => (r.refundMode || 'CASH').toUpperCase() === 'CASH')
+      .reduce((sum, r) => sum + Number(r.refundAmount || 0), 0);
+
+    const expectedDrawerCash = Math.max(0, shift.openingCash + liveCashSales - cashExpenses - cashRefunds);
+
+    return {
+      ...shift,
+      shiftId: shift.id,
+      liveTotals: {
+        totalSalesCount: salesBreakdown.length,
+        totalSalesAmount: liveTotalSales,
+        cashSales: liveCashSales,
+        upiSales: liveUpiSales,
+        cardSales: liveCardSales,
+        creditSales: liveCreditSales,
+        totalExpenses,
+        cashExpenses,
+        totalReturns,
+        cashRefunds,
+        expectedDrawerCash,
+      },
+    };
   }
 
   /**
@@ -117,10 +200,10 @@ export class CashRegistersService {
     });
 
     if (existing) {
-      return existing;
+      return this.getCurrentShift(userId, existing.branchId);
     }
 
-    return this.prisma.cashierShift.create({
+    const created = await this.prisma.cashierShift.create({
       data: {
         branchId: resolvedBranchId,
         userId,
@@ -134,6 +217,8 @@ export class CashRegistersService {
         user: true,
       },
     });
+
+    return this.getCurrentShift(userId, created.branchId);
   }
 
   /**
@@ -172,8 +257,28 @@ export class CashRegistersService {
       }
     }
 
+    const [expenses, returns] = await Promise.all([
+      this.prisma.expense.findMany({
+        where: {
+          branchId: shift.branchId,
+          date: { gte: shift.openedAt, lte: new Date() },
+          paymentMethod: 'CASH',
+        },
+      }),
+      this.prisma.salesReturn.findMany({
+        where: {
+          branchId: shift.branchId,
+          createdAt: { gte: shift.openedAt, lte: new Date() },
+          refundMode: 'CASH',
+        },
+      }),
+    ]);
+
+    const cashExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+    const cashRefunds = returns.reduce((sum, r) => sum + Number(r.refundAmount || 0), 0);
+
     const totalSalesAmount = totalCashSales + totalUpiSales + totalCardSales + totalCreditSales;
-    const expectedCash = shift.openingCash + totalCashSales;
+    const expectedCash = Math.max(0, shift.openingCash + totalCashSales - cashExpenses - cashRefunds);
     const cashDifference = dto.closingCash - expectedCash;
 
     return this.prisma.cashierShift.update({

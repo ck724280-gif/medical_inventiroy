@@ -785,7 +785,8 @@ function PurchasesContent() {
                           type="number"
                           min="1"
                           value={item.qty}
-                          onChange={(e) => handleItemChange(idx, 'qty', parseInt(e.target.value) || 1)}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => handleItemChange(idx, 'qty', e.target.value)}
                           className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-center text-text-primary focus:outline-none focus:border-accent"
                         />
                       </div>
@@ -796,7 +797,8 @@ function PurchasesContent() {
                           type="number"
                           step="0.01"
                           value={item.purchasePrice}
-                          onChange={(e) => handleItemChange(idx, 'purchasePrice', parseFloat(e.target.value) || 0)}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => handleItemChange(idx, 'purchasePrice', e.target.value)}
                           className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-right text-text-primary focus:outline-none focus:border-accent"
                         />
                       </div>
@@ -807,7 +809,8 @@ function PurchasesContent() {
                           type="number"
                           step="0.01"
                           value={item.mrp}
-                          onChange={(e) => handleItemChange(idx, 'mrp', parseFloat(e.target.value) || 0)}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => handleItemChange(idx, 'mrp', e.target.value)}
                           className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-right text-text-primary focus:outline-none focus:border-accent"
                         />
                       </div>
@@ -817,7 +820,8 @@ function PurchasesContent() {
                         <input
                           type="number"
                           value={item.taxPercent}
-                          onChange={(e) => handleItemChange(idx, 'taxPercent', parseFloat(e.target.value) || 0)}
+                          onFocus={(e) => e.target.select()}
+                          onChange={(e) => handleItemChange(idx, 'taxPercent', e.target.value)}
                           className="w-full px-2 py-1.5 bg-surface-base border border-border rounded-md text-xs font-mono text-center text-text-primary focus:outline-none focus:border-accent"
                         />
                       </div>

@@ -32,6 +32,17 @@ import {
 export class SalesService {
   constructor(private prisma: PrismaService) {}
 
+  private async resolveBranchId(branchId?: string): Promise<string | undefined> {
+    if (!branchId || branchId === 'all' || branchId === 'ALL') return undefined;
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        OR: [{ id: branchId }, { code: branchId }],
+      },
+      select: { id: true },
+    });
+    return branch?.id || branchId;
+  }
+
   async findAll(query?: {
     branchId?: string;
     customerId?: string;
@@ -43,24 +54,33 @@ export class SalesService {
     const limit = Number(query?.limit) || 20;
     const skip = (page - 1) * limit;
 
-    const where: any = {};
-    if (query?.branchId) {
-      where.OR = [{ branchId: query.branchId }, { branchId: null }];
+    const resolvedBranchId = await this.resolveBranchId(query?.branchId);
+    const andConditions: any[] = [];
+
+    if (resolvedBranchId) {
+      andConditions.push({
+        OR: [{ branchId: resolvedBranchId }, { branchId: null }],
+      });
     }
-    if (query?.customerId) where.customerId = query.customerId;
-    if (query?.search) {
-      const searchConditions = [
-        { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
-        { customer: { name: { contains: query.search, mode: 'insensitive' } } },
-        { customer: { mobile: { contains: query.search, mode: 'insensitive' } } },
-      ];
-      if (where.OR) {
-        where.AND = [{ OR: where.OR }, { OR: searchConditions }];
-        delete where.OR;
-      } else {
-        where.OR = searchConditions;
-      }
+
+    if (query?.customerId) {
+      andConditions.push({ customerId: query.customerId });
     }
+
+    if (query?.search && query.search.trim()) {
+      const q = query.search.trim();
+      andConditions.push({
+        OR: [
+          { invoiceNumber: { contains: q, mode: 'insensitive' } },
+          { customer: { name: { contains: q, mode: 'insensitive' } } },
+          { customer: { mobile: { contains: q, mode: 'insensitive' } } },
+          { patientName: { contains: q, mode: 'insensitive' } },
+          { doctorName: { contains: q, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const where: any = andConditions.length > 0 ? { AND: andConditions } : {};
 
     const [total, sales] = await Promise.all([
       this.prisma.salesInvoice.count({ where }),
