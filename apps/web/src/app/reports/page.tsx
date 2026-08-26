@@ -33,15 +33,17 @@ export default function ReportsPage() {
     'financials' | 'sales' | 'purchases' | 'inventory' | 'gstr1' | 'gstr3b' | 'hsn' | 'schedule-h'
   >('financials');
 
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    endDate: new Date().toISOString().split('T')[0],
+  const [activePreset, setActivePreset] = useState<'today' | 'week' | 'month' | 'lastMonth' | 'fy' | 'custom'>('today');
+  const [dateRange, setDateRange] = useState(() => {
+    const endStr = new Date().toISOString().split('T')[0];
+    return { startDate: endStr, endDate: endStr };
   });
 
   const [downloading, setDownloading] = useState<string | null>(null);
 
   // Date Presets Helper
   const setPreset = (preset: 'today' | 'week' | 'month' | 'lastMonth' | 'fy') => {
+    setActivePreset(preset);
     const today = new Date();
     const endStr = today.toISOString().split('T')[0];
 
@@ -211,36 +213,25 @@ export default function ReportsPage() {
             <div className="flex flex-wrap items-center gap-2">
               {/* Quick Presets */}
               <div className="flex items-center gap-1 bg-surface-base p-1 rounded-xl border border-border-default text-[11px] shadow-sm">
-                <button
-                  onClick={() => setPreset('today')}
-                  className="px-2 py-1 hover:bg-surface-raised rounded-lg text-text-muted font-medium transition"
-                >
-                  Today
-                </button>
-                <button
-                  onClick={() => setPreset('week')}
-                  className="px-2 py-1 hover:bg-surface-raised rounded-lg text-text-muted font-medium transition"
-                >
-                  7D
-                </button>
-                <button
-                  onClick={() => setPreset('month')}
-                  className="px-2 py-1 hover:bg-surface-raised rounded-lg text-text-muted font-medium transition"
-                >
-                  This Month
-                </button>
-                <button
-                  onClick={() => setPreset('lastMonth')}
-                  className="px-2 py-1 hover:bg-surface-raised rounded-lg text-text-muted font-medium transition"
-                >
-                  Last Month
-                </button>
-                <button
-                  onClick={() => setPreset('fy')}
-                  className="px-2 py-1 hover:bg-surface-raised rounded-lg text-accent-primary font-semibold transition"
-                >
-                  FY
-                </button>
+                {[
+                  { id: 'today', label: 'Today' },
+                  { id: 'week', label: '7D' },
+                  { id: 'month', label: 'This Month' },
+                  { id: 'lastMonth', label: 'Last Month' },
+                  { id: 'fy', label: 'FY' },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setPreset(p.id as any)}
+                    className={`px-2.5 py-1 rounded-lg transition font-medium cursor-pointer ${
+                      activePreset === p.id
+                        ? 'bg-accent-primary/10 text-accent-primary font-semibold shadow-xs'
+                        : 'text-text-muted hover:bg-surface-raised hover:text-text-primary'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
 
               {/* Date Pickers */}
@@ -249,14 +240,20 @@ export default function ReportsPage() {
                 <input
                   type="date"
                   value={dateRange.startDate}
-                  onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+                  onChange={(e) => {
+                    setActivePreset('custom');
+                    setDateRange({ ...dateRange, startDate: e.target.value });
+                  }}
                   className="bg-surface-page border border-border-default text-text-primary rounded-lg px-2 py-1 focus:outline-none text-xs"
                 />
                 <span className="text-slate-400 text-xs">to</span>
                 <input
                   type="date"
                   value={dateRange.endDate}
-                  onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+                  onChange={(e) => {
+                    setActivePreset('custom');
+                    setDateRange({ ...dateRange, endDate: e.target.value });
+                  }}
                   className="bg-surface-page border border-border-default text-text-primary rounded-lg px-2 py-1 focus:outline-none text-xs"
                 />
               </div>

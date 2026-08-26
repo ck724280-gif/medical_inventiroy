@@ -7,6 +7,22 @@ import { calculateGstBreakdown } from '@medical-inventory/shared-utils';
 export class ReportsService {
   constructor(private prisma: PrismaService) {}
 
+  private buildDateFilter(startDate?: string, endDate?: string) {
+    if (!startDate && !endDate) return undefined;
+    const filter: any = {};
+    if (startDate) {
+      const s = new Date(startDate.includes('T') ? startDate : `${startDate}T00:00:00.000Z`);
+      s.setUTCHours(0, 0, 0, 0);
+      filter.gte = s;
+    }
+    if (endDate) {
+      const e = new Date(endDate.includes('T') ? endDate : `${endDate}T23:59:59.999Z`);
+      e.setUTCHours(23, 59, 59, 999);
+      filter.lte = e;
+    }
+    return filter;
+  }
+
   async getSalesReport(query: {
     branchId?: string;
     startDate?: string;
@@ -14,15 +30,12 @@ export class ReportsService {
     groupBy?: 'day' | 'medicine' | 'category' | 'user' | 'payment';
   }) {
     const where: any = {
-      status: { in: ['COMPLETED', 'PARTIALLY_RETURNED'] },
+      status: { not: 'CANCELLED' },
     };
 
-    if (query.branchId) where.branchId = query.branchId;
-    if (query.startDate || query.endDate) {
-      where.createdAt = {};
-      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) where.createdAt.lte = new Date(query.endDate);
-    }
+    if (query.branchId && query.branchId !== 'all') where.branchId = query.branchId;
+    const dateFilter = this.buildDateFilter(query.startDate, query.endDate);
+    if (dateFilter) where.createdAt = dateFilter;
 
     const sales = await this.prisma.salesInvoice.findMany({
       where,
@@ -66,13 +79,10 @@ export class ReportsService {
       status: { not: 'CANCELLED' },
     };
 
-    if (query.branchId) where.branchId = query.branchId;
+    if (query.branchId && query.branchId !== 'all') where.branchId = query.branchId;
     if (query.supplierId) where.supplierId = query.supplierId;
-    if (query.startDate || query.endDate) {
-      where.createdAt = {};
-      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) where.createdAt.lte = new Date(query.endDate);
-    }
+    const dateFilter = this.buildDateFilter(query.startDate, query.endDate);
+    if (dateFilter) where.createdAt = dateFilter;
 
     const purchases = await this.prisma.purchaseInvoice.findMany({
       where,
@@ -158,14 +168,11 @@ export class ReportsService {
   // --- GST REPORTS ---
   async getGstr1Report(query: { branchId?: string; startDate?: string; endDate?: string }) {
     const where: any = {
-      status: { in: ['COMPLETED', 'PARTIALLY_RETURNED'] },
+      status: { not: 'CANCELLED' },
     };
-    if (query.branchId) where.branchId = query.branchId;
-    if (query.startDate || query.endDate) {
-      where.createdAt = {};
-      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) where.createdAt.lte = new Date(query.endDate);
-    }
+    if (query.branchId && query.branchId !== 'all') where.branchId = query.branchId;
+    const dateFilter = this.buildDateFilter(query.startDate, query.endDate);
+    if (dateFilter) where.createdAt = dateFilter;
 
     const sales = await this.prisma.salesInvoice.findMany({
       where,
@@ -223,7 +230,7 @@ export class ReportsService {
         b2bCount: b2bInvoices.length,
         b2cCount: b2cInvoices.length,
         totalB2bTaxable: Number(totalB2bTaxable.toFixed(2)),
-        totalB2bTax: Number(totalB2bTax = totalB2bTax),
+        totalB2bTax: Number(totalB2bTax),
         totalB2cTaxable: Number(totalB2cTaxable.toFixed(2)),
         totalB2cTax: Number(totalB2cTax.toFixed(2)),
         grandTotalTaxable: Number((totalB2bTaxable + totalB2cTaxable).toFixed(2)),
@@ -237,14 +244,11 @@ export class ReportsService {
   async getGstr3bReport(query: { branchId?: string; startDate?: string; endDate?: string }) {
     const salesReport = await this.getGstr1Report(query);
     const purchaseWhere: any = {
-      status: { in: ['CONFIRMED', 'APPROVED'] },
+      status: { not: 'CANCELLED' },
     };
-    if (query.branchId) purchaseWhere.branchId = query.branchId;
-    if (query.startDate || query.endDate) {
-      purchaseWhere.createdAt = {};
-      if (query.startDate) purchaseWhere.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) purchaseWhere.createdAt.lte = new Date(query.endDate);
-    }
+    if (query.branchId && query.branchId !== 'all') purchaseWhere.branchId = query.branchId;
+    const dateFilter = this.buildDateFilter(query.startDate, query.endDate);
+    if (dateFilter) purchaseWhere.createdAt = dateFilter;
 
     const purchases = await this.prisma.purchaseInvoice.findMany({
       where: purchaseWhere,
@@ -296,17 +300,14 @@ export class ReportsService {
   }
 
   async getHsnSummaryReport(query: { branchId?: string; startDate?: string; endDate?: string }) {
+    const dateFilter = this.buildDateFilter(query.startDate, query.endDate);
     const where: any = {
       salesInvoice: {
-        status: { in: ['COMPLETED', 'PARTIALLY_RETURNED'] },
-        ...(query.branchId ? { branchId: query.branchId } : {}),
+        status: { not: 'CANCELLED' },
+        ...(query.branchId && query.branchId !== 'all' ? { branchId: query.branchId } : {}),
+        ...(dateFilter ? { createdAt: dateFilter } : {}),
       },
     };
-    if (query.startDate || query.endDate) {
-      where.salesInvoice.createdAt = {};
-      if (query.startDate) where.salesInvoice.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) where.salesInvoice.createdAt.lte = new Date(query.endDate);
-    }
 
     const salesItems = await this.prisma.salesItem.findMany({
       where,
@@ -376,10 +377,10 @@ export class ReportsService {
   // --- SCHEDULE H REGISTER ---
   async getScheduleHReport(query: { branchId?: string; startDate?: string; endDate?: string; schedule?: string }) {
     const where: any = {};
-    if (query.startDate || query.endDate) {
-      where.createdAt = {};
-      if (query.startDate) where.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) where.createdAt.lte = new Date(query.endDate);
+    const dateFilter = this.buildDateFilter(query.startDate, query.endDate);
+    if (dateFilter) where.createdAt = dateFilter;
+    if (query.branchId && query.branchId !== 'all') {
+      where.salesInvoice = { branchId: query.branchId };
     }
     if (query.schedule) {
       where.drugSchedule = query.schedule;
@@ -517,24 +518,17 @@ export class ReportsService {
     const purchaseReport = await this.getPurchaseReport(query);
 
     // Operational expenses in the same timeframe
+    const dateFilter = this.buildDateFilter(query.startDate, query.endDate);
     const expenseWhere: any = {};
-    if (query.branchId) expenseWhere.branchId = query.branchId;
-    if (query.startDate || query.endDate) {
-      expenseWhere.date = {};
-      if (query.startDate) expenseWhere.date.gte = new Date(query.startDate);
-      if (query.endDate) expenseWhere.date.lte = new Date(query.endDate);
-    }
+    if (query.branchId && query.branchId !== 'all') expenseWhere.branchId = query.branchId;
+    if (dateFilter) expenseWhere.date = dateFilter;
     const expenses = await this.prisma.expense.findMany({ where: expenseWhere });
     const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
 
     // Sales Returns
     const returnWhere: any = {};
-    if (query.branchId) returnWhere.branchId = query.branchId;
-    if (query.startDate || query.endDate) {
-      returnWhere.createdAt = {};
-      if (query.startDate) returnWhere.createdAt.gte = new Date(query.startDate);
-      if (query.endDate) returnWhere.createdAt.lte = new Date(query.endDate);
-    }
+    if (query.branchId && query.branchId !== 'all') returnWhere.branchId = query.branchId;
+    if (dateFilter) returnWhere.createdAt = dateFilter;
     const returns = await this.prisma.salesReturn.findMany({ where: returnWhere });
     const totalReturnsAmount = returns.reduce((sum, r) => sum + Number(r.refundAmount || 0), 0);
 
