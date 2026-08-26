@@ -215,72 +215,168 @@ export class BranchesService {
       throw new NotFoundException(`Branch with ID ${id} not found.`);
     }
 
-    if (branch.isDefault) {
-      throw new BadRequestException('Cannot delete the primary/default store branch.');
+    const totalBranchesCount = await this.prisma.branch.count();
+    if (totalBranchesCount <= 1) {
+      throw new BadRequestException(
+        'Cannot delete the only remaining store branch. Please create another branch before deleting this one.'
+      );
     }
 
-    // Safely delete all dependent branch records inside transaction
+    const otherBranch = await this.prisma.branch.findFirst({
+      where: { id: { not: id } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // Safely delete all dependent branch records inside transaction in exact dependency order
     await this.prisma.$transaction(async (tx) => {
+      // 0. If this is the default branch, promote the other branch to default
+      if (branch.isDefault && otherBranch) {
+        await tx.branch.update({
+          where: { id: otherBranch.id },
+          data: { isDefault: true, isActive: true },
+        });
+      }
+
       // 1. WhatsApp logs & sessions
-      await tx.whatsAppMessageLog.deleteMany({ where: { branchId: id } });
+      await tx.whatsAppMessageLog.deleteMany({
+        where: { OR: [{ branchId: id }, { invoice: { branchId: id } }] },
+      });
       await tx.whatsAppSession.deleteMany({ where: { branchId: id } });
 
-      // 2. Settings, memberships, printers, relations, logs, credits, requests, allocations
+      // 2. Logs, jobs, discount policies & system errors
+      await tx.branchSwitchLog.deleteMany({
+        where: { OR: [{ fromBranchId: id }, { toBranchId: id }] },
+      });
+      await tx.discountPolicy.deleteMany({ where: { branchId: id } });
+      await tx.backgroundJob.deleteMany({ where: { branchId: id } });
+      await tx.errorLog.deleteMany({ where: { branchId: id } });
+
+      // 3. Settings, feature flags, printers, relations, credits, requests, allocations
       await tx.branchSettings.deleteMany({ where: { branchId: id } });
-      await tx.branchMembership.deleteMany({ where: { branchId: id } });
       await tx.branchFeatureFlag.deleteMany({ where: { branchId: id } });
       await tx.printerSetting.deleteMany({ where: { branchId: id } });
       await tx.supplierBranchRelation.deleteMany({ where: { branchId: id } });
       await tx.customerBranchRelation.deleteMany({ where: { branchId: id } });
-      await tx.branchSwitchLog.deleteMany({
-        where: { OR: [{ fromBranchId: id }, { toBranchId: id }] },
+      await tx.customerCredit.deleteMany({
+        where: { OR: [{ branchId: id }, { invoice: { branchId: id } }] },
       });
-      await tx.customerCredit.deleteMany({ where: { branchId: id } });
       await tx.approvalRequest.deleteMany({ where: { branchId: id } });
-      await tx.centralPurchaseAllocation.deleteMany({ where: { branchId: id } });
-
-      // 3. Stock Transfers & items
-      await tx.stockTransferItem.deleteMany({
-        where: {
-          transfer: {
-            OR: [{ fromBranchId: id }, { toBranchId: id }],
-          },
-        },
-      });
-      await tx.stockTransfer.deleteMany({
-        where: {
-          OR: [{ fromBranchId: id }, { toBranchId: id }],
-        },
+      await tx.centralPurchaseAllocation.deleteMany({
+        where: { OR: [{ branchId: id }, { purchase: { branchId: id } }] },
       });
 
-      // 4. Stock Adjustments
-      await tx.stockAdjustment.deleteMany({ where: { branchId: id } });
+      // 4. Prescriptions
+      await tx.prescriptionRecord.deleteMany({
+        where: { salesInvoice: { branchId: id } },
+      });
 
-      // 5. Sales Returns, Items, Payments, Invoices
-      await tx.salesReturnItem.deleteMany({ where: { returnRecord: { branchId: id } } });
-      await tx.salesReturn.deleteMany({ where: { branchId: id } });
-      await tx.salesPayment.deleteMany({ where: { salesInvoice: { branchId: id } } });
-      await tx.salesItem.deleteMany({ where: { salesInvoice: { branchId: id } } });
+      // 5. Sales Returns & Items
+      await tx.salesReturnItem.deleteMany({
+        where: {
+          OR: [
+            { returnRecord: { branchId: id } },
+            { returnRecord: { salesInvoice: { branchId: id } } },
+            { batch: { branchId: id } },
+          ],
+        },
+      });
+      await tx.salesReturn.deleteMany({
+        where: { OR: [{ branchId: id }, { salesInvoice: { branchId: id } }] },
+      });
+
+      // 6. Sales Payments, Items, Invoices
+      await tx.salesPayment.deleteMany({
+        where: { salesInvoice: { branchId: id } },
+      });
+      await tx.salesItem.deleteMany({
+        where: {
+          OR: [
+            { salesInvoice: { branchId: id } },
+            { batch: { branchId: id } },
+          ],
+        },
+      });
       await tx.salesInvoice.deleteMany({ where: { branchId: id } });
 
-      // 6. Purchase Returns, Items, Payments, Orders, Invoices
-      await tx.purchaseReturnItem.deleteMany({ where: { returnRecord: { branchId: id } } });
-      await tx.purchaseReturn.deleteMany({ where: { branchId: id } });
-      await tx.purchasePayment.deleteMany({ where: { purchaseInvoice: { branchId: id } } });
-      await tx.purchaseItem.deleteMany({ where: { purchaseInvoice: { branchId: id } } });
-      await tx.purchaseOrderItem.deleteMany({ where: { purchaseOrder: { branchId: id } } });
+      // 7. Purchase Returns & Items
+      await tx.purchaseReturnItem.deleteMany({
+        where: {
+          OR: [
+            { returnRecord: { branchId: id } },
+            { returnRecord: { purchaseInvoice: { branchId: id } } },
+            { batch: { branchId: id } },
+          ],
+        },
+      });
+      await tx.purchaseReturn.deleteMany({
+        where: { OR: [{ branchId: id }, { purchaseInvoice: { branchId: id } }] },
+      });
+
+      // 8. Purchase Payments, Items, Orders, Invoices
+      await tx.purchasePayment.deleteMany({
+        where: { purchaseInvoice: { branchId: id } },
+      });
+      await tx.purchaseItem.deleteMany({
+        where: {
+          OR: [
+            { purchaseInvoice: { branchId: id } },
+            { batch: { branchId: id } },
+          ],
+        },
+      });
+      await tx.purchaseOrderItem.deleteMany({
+        where: { purchaseOrder: { branchId: id } },
+      });
       await tx.purchaseOrder.deleteMany({ where: { branchId: id } });
       await tx.purchaseInvoice.deleteMany({ where: { branchId: id } });
 
-      // 7. Stock Movements, Batches
-      await tx.stockMovement.deleteMany({ where: { branchId: id } });
+      // 9. Stock Transfers & Items
+      await tx.stockTransferItem.deleteMany({
+        where: {
+          OR: [
+            { transfer: { OR: [{ fromBranchId: id }, { toBranchId: id }] } },
+            { batch: { branchId: id } },
+          ],
+        },
+      });
+      await tx.stockTransfer.deleteMany({
+        where: { OR: [{ fromBranchId: id }, { toBranchId: id }] },
+      });
+
+      // 10. Stock Adjustments & Movements
+      await tx.stockAdjustment.deleteMany({
+        where: { OR: [{ branchId: id }, { batch: { branchId: id } }] },
+      });
+      await tx.stockMovement.deleteMany({
+        where: { OR: [{ branchId: id }, { batch: { branchId: id } }] },
+      });
+
+      // 11. Batches
       await tx.batch.deleteMany({ where: { branchId: id } });
 
-      // 8. Expenses & Cashier Shifts
+      // 12. Expenses & Cashier Shifts
       await tx.expense.deleteMany({ where: { branchId: id } });
       await tx.cashierShift.deleteMany({ where: { branchId: id } });
 
-      // 9. Delete the branch itself
+      // 13. Memberships & Orphan User Migration
+      await tx.branchMembership.deleteMany({ where: { branchId: id } });
+      if (otherBranch) {
+        const usersWithoutBranches = await tx.user.findMany({
+          where: {
+            branches: { none: {} },
+          },
+        });
+        for (const u of usersWithoutBranches) {
+          await tx.branchMembership.create({
+            data: {
+              userId: u.id,
+              branchId: otherBranch.id,
+            },
+          });
+        }
+      }
+
+      // 14. Delete the branch itself
       await tx.branch.delete({ where: { id } });
     });
 
@@ -305,8 +401,11 @@ export class BranchesService {
       throw new NotFoundException(`Branch with ID ${id} not found`);
     }
 
-    if (branch.isDefault) {
-      throw new BadRequestException('Cannot delete the primary/default store branch');
+    const totalBranchesCount = await this.prisma.branch.count();
+    if (totalBranchesCount <= 1) {
+      throw new BadRequestException(
+        'Cannot delete the only remaining store branch. Please create another branch first.'
+      );
     }
 
     if (branch._count.sales > 0 || branch._count.batches > 0) {
