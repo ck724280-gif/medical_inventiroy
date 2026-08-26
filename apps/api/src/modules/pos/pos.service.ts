@@ -446,7 +446,7 @@ export class PosService {
         where: {
           branchId: shift.branchId,
           createdByUserId: shift.userId,
-          createdAt: { gte: shift.openedAt, lte: endTime },
+          date: { gte: shift.openedAt, lte: endTime },
         },
         select: { amount: true, paymentMethod: true },
       }),
@@ -463,10 +463,10 @@ export class PosService {
     let totalCreditSales = 0;
 
     for (const p of payments) {
-      if (p.paymentMode === PaymentMode.CASH) totalCashSales += p.amount;
-      else if (p.paymentMode === PaymentMode.UPI) totalUpiSales += p.amount;
-      else if (p.paymentMode === PaymentMode.CARD) totalCardSales += p.amount;
-      else if (p.paymentMode === PaymentMode.CREDIT) totalCreditSales += p.amount;
+      if (p.paymentMode === 'CASH' || p.paymentMode === PaymentMode.CASH) totalCashSales += p.amount;
+      else if (p.paymentMode === 'UPI' || p.paymentMode === PaymentMode.UPI) totalUpiSales += p.amount;
+      else if (p.paymentMode === 'CARD' || p.paymentMode === PaymentMode.CARD) totalCardSales += p.amount;
+      else if (p.paymentMode === 'CREDIT' || p.paymentMode === PaymentMode.CREDIT) totalCreditSales += p.amount;
     }
 
     const totalReturnsAmount = Number(
@@ -474,7 +474,7 @@ export class PosService {
     );
     const totalCashReturns = Number(
       returns
-        .filter((r) => r.refundMode === PaymentMode.CASH)
+        .filter((r) => r.refundMode === 'CASH' || r.refundMode === PaymentMode.CASH)
         .reduce((sum, r) => sum + r.refundAmount, 0)
         .toFixed(2)
     );
@@ -505,6 +505,7 @@ export class PosService {
 
     return {
       shiftId: shift.id,
+      id: shift.id,
       branchId: shift.branchId,
       branchName: shift.branch?.name,
       cashierName: `${shift.user.firstName} ${shift.user.lastName}`,

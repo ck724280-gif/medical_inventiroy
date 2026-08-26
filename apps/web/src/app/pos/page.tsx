@@ -26,6 +26,7 @@ import {
   FileText,
   ChevronDown,
   Camera,
+  Loader2,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
@@ -79,6 +80,8 @@ export default function PosPage() {
   const [openingCashInput, setOpeningCashInput] = useState('1000');
   const [closingCashInput, setClosingCashInput] = useState('');
   const [shiftNotes, setShiftNotes] = useState('');
+  const [isClosingShift, setIsClosingShift] = useState(false);
+  const [isOpenShiftLoading, setIsOpenShiftLoading] = useState(false);
 
   // Customer Add Form
   const [newCustomer, setNewCustomer] = useState({
@@ -412,41 +415,51 @@ export default function PosPage() {
   const handleOpenShift = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      setIsOpenShiftLoading(true);
       await apiClient.post('/pos/shift/open', {
         branchId: activeBranchId || undefined,
         openingCash: parseFloat(openingCashInput) || 0,
         notes: shiftNotes || undefined,
       });
       setShowShiftModal(false);
-      refetchShift();
+      await refetchShift();
       queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] });
       queryClient.invalidateQueries({ queryKey: ['current-cash-shift'] });
       alert('Cashier shift opened successfully. POS billing is now ACTIVE.');
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to open shift.');
+      alert(err.response?.data?.message || err.message || 'Failed to open shift.');
+    } finally {
+      setIsOpenShiftLoading(false);
     }
   };
 
   const handleCloseShift = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentShift?.shiftId) return;
+    const shiftIdToClose = currentShift?.shiftId || currentShift?.id || currentShift?._id;
+    if (!shiftIdToClose) {
+      alert('Active cashier shift ID not found. Please refresh the page and try again.');
+      return;
+    }
 
     if (!confirm('Are you sure you want to close the current cashier shift and reconcile cash?')) return;
 
     try {
+      setIsClosingShift(true);
       await apiClient.post('/pos/shift/close', {
-        shiftId: currentShift.shiftId,
+        shiftId: shiftIdToClose,
         closingCash: parseFloat(closingCashInput) || 0,
         notes: shiftNotes || undefined,
       });
       setShowShiftModal(false);
       setClosingCashInput('');
-      refetchShift();
+      await refetchShift();
       queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] });
       queryClient.invalidateQueries({ queryKey: ['current-cash-shift'] });
       alert('Shift closed & reconciled successfully. Terminal is now offline.');
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to close shift.');
+      alert(err.response?.data?.message || err.message || 'Failed to close shift.');
+    } finally {
+      setIsClosingShift(false);
     }
   };
 
@@ -1457,16 +1470,25 @@ export default function PosPage() {
                     <div className="pt-2 flex justify-end gap-2">
                       <button
                         type="button"
+                        disabled={isClosingShift}
                         onClick={() => setShowShiftModal(false)}
-                        className="px-4 py-2 rounded-xl bg-surface-raised border border-border text-text-secondary hover:bg-surface-hover transition cursor-pointer"
+                        className="px-4 py-2 rounded-xl bg-surface-raised border border-border text-text-secondary hover:bg-surface-hover transition cursor-pointer disabled:opacity-50"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
-                        className="px-5 py-2 rounded-xl bg-status-error hover:opacity-90 font-bold text-white shadow-sm transition cursor-pointer"
+                        disabled={isClosingShift}
+                        className="px-5 py-2 rounded-xl bg-status-error hover:opacity-90 font-bold text-white shadow-sm transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
                       >
-                        End Shift &amp; Go Offline
+                        {isClosingShift ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            <span>Closing Shift...</span>
+                          </>
+                        ) : (
+                          <span>End Shift &amp; Go Offline</span>
+                        )}
                       </button>
                     </div>
                   </form>
@@ -1493,16 +1515,25 @@ export default function PosPage() {
                   <div className="pt-2 flex justify-end gap-2">
                     <button
                       type="button"
+                      disabled={isOpenShiftLoading}
                       onClick={() => setShowShiftModal(false)}
-                      className="px-4 py-2 rounded-xl bg-surface-raised border border-border text-text-secondary hover:bg-surface-hover transition cursor-pointer"
+                      className="px-4 py-2 rounded-xl bg-surface-raised border border-border text-text-secondary hover:bg-surface-hover transition cursor-pointer disabled:opacity-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-xl bg-accent hover:bg-accent-hover font-bold text-white shadow-sm transition cursor-pointer"
+                      disabled={isOpenShiftLoading}
+                      className="px-5 py-2 rounded-xl bg-accent hover:bg-accent-hover font-bold text-white shadow-sm transition cursor-pointer flex items-center gap-2 disabled:opacity-50"
                     >
-                      Open Cashier Shift
+                      {isOpenShiftLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Opening Shift...</span>
+                        </>
+                      ) : (
+                        <span>Open Cashier Shift</span>
+                      )}
                     </button>
                   </div>
                 </form>
