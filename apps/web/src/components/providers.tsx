@@ -7,6 +7,8 @@ import { useBrandingStore } from '../stores/branding-store';
 
 import { ThemeProvider } from './theme-provider';
 
+import { apiClient } from '../lib/api-client';
+
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
     () =>
@@ -27,6 +29,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     initializeAuth();
     fetchBranding();
+
+    // Instant warmup ping to wake up cloud server immediately on page load
+    apiClient.get('/health').catch(() => {});
+
+    // Keepalive ping every 3 minutes to prevent free tier server from sleeping
+    const keepalive = setInterval(() => {
+      apiClient.get('/health').catch(() => {});
+    }, 180000);
+
+    return () => clearInterval(keepalive);
   }, [initializeAuth, fetchBranding]);
 
   return (

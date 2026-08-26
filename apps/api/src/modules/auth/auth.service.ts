@@ -143,15 +143,17 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Reset failed login counter on success & update last login
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        failedLoginCount: 0,
-        lockedUntil: null,
-        lastLoginAt: new Date(),
-      },
-    });
+    // Reset failed login counter on success & update last login asynchronously
+    this.prisma.user
+      .update({
+        where: { id: user.id },
+        data: {
+          failedLoginCount: 0,
+          lockedUntil: null,
+          lastLoginAt: new Date(),
+        },
+      })
+      .catch(() => {});
 
     // Extract roles and permissions
     const roles: string[] = [];
@@ -176,18 +178,14 @@ export class AuthService {
       isDefault: b.branch.isDefault,
     }));
 
-    if (userBranches.length === 0 || isSuper) {
+    if (userBranches.length === 0) {
       const allActiveBranches = await this.prisma.branch.findMany({
         where: { isActive: true },
+        select: { id: true, name: true, code: true, isDefault: true },
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
       });
       if (allActiveBranches.length > 0) {
-        userBranches = allActiveBranches.map((b) => ({
-          id: b.id,
-          name: b.name,
-          code: b.code,
-          isDefault: b.isDefault,
-        }));
+        userBranches = allActiveBranches;
       }
     }
 

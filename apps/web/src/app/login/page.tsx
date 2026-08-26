@@ -30,10 +30,13 @@ export default function LoginPage() {
   const { theme, toggleTheme, initializeTheme } = useThemeStore();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isWarmingUp, setIsWarmingUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     initializeTheme();
+    // Instant pre-warm: wake up backend container as soon as login page opens
+    apiClient.get('/health').catch(() => {});
   }, [initializeTheme]);
 
   const {
@@ -51,12 +54,22 @@ export default function LoginPage() {
   const onSubmit = async (data: any) => {
     setErrorMessage(null);
     setLoading(true);
+    setIsWarmingUp(false);
+
+    // Show warming up feedback if server spin-up takes longer than 1.2s
+    const warmupTimer = setTimeout(() => {
+      setIsWarmingUp(true);
+    }, 1200);
+
     try {
       const res = await apiClient.post('/auth/login', data);
+      clearTimeout(warmupTimer);
       const { accessToken, refreshToken, user } = res.data?.data || res.data;
       loginStore(accessToken, refreshToken, user);
-      router.push('/');
+      router.replace('/');
     } catch (err: any) {
+      clearTimeout(warmupTimer);
+      setIsWarmingUp(false);
       setErrorMessage(err.response?.data?.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
@@ -217,6 +230,14 @@ export default function LoginPage() {
               <div className="p-3 rounded-xl text-status-error text-xs flex items-center gap-2 bg-status-error-bg border border-status-error-border animate-fade-in">
                 <AlertCircle className="w-4 h-4 shrink-0 text-status-error" />
                 <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Cloud Server Warming Up Notice */}
+            {loading && isWarmingUp && !errorMessage && (
+              <div className="p-3 rounded-xl text-accent text-xs flex items-center gap-2 bg-accent/10 border border-accent/20 animate-pulse">
+                <Activity className="w-4 h-4 shrink-0 text-accent animate-spin" />
+                <span>Connecting to cloud server... Waking up secure workspace (takes a few seconds on first visit).</span>
               </div>
             )}
 
