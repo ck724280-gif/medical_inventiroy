@@ -63,7 +63,7 @@ export default function WhatsAppHubPage() {
     },
     refetchInterval: (query) => {
       const st = query.state.data?.status;
-      return st === 'CONNECTING' || st === 'QR_READY' ? 1500 : 10000;
+      return st === 'CONNECTING' ? 1000 : st === 'QR_READY' ? 2000 : 8000;
     },
   });
 

@@ -35,6 +35,7 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WhatsAppService.name);
   private sockets = new Map<string, WASocket>();
   private reconnectTimeouts = new Map<string, NodeJS.Timeout>();
+  private memorySessions = new Map<string, { status: string; qrCode: string | null; phoneNumber: string | null; pushName: string | null; lastSeenAt: Date | null }>();
   private sessionDir: string;
 
   
@@ -174,6 +175,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.sockets.set(branchId, sock);
+    this.memorySessions.set(branchId, {
+      status: 'CONNECTING',
+      qrCode: null,
+      phoneNumber: null,
+      pushName: null,
+      lastSeenAt: null,
+    });
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -183,6 +191,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
       if (qr) {
         try {
           const qrDataUrl = await QRCode.toDataURL(qr, { margin: 2, scale: 8 });
+          this.memorySessions.set(branchId, {
+            status: 'QR_READY',
+            qrCode: qrDataUrl,
+            phoneNumber: null,
+            pushName: null,
+            lastSeenAt: new Date(),
+          });
           await this.safeUpsertSession(branchId, {
             status: 'QR_READY',
             qrCode: qrDataUrl,
@@ -198,6 +213,14 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
         const rawPhone = userJid.split(':')[0] || userJid.split('@')[0];
         const formattedPhone = rawPhone.startsWith('+') ? rawPhone : `+${rawPhone}`;
         const pushName = sock.user?.name || (sock.user as any)?.notify || 'Store WhatsApp';
+
+        this.memorySessions.set(branchId, {
+          status: 'CONNECTED',
+          phoneNumber: formattedPhone,
+          pushName,
+          qrCode: null,
+          lastSeenAt: new Date(),
+        });
 
         await this.safeUpsertSession(branchId, {
           status: 'CONNECTED',
@@ -217,6 +240,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
         if (statusCode === DisconnectReason.loggedOut) {
           this.sockets.delete(branchId);
+          this.memorySessions.set(branchId, {
+            status: 'DISCONNECTED',
+            qrCode: null,
+            phoneNumber: null,
+            pushName: null,
+            lastSeenAt: null,
+          });
           try {
             fs.rmSync(branchAuthDir, { recursive: true, force: true });
           } catch (e) {}
@@ -235,6 +265,13 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
           this.reconnectTimeouts.set(branchId, timeout);
         } else {
           this.sockets.delete(branchId);
+          this.memorySessions.set(branchId, {
+            status: 'DISCONNECTED',
+            qrCode: null,
+            phoneNumber: null,
+            pushName: null,
+            lastSeenAt: null,
+          });
           await this.safeUpsertSession(branchId, {
             status: 'DISCONNECTED',
             qrCode: null,
@@ -248,6 +285,22 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
 
   async getSessionStatus(branchId?: string) {
     const activeBranchId = await this.resolveBranchId(branchId);
+
+    // 1. Check in-memory session first (instant, zero DB delay)
+    const mem = this.memorySessions.get(activeBranchId);
+    if (mem && (mem.status === 'QR_READY' || mem.status === 'CONNECTING' || mem.status === 'CONNECTED')) {
+      const isLiveConnected = this.sockets.has(activeBranchId) && mem.status === 'CONNECTED';
+      return {
+        branchId: activeBranchId,
+        status: isLiveConnected ? 'CONNECTED' : mem.status,
+        phoneNumber: mem.phoneNumber,
+        pushName: mem.pushName,
+        qrCode: mem.status === 'QR_READY' ? mem.qrCode : null,
+        lastSeenAt: mem.lastSeenAt,
+      };
+    }
+
+    // 2. Fallback to DB
     let session = null;
     try {
       session = await this.prisma.whatsAppSession.findFirst({
@@ -270,26 +323,37 @@ export class WhatsAppService implements OnModuleInit, OnModuleDestroy {
   async connectSession(branchId?: string) {
     const activeBranchId = await this.resolveBranchId(branchId);
 
+    this.memorySessions.set(activeBranchId, {
+      status: 'CONNECTING',
+      qrCode: null,
+      phoneNumber: null,
+      pushName: null,
+      lastSeenAt: null,
+    });
+
     await this.safeUpsertSession(activeBranchId, { status: 'CONNECTING', qrCode: null });
 
     this.initSocket(activeBranchId, true).catch((err) => {
       this.logger.error(`Background initSocket error for branch ${activeBranchId}: ${err.message}`);
+      this.memorySessions.set(activeBranchId, {
+        status: 'DISCONNECTED',
+        qrCode: null,
+        phoneNumber: null,
+        pushName: null,
+        lastSeenAt: null,
+      });
     });
 
-    // Poll briefly for fast QR emission
-    for (let i = 0; i < 4; i++) {
-      await new Promise((r) => setTimeout(r, 250));
-      try {
-        const s = await this.prisma.whatsAppSession.findFirst({
-          where: { branchId: activeBranchId },
-        });
-        if (s?.status === 'QR_READY' && s?.qrCode) {
-          return this.getSessionStatus(activeBranchId);
-        }
-        if (s?.status === 'CONNECTED') {
-          return this.getSessionStatus(activeBranchId);
-        }
-      } catch (e) {}
+    // Poll briefly in-memory for instant QR emit (<1.2s)
+    for (let i = 0; i < 6; i++) {
+      await new Promise((r) => setTimeout(r, 200));
+      const mem = this.memorySessions.get(activeBranchId);
+      if (mem?.status === 'QR_READY' && mem.qrCode) {
+        return this.getSessionStatus(activeBranchId);
+      }
+      if (mem?.status === 'CONNECTED') {
+        return this.getSessionStatus(activeBranchId);
+      }
     }
 
     return this.getSessionStatus(activeBranchId);
