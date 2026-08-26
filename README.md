@@ -1,164 +1,458 @@
-# MedCare — Advanced Medical Inventory & Pharmacy ERP / POS System
+# MedCare — Medical Inventory & Pharmacy ERP / POS
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue.svg)](https://github.com/ck724280-gif/medical_inventiroy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Next.js](https://img.shields.io/badge/Next.js-14.2-black)](https://nextjs.org/)
-[![NestJS](https://img.shields.io/badge/NestJS-10.0-red)](https://nestjs.com/)
-[![Prisma](https://img.shields.io/badge/Prisma-5.0-blue)](https://www.prisma.io/)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan)](https://tailwindcss.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-10-red)](https://nestjs.com/)
+[![Prisma](https://img.shields.io/badge/Prisma-5-blue)](https://www.prisma.io/)
+[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-3.4-cyan)](https://tailwindcss.com/)
 
-**MedCare** is a production-grade, single-business (100% white-label configurable, non-multi-tenant SaaS), multi-branch Medical Inventory & Pharmacy ERP/POS ecosystem built with high-velocity desktop and mobile workflows, strict FEFO drug dispensing, statutory compliance (GSTR-1, GSTR-3B, Schedule H/H1 registers), Cash Register shift management, and universal thermal/A4 printing.
+**MedCare** is a single-business, multi-branch medical inventory and pharmacy ERP/POS monorepo. The project combines a Next.js web application, NestJS REST API, PostgreSQL/Prisma data layer, a React Native/Expo mobile application, shared TypeScript packages, role-based access control, inventory and batch management, POS billing, reporting, printing, and pharmacy-oriented workflows.
 
----
-
-## 🌟 Key Architecture & Feature Highlights
-
-### 1. 🏢 Single Unified Database with Branch-Wise Isolation
-- **One Shared Database**: Built on a single, high-performance PostgreSQL database for simplicity, centralized backups, and consolidated reporting.
-- **Strict Data Partitioning via `branchId`**: Every operational entity (`SalesInvoice`, `PurchaseInvoice`, `Customer`, `Batch`, `StockMovement`, `Expense`, `CashRegisterShift`) is partitioned by branch.
-- **Instant Branch Context Switching**: Owners and Super Admins can switch active store branch contexts on the fly from the top header or Control Center without logging out.
+> **Important:** This README is intentionally based on the repository structure, package manifests, Prisma schema, project documentation, and existing test/audit documentation. Some documented milestones and enhancement specifications are planned or under active development and should not be interpreted as fully implemented unless reflected in source code.
 
 ---
 
-### 2. ⚡ High-Speed POS Billing & Cash Register Sessions
-- **Cashier Register Shift Enforcement**: Cashiers must open a cash register session with initial opening cash. Physical cash in drawer is auto-calculated with manual editable reconciliation upon closing.
-- **Desktop Keyboard Accelerators**: Complete POS operations operable without mouse (`F1` Scan, `F2` Search, `F9` Pay, `Ctrl+K` Universal ERP Search).
-- **Payment Split Support**: Accept Cash, UPI/QR (with dynamic pharmacy UPI QR code), Card, Bank Transfer, and Credit ledger.
-- **Hold & Resume Carts**: Park ongoing bills and retrieve them anytime.
+## ✨ Core Capabilities
+
+### 🏢 Multi-Branch Business Architecture
+
+- Single PostgreSQL database with branch-level operational isolation through `branchId` relationships.
+- Branch memberships and branch context switching.
+- Branch-specific settings, invoice numbering, printers, stock, sales, purchases, expenses, transfers, returns, shifts, approvals, and WhatsApp session data.
+- Centralized business branding and configuration.
+
+### 💊 Medicine & Catalog Management
+
+The Prisma data model includes dedicated entities for:
+
+- Medicines
+- Medicine categories and hierarchical sub-categories
+- Manufacturers
+- Units and medicine unit conversions
+- Barcodes
+- Batch inventory
+- Drug schedules and prescription requirements
+- HSN/tax information
+- Reorder levels and maximum stock limits
+
+The `Medicine` model also contains operational pricing, packaging, dosage-form, schedule, barcode, tax, and stock-control fields.
+
+### 📦 Batch Inventory & Stock Ledger
+
+The inventory model is batch-oriented and supports stock movement tracking for operational events such as:
+
+- Purchases
+- Sales
+- Adjustments
+- Inter-branch transfers
+- Sales returns
+- Purchase returns
+- Opening stock
+
+The project documentation also specifies FEFO-style expiry handling and expiry protection for controlled dispensing workflows.
+
+### 🧾 POS Billing & Cash Register
+
+The web application contains a dedicated POS workflow with:
+
+- Fast product search and barcode scanning
+- Keyboard-oriented billing flow
+- Hold/resume cart workflow
+- Cash register shift/session handling
+- Split payment support
+- Customer credit/ledger workflows
+- Invoice and receipt printing
+
+The frontend dependencies include barcode scanning, print tooling, React Query, Zustand, charting, and UI animation libraries.
+
+### 💰 Purchases, Sales & Returns
+
+The domain model and application structure cover:
+
+- Purchase invoices
+- Purchase orders
+- Sales invoices
+- Purchase returns
+- Sales returns
+- Supplier/customer relationships
+- Party-specific pricing structures
+- Expenses and payouts
+- Customer credit records
+
+### 📊 Reports & Business Analytics
+
+The repository includes reporting infrastructure for areas such as:
+
+- Financial summaries / P&L-oriented reporting
+- Sales ledger
+- Purchase ledger
+- Inventory valuation
+- GST-oriented reporting
+- HSN summaries
+- Schedule H / H1 / X-oriented register workflows
+
+Excel/CSV-oriented export tooling is supported by backend dependencies and the documented report workflows.
+
+### 🖨️ Printing & Barcode Labels
+
+The project includes printing infrastructure for pharmacy documents and thermal workflows, including:
+
+- Thermal receipt printing
+- A4/A5 browser-print workflows
+- Receipt customization
+- Barcode rendering/printing support
+- Business branding on printed documents
+
+The web app uses `react-to-print` and `react-barcode`, while the API includes PDF/QR generation libraries.
+
+### 🤖 AI Integration
+
+The backend includes Google's Generative AI SDK (`@google/generative-ai`). Business settings contain configurable AI fields including:
+
+- Gemini API key
+- AI model name
+- AI enabled flag
+- Temperature
+- Custom AI system prompt
+
+This provides an application-level foundation for pharmacy ERP AI features without hard-coding the model configuration.
+
+### 📱 WhatsApp Integration
+
+The backend includes the Baileys WhatsApp library, and the Prisma schema contains WhatsApp session/message log entities. Shared utilities also include WhatsApp formatting helpers. This provides infrastructure for customer communication workflows such as invoice/reminder messaging.
+
+### 🔐 Authentication, RBAC & Security
+
+The Prisma schema defines:
+
+- Users
+- Roles
+- Permissions
+- User-role mappings
+- Role-permission mappings
+- Refresh tokens
+- Branch memberships
+- Audit logs and security-related state
+
+The API stack also includes JWT authentication, Passport, Argon2 password hashing, Helmet, request throttling, validation, and Swagger/OpenAPI support.
+
+Typical roles documented by the project include:
+
+| Role | Typical Responsibility |
+|---|---|
+| **SUPER ADMIN** | Global configuration, branches, permissions and administration |
+| **BRANCH MANAGER** | Branch operations, approvals, reporting and oversight |
+| **PHARMACIST** | Pharmacy and dispensing operations |
+| **CASHIER** | POS billing and register operations |
+| **INVENTORY** | Stock, batches, inward and adjustments |
+
+Exact permissions are enforced through the application's permission system rather than only the UI.
 
 ---
 
-### 3. 📦 Opening & Closing Stock Management (`/import`)
-- **Dual Dedicated Tabs**:
-  - **Opening Stock (Import & Bulk Grid)**: Drag & Drop CSV spreadsheet upload, copy-paste from Excel sheets, downloadable CSV sample templates, live editable matrix, real-time cost & MRP valuation calculators, and batch audit logs.
-  - **Closing Stock (Live Valuation & Export)**: Live batch-wise inventory register with physical stock on shelf, purchase valuation, MRP value, and gross margin calculations.
-- **Multi-Format Exports**: Export live stock anytime in **Microsoft Excel (.xlsx)**, **CSV (.csv)**, or **Print / Save as PDF** via formatted browser print styles.
+## 🧱 Architecture
 
----
+This repository is a monorepo built with **Turborepo + npm workspaces**.
 
-### 4. 📊 Reports & Legal Analytics (`/reports`)
-- **P&L Summary**: Live Gross Revenue, COGS (Cost of Goods Sold), Operating Expenses, and Net Profit margins.
-- **Sales Ledger**: Chronological invoices ledger with subtotal, tax, discounts, customer info, and one-click Excel export.
-- **Purchase Ledger**: Inward supply bills with vendor names, GSTIN, taxable subtotal, tax breakdown, and Excel export.
-- **Inventory Valuation**: Live batch and medicine valuations with cost vs retail MRP margins.
-- **GST Returns**: Automated GSTR-1 (B2B and B2C tables) and GSTR-3B monthly return summaries with Input Tax Credit (ITC) calculations.
-- **HSN Code Summary**: HSN code-wise quantity, taxable value, and GST rate breakdowns.
-- **Schedule H / H1 / X Controlled Drug Register**: Statutory register tracking Patient Name/Age, Prescribing Doctor & Reg #, Dispensed Drug, Batch, Expiry, and Quantity.
-
----
-
-### 5. 🖨️ Universal Print System & 20+ Layouts
-- **20+ Print Templates**: Thermal 58mm, Thermal 80mm, A4 Standard, A5 Compact, Minimalist, Classic Medical Rx, Luxury Modern, Dark Theme, and Barcode Label sheets.
-- **Thermal Receipt Customizer**: Super Admins can toggle individual fields (Pharmacy Logo, Drug License #, GSTIN, Doctor details, Customer balance, HSN breakdown, Greetings, QR Code, Footer notes) with live interactive previews.
-
----
-
-### 6. 💊 FEFO Expiry & Batch Inventory Engine
-- **First Expiry, First Out (FEFO)**: Automatically suggests and dispenses batches with the earliest expiry date.
-- **Expiry Protection**: Hard-blocks expired batches from being billed.
-- **Stock Movement Ledger**: Immutable audit log of all stock changes (`PURCHASE`, `SALE`, `ADJUSTMENT`, `TRANSFER_IN`, `TRANSFER_OUT`, `SALES_RETURN`, `PURCHASE_RETURN`, `OPENING_STOCK`).
-
----
-
-## 📁 Monorepo Layout
-
-```
-medical_inventory/
+```text
+medical_inventiroy/
 ├── apps/
-│   ├── api/          # NestJS 10 Backend REST API (20+ feature modules)
-│   ├── web/          # Next.js 14 App Router Web Client & POS Terminal
-│   └── mobile/       # React Native / Expo Mobile POS & Barcode Scanner
+│   ├── api/          # NestJS 10 REST API
+│   ├── web/          # Next.js 14 App Router web application / POS
+│   └── mobile/       # React Native + Expo mobile application
+│
 ├── packages/
-│   ├── shared-types/ # TypeScript interfaces, DTOs & Domain Enums
-│   ├── constants/    # RBAC Permissions, Default Roles, GST Slabs, Units
-│   ├── shared-utils/ # FEFO allocator, Currency math, Date & Barcode parsers
-│   └── validation/   # Zod input validation schemas
+│   ├── shared-types/ # Shared TypeScript types and DTO/domain contracts
+│   ├── constants/    # Permissions, roles, GST slabs, units and constants
+│   ├── shared-utils/ # Shared business helpers and WhatsApp formatting
+│   └── validation/   # Shared validation schemas
+│
 ├── prisma/
-│   ├── schema.prisma # 38+ Model PostgreSQL Database Schema
-│   └── seed/         # Automated DB Seed Scripts (Roles, Admin, Products)
-├── turbo.json        # Turborepo build pipeline
-└── package.json      # Monorepo Workspace Configuration
+│   ├── schema.prisma # PostgreSQL schema and relationships
+│   ├── migrations/   # Database migrations
+│   └── seed/         # Seed/bootstrap data
+│
+├── tests/            # Feature, boundary, performance and end-to-end tests
+├── PROJECT.md        # UI/UX redesign project specification and code map
+└── package.json      # Workspace scripts and toolchain
 ```
+
+The root workspace provides scripts for development, builds, database generation/migrations/seed, linting, testing, and cleanup.
 
 ---
 
-## 🚀 Quickstart & Setup Guide
+## 🛠️ Technology Stack
 
-### 1. Prerequisites
-- **Node.js**: `v20+` or `v24+`
-- **PostgreSQL**: PostgreSQL 14+ database instance
-- **npm** (or **pnpm**)
+### Web
 
-### 2. Environment Variables
-Create a `.env` file in the root directory:
+- Next.js 14 App Router
+- React 18
+- Tailwind CSS
+- React Query
+- Zustand
+- Zod
+- Axios
+- Recharts
+- Lucide React
+- `react-barcode`
+- `react-to-print`
+- `html5-qrcode`
+
+### Backend
+
+- NestJS 10
+- Express platform
+- Prisma 5
+- PostgreSQL
+- JWT / Passport
+- Argon2
+- Swagger
+- Helmet
+- Throttler
+- ExcelJS
+- PDFKit
+- QRCode
+- CSV parser/writer
+- Google Generative AI SDK
+- Baileys WhatsApp library
+
+### Mobile
+
+- React Native 0.74
+- Expo 51
+- Expo Camera / Barcode Scanner
+- Zustand
+- Axios
+
+### Tooling
+
+- TypeScript
+- Turborepo
+- npm workspaces
+- Jest
+- Supertest
+- TSX
+
+---
+
+## 🗄️ Database Model Highlights
+
+The Prisma schema contains a broad pharmacy ERP domain. Key model groups include:
+
+**Identity & Access**
+`User`, `Role`, `Permission`, `RolePermission`, `UserRole`, `RefreshToken`, `BranchMembership`
+
+**Business & Branches**
+`BusinessSettings`, `BusinessBranding`, `Branch`, `BranchSettings`
+
+**Medicine Master**
+`MedicineCategory`, `Manufacturer`, `Unit`, `MedicineUnit`, `Medicine`, `Barcode`
+
+**Inventory**
+`Batch`, `StockMovement`, `StockAdjustment`, `StockTransfer` and related item/ledger entities
+
+**Commercial Operations**
+Sales, purchases, returns, purchase orders, customers, suppliers, expenses, pricing and credit entities
+
+**Administration / Operations**
+Cashier shifts, approvals, notifications, uploads, background jobs, branch-switch logs, printers and related configuration
+
+**Communication**
+WhatsApp sessions and WhatsApp message logs
+
+The schema is intentionally relational and uses foreign keys, indexes, unique constraints, and cascade/restrict behaviors to enforce business relationships.
+
+---
+
+## 🎨 Web UI / UX Foundation
+
+The project has a documented semantic UI foundation with reusable primitives such as:
+
+- Badge
+- Button
+- Card
+- DataTable
+- EmptyState
+- Input
+- Modal
+- PageHeader
+- Select
+- Skeleton
+- SmartAutocomplete
+- Tabs
+- Toast
+
+The documented shell includes:
+
+- Grouped sidebar navigation
+- Collapsible sidebar mode
+- User profile footer
+- Branch selector
+- Global search / command palette
+- Theme toggle and notifications
+- Responsive mobile bottom navigation
+- iOS-safe-area considerations
+
+The dashboard and POS areas are treated as high-frequency operational screens, with the POS designed for keyboard and scanner-oriented workflows.
+
+---
+
+## 🧪 Testing & Quality
+
+The repository contains a dedicated test suite with feature coverage, boundary/corner-case tests, performance/load benchmarks, and real-world end-to-end pharmacy lifecycle coverage.
+
+Examples present in the repository include tests for:
+
+- Thermal receipt formatting
+- Receipt-formatting bounds
+- Performance/load benchmarking
+- Empirical stress testing
+- End-to-end pharmacy lifecycle workflows
+
+The root package exposes `test`, `test:e2e`, and `test:all` scripts.
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+
+- npm 10.x recommended
+- PostgreSQL
+
+### 1. Clone
+
+```bash
+git clone https://github.com/ck724280-gif/medical_inventiroy.git
+cd medical_inventiroy
+```
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure environment
+
+Create `.env` in the repository root. A minimal local configuration is:
+
 ```env
-# Database Connection (PostgreSQL)
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/medcare_db?schema=public"
-
-# Authentication Secrets
-JWT_ACCESS_SECRET="your-jwt-access-secret-key-at-least-32-chars-long"
-JWT_REFRESH_SECRET="your-jwt-refresh-secret-key-at-least-32-chars-long"
-
-# Ports & URLs
+JWT_ACCESS_SECRET="replace-with-a-long-random-access-secret"
+JWT_REFRESH_SECRET="replace-with-a-long-random-refresh-secret"
 PORT=4000
 NEXT_PUBLIC_API_URL="http://localhost:4000/api"
 ```
 
-### 3. Database Migration & Seed
+Additional settings may be required for deployments or optional integrations such as AI/WhatsApp.
+
+### 4. Generate Prisma Client
+
 ```bash
-# Generate Prisma client
-npx prisma generate
-
-# Run migrations
-npx prisma migrate dev --name init
-
-# Seed database with default roles, admin user, and medicine categories
-npm run seed
+npm run db:generate
 ```
 
-**Default Super Admin Credentials**:
-- **Email**: `admin@medcare.com`
-- **Password**: `Admin@123456`
+### 5. Apply database schema
 
-### 4. Running Locally
+For a development database:
+
 ```bash
-# Start NestJS Backend API (Port 4000)
+npm run db:migrate
+```
+
+Or, when appropriate for your environment:
+
+```bash
+npm run db:push
+```
+
+### 6. Seed data
+
+```bash
+npm run db:seed
+```
+
+### 7. Run the applications
+
+Backend:
+
+```bash
 npm run dev:api
+```
 
-# Start Next.js Web Frontend (Port 3000)
+Web application:
+
+```bash
 npm run dev:web
+```
 
-# Or run all simultaneously with Turborepo
+Run the monorepo development tasks together:
+
+```bash
 npm run dev
 ```
 
-- **Web Application**: [http://localhost:3000](http://localhost:3000)
-- **API Swagger Documentation**: [http://localhost:4000/docs](http://localhost:4000/docs)
+The web app defaults to port `3000`; the API configuration defaults to port `4000`.
 
 ---
 
-## 🔒 Default Role Permissions Matrix
+## 🔧 Useful Scripts
 
-| Module / Permission | SUPER ADMIN | BRANCH MANAGER | PHARMACIST | CASHIER | INVENTORY |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| POS Billing (`sale.create`) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Cash Register Shift (`sale.create`) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Discount Overrides (`sale.discount`) | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Medicine Catalog (`medicine.view`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Inventory & Batches (`inventory.view`) | ✅ | ✅ | ✅ | ❌ | ✅ |
-| Inward Purchases (`purchase.create`) | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Opening / Closing Stock (`inventory.adjust`) | ✅ | ✅ | ❌ | ❌ | ✅ |
-| Reports & Analytics (`report.view`) | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Super Admin & Branches (`super_admin.access`) | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Run workspace development tasks |
+| `npm run dev:api` | Run NestJS API in watch mode |
+| `npm run dev:web` | Run Next.js web app |
+| `npm run dev:mobile` | Start Expo mobile app |
+| `npm run build` | Build all workspace packages/apps |
+| `npm run build:api` | Build backend and required shared packages |
+| `npm run build:web` | Build web application |
+| `npm run db:generate` | Generate Prisma client |
+| `npm run db:migrate` | Run Prisma development migrations |
+| `npm run db:push` | Push schema directly to database |
+| `npm run db:seed` | Seed database |
+| `npm run lint` | Lint workspaces |
+| `npm test` | Run repository test runner |
+| `npm run test:e2e` | Run end-to-end test entry point |
+| `npm run clean` | Clean Turbo artifacts and node_modules |
 
 ---
 
-## 🚢 Deployment on Render / Cloud
-1. **API Service**: Deploy `apps/api` as a Node.js Web Service on Render with `npm run build:api` and start command `node dist/apps/api/main.js`.
-2. **Web Service**: Deploy `apps/web` on Vercel or Render with `npm run build:web` and `npm run start:web`.
-3. Set `DATABASE_URL`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, and `NEXT_PUBLIC_API_URL` in the cloud environment settings.
+## 🌐 Deployment Architecture
+
+The application is structured for separate deployment of the API and web frontend:
+
+- **API:** NestJS service
+- **Web:** Next.js service
+- **Database:** PostgreSQL-compatible hosted database
+- **Mobile:** Expo/React Native distribution
+
+The repository's project documentation also references Render/Vercel-style deployment patterns and a deployed API/web environment used during project verification.
+
+Do not commit production secrets, API keys, database passwords, JWT secrets, or WhatsApp credentials to Git.
+
+---
+
+## 📌 Current Development Status
+
+The repository contains both implemented application code and active project specifications. `PROJECT.md` documents a UI/UX redesign program with completed shell/dashboard/POS milestones and additional pages/features tracked as milestones. Separate survey documents also describe planned pharmacy enhancements such as packaging-unit conversion, party pricing, GST reporting, barcode labels, and legal drug-register workflows.
+
+This means the repository should be evaluated from the **source code and tests**, not solely from design specifications when determining whether a particular feature is production-ready.
+
+---
+
+## 📚 Project Documentation
+
+- **Architecture & UI/UX roadmap:** `PROJECT.md`
+- **Prisma schema:** `prisma/schema.prisma`
+- **Phase 1 frontend/API stability survey:** `.agents/explorer_survey_1/survey_report.md`
+- **Phase 2 architecture/feature survey:** `.agents/explorer_survey_2/survey_report.md`
+- **Tests:** `tests/`
 
 ---
 
 ## 📄 License
-This project is licensed under the MIT License.
+
+This project is licensed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
