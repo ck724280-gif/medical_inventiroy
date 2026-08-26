@@ -417,8 +417,13 @@ export class PosService {
       this.prisma.salesInvoice.findMany({
         where: {
           branchId: shift.branchId,
-          createdByUserId: shift.userId,
-          createdAt: { gte: shift.openedAt, lte: endTime },
+          OR: [
+            { shiftId: shift.id },
+            {
+              createdByUserId: shift.userId,
+              createdAt: { gte: shift.openedAt, lte: endTime },
+            },
+          ],
           status: { not: 'CANCELLED' },
         },
         select: { id: true, totalAmount: true },
@@ -427,8 +432,14 @@ export class PosService {
         where: {
           salesInvoice: {
             branchId: shift.branchId,
-            createdByUserId: shift.userId,
-            createdAt: { gte: shift.openedAt, lte: endTime },
+            OR: [
+              { shiftId: shift.id },
+              {
+                createdByUserId: shift.userId,
+                createdAt: { gte: shift.openedAt, lte: endTime },
+              },
+            ],
+            status: { not: 'CANCELLED' },
           },
         },
         select: { amount: true, paymentMode: true },
