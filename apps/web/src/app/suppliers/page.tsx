@@ -35,24 +35,6 @@ export default function SuppliersPage() {
   const [whatsAppModalSupplier, setWhatsAppModalSupplier] = useState<any | null>(null);
   const [whatsAppMsgText, setWhatsAppMsgText] = useState('');
 
-  const sendSupplierMsgMutation = useMutation({
-    mutationFn: async ({ phone, name, content }: { phone: string; name: string; content: string }) =>
-      apiClient.post('/whatsapp/send-message', {
-        branchId: selectedBranchId || undefined,
-        recipientPhone: phone,
-        recipientName: name,
-        content,
-      }),
-    onSuccess: () => {
-      alert('WhatsApp message dispatched to supplier successfully!');
-      setWhatsAppModalSupplier(null);
-      setWhatsAppMsgText('');
-    },
-    onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to send WhatsApp message. Please check WhatsApp pairing in Settings.');
-    },
-  });
-
   const queryClient = useQueryClient();
   const { isSuperAdmin, hasPermission } = useAuthStore();
   const canManage = isSuperAdmin() || hasPermission('supplier.create') || hasPermission('supplier.edit');
@@ -90,7 +72,6 @@ export default function SuppliersPage() {
   });
 
   const suppliers = extractDataArray(suppliersData);
-
   const totalSuppliersCount = suppliers.length;
   const totalOutstandingBalance = suppliers.reduce((sum: number, s: any) => sum + Number(s.currentBalance || 0), 0);
 
@@ -446,17 +427,17 @@ export default function SuppliersPage() {
                       alert('Message text cannot be empty.');
                       return;
                     }
-                    sendSupplierMsgMutation.mutate({
-                      phone: whatsAppModalSupplier.phone,
-                      name: whatsAppModalSupplier.name,
-                      content: whatsAppMsgText.trim(),
-                    });
+                    const clean = whatsAppModalSupplier.phone.replace(/[^0-9]/g, '');
+                    const phone = clean.length === 10 ? `91${clean}` : clean;
+                    const url = `https://wa.me/${phone}?text=${encodeURIComponent(whatsAppMsgText.trim())}`;
+                    window.open(url, '_blank');
+                    setWhatsAppModalSupplier(null);
+                    setWhatsAppMsgText('');
                   }}
-                  disabled={sendSupplierMsgMutation.isPending}
-                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition disabled:opacity-50"
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  {sendSupplierMsgMutation.isPending ? 'Sending...' : 'Send WhatsApp Message'}
+                  Open WhatsApp Chat
                 </button>
               </div>
             </div>

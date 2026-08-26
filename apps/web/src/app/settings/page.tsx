@@ -92,7 +92,7 @@ export default function SettingsPage() {
   const { selectedBranchId } = useAuthStore();
   const queryClient = useQueryClient();
   const { fetchBranding, updateLogoImmediately, logo: currentStoreLogo } = useBrandingStore();
-  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'receipt' | 'staff' | 'ai' | 'whatsapp'>('business');
+  const [activeTab, setActiveTab] = useState<'business' | 'branches' | 'receipt' | 'staff' | 'ai'>('business');
   const [savedBanner, setSavedBanner] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
@@ -502,7 +502,6 @@ export default function SettingsPage() {
               { id: 'receipt', label: 'Thermal & Universal Print Setup', icon: Printer },
               { id: 'staff', label: 'Staff & User Roles', icon: Users },
               { id: 'ai', label: 'AI Co-Pilot & Chatbot API', icon: Sparkles },
-              { id: 'whatsapp', label: 'WhatsApp Integration & QR', icon: MessageSquare },
             ].map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
@@ -1602,41 +1601,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          
-          {/* TAB 7: WhatsApp Integration & QR Setup */}
-          {activeTab === 'whatsapp' && (
-            <div className="bg-surface-base rounded-2xl border border-border-default shadow-sm dark:shadow-xl p-6 max-w-4xl space-y-6">
-              <div>
-                <h3 className="font-bold text-base text-text-primary flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                  WhatsApp Web QR Integration for Current Branch
-                </h3>
-                <p className="text-xs text-text-muted mt-0.5">
-                  Link your medical store mobile WhatsApp account to automatically send invoices, receipts, and outstanding balance reminders directly to customers.
-                </p>
-              </div>
-
-              <div className="p-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/5 space-y-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <h4 className="font-bold text-sm text-text-primary">Multi-Branch Isolated WhatsApp Gateway</h4>
-                    <p className="text-xs text-text-secondary">
-                      Each branch maintains its own dedicated WhatsApp connection. You can manage live connection, scan QR, and view audit history in the WhatsApp Hub.
-                    </p>
-                  </div>
-
-                  <a
-                    href="/whatsapp"
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-sm transition flex-shrink-0"
-                  >
-                    <QrCode className="w-4 h-4" />
-                    Open WhatsApp QR Hub
-                  </a>
-                </div>
-              </div>
             </div>
           )}
   

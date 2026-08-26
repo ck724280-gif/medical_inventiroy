@@ -34,41 +34,6 @@ export default function CustomersPage() {
   const [whatsAppModalCustomer, setWhatsAppModalCustomer] = useState<any | null>(null);
   const [whatsAppCustomText, setWhatsAppCustomText] = useState('');
 
-  const sendDueReminderMutation = useMutation({
-    mutationFn: async ({ customerId, customNote }: { customerId: string; customNote?: string }) =>
-      apiClient.post(`/whatsapp/send-reminder/${customerId}`, {
-        branchId: selectedBranchId || undefined,
-        customNote,
-      }),
-    onSuccess: () => {
-      alert('Payment due reminder dispatched directly to customer WhatsApp!');
-      setWhatsAppModalCustomer(null);
-      setWhatsAppCustomText('');
-    },
-    onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to send WhatsApp reminder. Please check WhatsApp connection.');
-    },
-  });
-
-  const sendDirectCustomerMsgMutation = useMutation({
-    mutationFn: async ({ customerId, recipientPhone, recipientName, content }: { customerId?: string; recipientPhone: string; recipientName?: string; content: string }) =>
-      apiClient.post('/whatsapp/send-message', {
-        branchId: selectedBranchId || undefined,
-        customerId,
-        recipientPhone,
-        recipientName,
-        content,
-      }),
-    onSuccess: () => {
-      alert('Message dispatched directly to customer WhatsApp!');
-      setWhatsAppModalCustomer(null);
-      setWhatsAppCustomText('');
-    },
-    onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to send WhatsApp message.');
-    },
-  });
-
   const queryClient = useQueryClient();
   const { isSuperAdmin, hasPermission } = useAuthStore();
   const canManage = isSuperAdmin() || hasPermission('customer.create') || hasPermission('customer.edit');
@@ -517,20 +482,25 @@ export default function CustomersPage() {
                   Cancel
                 </button>
 
-                {Number(whatsAppModalCustomer.currentBalance || 0) > 0 && (
+                {Number(whatsAppModalCustomer.currentBalance || whatsAppModalCustomer.balance || 0) > 0 && (
                   <button
                     type="button"
                     onClick={() => {
-                      sendDueReminderMutation.mutate({
-                        customerId: whatsAppModalCustomer.id,
-                        customNote: whatsAppCustomText || undefined,
-                      });
+                      const url = generatePaymentReminderUrl(
+                        whatsAppModalCustomer.mobile,
+                        whatsAppModalCustomer.name,
+                        whatsAppModalCustomer.currentBalance || whatsAppModalCustomer.balance || 0,
+                        'MedCare Pharmacy',
+                        whatsAppCustomText || undefined
+                      );
+                      window.open(url, '_blank');
+                      setWhatsAppModalCustomer(null);
+                      setWhatsAppCustomText('');
                     }}
-                    disabled={sendDueReminderMutation.isPending}
                     className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-semibold shadow transition cursor-pointer flex items-center justify-center gap-1.5"
                   >
                     <MessageCircle className="w-3.5 h-3.5" />
-                    {sendDueReminderMutation.isPending ? 'Sending...' : 'Send Due Reminder'}
+                    Open Due Reminder on WhatsApp
                   </button>
                 )}
 
@@ -541,18 +511,17 @@ export default function CustomersPage() {
                       alert('Customer mobile number is missing.');
                       return;
                     }
-                    sendDirectCustomerMsgMutation.mutate({
-                      customerId: whatsAppModalCustomer.id,
-                      recipientPhone: whatsAppModalCustomer.mobile,
-                      recipientName: whatsAppModalCustomer.name,
-                      content: whatsAppCustomText || `Hello ${whatsAppModalCustomer.name}, this is MedCare Pharmacy. How can we assist you today?`,
-                    });
+                    const clean = whatsAppModalCustomer.mobile.replace(/[^0-9]/g, '');
+                    const phone = clean.length === 10 ? `91${clean}` : clean;
+                    const text = whatsAppCustomText || `Hello ${whatsAppModalCustomer.name}, this is MedCare Pharmacy. How can we assist you today?`;
+                    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+                    setWhatsAppModalCustomer(null);
+                    setWhatsAppCustomText('');
                   }}
-                  disabled={sendDirectCustomerMsgMutation.isPending}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold shadow transition cursor-pointer flex items-center justify-center gap-1.5"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  {sendDirectCustomerMsgMutation.isPending ? 'Sending...' : 'Send Message'}
+                  Open WhatsApp Chat
                 </button>
               </div>
             </div>

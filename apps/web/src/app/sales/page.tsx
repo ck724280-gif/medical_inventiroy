@@ -40,19 +40,6 @@ import { ThermalReceiptPreview } from '../../components/thermal-receipt-preview'
 import { extractDataArray } from '../../lib/utils';
 
 export default function SalesPage() {
-  const sendWhatsAppBillMutation = useMutation({
-    mutationFn: async ({ invoiceId }: { invoiceId: string }) =>
-      apiClient.post(`/whatsapp/send-bill/${invoiceId}`, {
-        branchId: selectedBranchId || undefined,
-      }),
-    onSuccess: () => {
-      alert('Invoice Bill dispatched directly to Customer WhatsApp!');
-    },
-    onError: (err: any) => {
-      alert(err.response?.data?.message || 'Failed to dispatch WhatsApp bill. Please check WhatsApp connection in Settings.');
-    },
-  });
-
   const { selectedBranchId, isSuperAdmin } = useAuthStore();
   const { name: storeName } = useBrandingStore();
   const [search, setSearch] = useState('');
@@ -169,7 +156,12 @@ export default function SalesPage() {
   };
 
   const handleWhatsAppShare = (sale: any) => {
-    sendWhatsAppBillMutation.mutate({ invoiceId: sale.id });
+    if (sale.customer?.mobile) {
+      triggerWhatsAppRedirect(sale, sale.customer.mobile);
+    } else {
+      setTargetPhone('');
+      setWhatsAppModal(sale);
+    }
   };
 
   const startEdit = (sale: any) => {

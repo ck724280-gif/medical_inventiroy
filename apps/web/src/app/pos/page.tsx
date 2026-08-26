@@ -621,15 +621,6 @@ export default function PosPage() {
 
   const handleWhatsAppShare = async () => {
     if (!savedInvoiceData) return;
-    try {
-      await apiClient.post(`/whatsapp/send-bill/${savedInvoiceData.id}`, {
-        branchId: selectedBranchId || undefined,
-      });
-      alert(`Invoice #${savedInvoiceData.invoiceNumber} sent directly to customer WhatsApp!`);
-      return;
-    } catch (err: any) {
-      console.warn('Direct WhatsApp failed, falling back to Web URL:', err.message);
-    }
     await shareInvoiceViaWhatsApp({
       invoiceNumber: savedInvoiceData.invoiceNumber,
       customerName: savedInvoiceData.customer?.name || cart.customer?.name,
