@@ -34,22 +34,18 @@ export class PurchasesService {
     const skip = (page - 1) * limit;
 
     const where: any = {};
-    if (query?.branchId) {
-      where.OR = [{ branchId: query.branchId }, { branchId: null }];
+    if (query?.branchId && query.branchId !== 'all' && query.branchId !== 'ALL') {
+      where.branchId = query.branchId;
     }
     if (query?.supplierId) where.supplierId = query.supplierId;
     if (query?.status) where.status = query.status;
-    if (query?.search) {
-      const searchConditions = [
-        { invoiceNumber: { contains: query.search, mode: 'insensitive' } },
-        { supplier: { name: { contains: query.search, mode: 'insensitive' } } },
+    if (query?.search && query.search.trim()) {
+      const q = query.search.trim();
+      where.OR = [
+        { invoiceNumber: { contains: q, mode: 'insensitive' } },
+        { supplier: { name: { contains: q, mode: 'insensitive' } } },
+        { notes: { contains: q, mode: 'insensitive' } },
       ];
-      if (where.OR) {
-        where.AND = [{ OR: where.OR }, { OR: searchConditions }];
-        delete where.OR;
-      } else {
-        where.OR = searchConditions;
-      }
     }
 
     const [total, purchases] = await Promise.all([

@@ -55,7 +55,6 @@ export class CashRegistersController {
 
   // ── Staff Cashier Shift Endpoints ────────────────────────
 
-  @Get('current')
   @Get('shift/current')
   async getCurrentShift(
     @CurrentUser('id') userId: string,
@@ -64,7 +63,14 @@ export class CashRegistersController {
     return this.cashRegistersService.getCurrentShift(userId, branchId);
   }
 
-  @Post('open')
+  @Get('current')
+  async getCurrentShiftLegacy(
+    @CurrentUser('id') userId: string,
+    @Query('branchId') branchId?: string
+  ) {
+    return this.cashRegistersService.getCurrentShift(userId, branchId);
+  }
+
   @Post('shift/open')
   async openShift(
     @Body() dto: OpenShiftDto,
@@ -73,7 +79,14 @@ export class CashRegistersController {
     return this.cashRegistersService.openShift(dto, userId);
   }
 
-  @Post(':id/close')
+  @Post('open')
+  async openShiftLegacy(
+    @Body() dto: OpenShiftDto,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.cashRegistersService.openShift(dto, userId);
+  }
+
   @Post('shift/:id/close')
   @HttpCode(HttpStatus.OK)
   async closeShift(
@@ -84,9 +97,23 @@ export class CashRegistersController {
     return this.cashRegistersService.closeShift(id, dto, userId);
   }
 
-  @Get(':id/report')
+  @Post(':id/close')
+  @HttpCode(HttpStatus.OK)
+  async closeShiftLegacy(
+    @Param('id', UUIDValidationPipe) id: string,
+    @Body() dto: CloseShiftDto,
+    @CurrentUser('id') userId: string
+  ) {
+    return this.cashRegistersService.closeShift(id, dto, userId);
+  }
+
   @Get('shift/:id/report')
   async getShiftReport(@Param('id', UUIDValidationPipe) id: string) {
+    return this.cashRegistersService.getShiftReport(id);
+  }
+
+  @Get(':id/report')
+  async getShiftReportLegacy(@Param('id', UUIDValidationPipe) id: string) {
     return this.cashRegistersService.getShiftReport(id);
   }
 

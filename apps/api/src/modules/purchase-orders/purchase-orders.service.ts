@@ -92,28 +92,24 @@ export class PurchaseOrdersService {
 
     const where: any = {};
     if (query.status === 'ACTIVE' || query.status === 'PENDING') {
-      where.status = { notIn: ['FULLY_RECEIVED', 'CANCELLED'] };
+      where.status = { in: ['DRAFT', 'SENT', 'APPROVED', 'PARTIALLY_RECEIVED', 'PENDING'] };
     } else if (query.status === 'COMPLETED') {
-      where.status = 'FULLY_RECEIVED';
+      where.status = { in: ['COMPLETED', 'FULLY_RECEIVED', 'INWARDED'] };
     } else if (query.status && query.status !== 'ALL') {
       where.status = query.status;
     }
 
     if (query.supplierId) where.supplierId = query.supplierId;
-    if (query.branchId) {
-      where.OR = [{ branchId: query.branchId }, { branchId: null }];
+    if (query.branchId && query.branchId !== 'all' && query.branchId !== 'ALL') {
+      where.branchId = query.branchId;
     }
-    if (query.search) {
-      const searchConditions = [
-        { poNumber: { contains: query.search, mode: 'insensitive' } },
-        { supplier: { name: { contains: query.search, mode: 'insensitive' } } },
+    if (query.search && query.search.trim()) {
+      const q = query.search.trim();
+      where.OR = [
+        { poNumber: { contains: q, mode: 'insensitive' } },
+        { supplier: { name: { contains: q, mode: 'insensitive' } } },
+        { notes: { contains: q, mode: 'insensitive' } },
       ];
-      if (where.OR) {
-        where.AND = [{ OR: where.OR }, { OR: searchConditions }];
-        delete where.OR;
-      } else {
-        where.OR = searchConditions;
-      }
     }
 
     const [data, total] = await Promise.all([
