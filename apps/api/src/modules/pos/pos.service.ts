@@ -335,6 +335,30 @@ export class PosService {
     const resolvedBranchId = await this.resolveBranchId(userId, branchId);
     if (!resolvedBranchId) return null;
 
+    // RULE 1: If Store Cash Register is NOT open, no shift can be active!
+    const activeRegister = await this.prisma.cashRegisterSession.findFirst({
+      where: {
+        branchId: resolvedBranchId,
+        status: 'OPEN',
+      },
+    });
+
+    if (!activeRegister) {
+      // Auto-close any lingering open shifts
+      await this.prisma.cashierShift.updateMany({
+        where: {
+          branchId: resolvedBranchId,
+          status: 'OPEN',
+        },
+        data: {
+          status: 'CLOSED',
+          closedAt: new Date(),
+          notes: 'Auto-closed because Store Cash Register is closed.',
+        },
+      });
+      return null;
+    }
+
     const shift = await this.prisma.cashierShift.findFirst({
       where: {
         userId,
@@ -343,6 +367,7 @@ export class PosService {
       },
       include: {
         user: { select: { firstName: true, lastName: true, email: true } },
+        registerSession: true,
       },
       orderBy: { openedAt: 'desc' },
     });
@@ -357,6 +382,20 @@ export class PosService {
       throw new BadRequestException('No active branch found. Please select or configure a branch first.');
     }
 
+    // RULE 1: Store Cash Register MUST be open first!
+    const activeRegister = await this.prisma.cashRegisterSession.findFirst({
+      where: {
+        branchId: resolvedBranchId,
+        status: 'OPEN',
+      },
+    });
+
+    if (!activeRegister) {
+      throw new BadRequestException(
+        'Store Cash Register is currently CLOSED. Please open the Cash Register before starting a staff shift.'
+      );
+    }
+
     const existingOpen = await this.prisma.cashierShift.findFirst({
       where: {
         userId,
@@ -369,10 +408,14 @@ export class PosService {
       return this.getShiftSummary(existingOpen.id, userId);
     }
 
+    const shiftType = (dto.shiftType || 'DAY').toUpperCase();
+
     const shift = await this.prisma.cashierShift.create({
       data: {
         branchId: resolvedBranchId,
         userId,
+        registerSessionId: activeRegister.id,
+        shiftType,
         status: ShiftStatus.OPEN,
         openingCash: Number(dto.openingCash) || 0,
         notes: dto.notes || null,
@@ -380,6 +423,7 @@ export class PosService {
       },
       include: {
         user: { select: { firstName: true, lastName: true, email: true } },
+        registerSession: true,
       },
     });
 
@@ -390,7 +434,7 @@ export class PosService {
         action: 'shift_open',
         entity: 'CashierShift',
         entityId: shift.id,
-        newValue: JSON.stringify({ openingCash: dto.openingCash, branchId: dto.branchId }),
+        newValue: JSON.stringify({ openingCash: dto.openingCash, branchId: dto.branchId, shiftType }),
       },
     });
 

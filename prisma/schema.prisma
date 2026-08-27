@@ -39,6 +39,8 @@ model User {
   uploads               FileUpload[]
   createdPurchaseOrders PurchaseOrder[]    @relation("POCreator")
   shifts                CashierShift[]     @relation("UserShifts")
+  openedRegisterSessions CashRegisterSession[] @relation("RegisterOpenedBy")
+  closedRegisterSessions CashRegisterSession[] @relation("RegisterClosedBy")
   approvalRequests      ApprovalRequest[]  @relation("ApprovalRequester")
   approvalDecisions     ApprovalRequest[]  @relation("ApprovalApprover")
   backgroundJobs        BackgroundJob[]
@@ -204,6 +206,7 @@ model Branch {
   purchaseReturns PurchaseReturn[]
   purchaseOrders  PurchaseOrder[]
   shifts          CashierShift[]
+  registerSessions CashRegisterSession[]
   approvalRequests         ApprovalRequest[]
   featureFlags             BranchFeatureFlag[]
   supplierRelations        SupplierBranchRelation[]
@@ -793,34 +796,61 @@ model SalesReturnItem {
   @@map("sales_return_items")
 }
 
-model CashierShift {
-  id                  String    @id @default(uuid())
-  branchId            String    @map("branch_id")
-  userId              String    @map("user_id")
-  status              String    @default("OPEN") // OPEN, CLOSED
-  openingCash         Float     @default(0) @map("opening_cash")
-  closingCash         Float?    @map("closing_cash")
-  expectedCash        Float?    @map("expected_cash")
-  cashDifference      Float?    @map("cash_difference")
-  totalSalesCount     Int       @default(0) @map("total_sales_count")
-  totalSalesAmount    Float     @default(0) @map("total_sales_amount")
-  totalCashSales      Float     @default(0) @map("total_cash_sales")
-  totalUpiSales       Float     @default(0) @map("total_upi_sales")
-  totalCardSales      Float     @default(0) @map("total_card_sales")
-  totalCreditSales    Float     @default(0) @map("total_credit_sales")
-  totalReturnsAmount  Float     @default(0) @map("total_returns_amount")
-  totalExpensesAmount Float     @default(0) @map("total_expenses_amount")
-  notes               String?
-  openedAt            DateTime  @default(now()) @map("opened_at")
-  closedAt            DateTime? @map("closed_at")
+model CashRegisterSession {
+  id              String         @id @default(uuid())
+  branchId        String         @map("branch_id")
+  status          String         @default("OPEN") // OPEN, CLOSED
+  openingFloat    Float          @default(0) @map("opening_float")
+  closingCash     Float?         @map("closing_cash")
+  expectedCash    Float?         @map("expected_cash")
+  cashDifference  Float?         @map("cash_difference")
+  notes           String?
+  openedByUserId  String         @map("opened_by_user_id")
+  closedByUserId  String?        @map("closed_by_user_id")
+  openedAt        DateTime       @default(now()) @map("opened_at")
+  closedAt        DateTime?      @map("closed_at")
 
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  user   User   @relation("UserShifts", fields: [userId], references: [id], onDelete: Restrict)
+  branch          Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  openedByUser    User           @relation("RegisterOpenedBy", fields: [openedByUserId], references: [id], onDelete: Restrict)
+  closedByUser    User?          @relation("RegisterClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+  shifts          CashierShift[]
+
+  @@index([branchId, status])
+  @@map("cash_register_sessions")
+}
+
+model CashierShift {
+  id                  String               @id @default(uuid())
+  branchId            String               @map("branch_id")
+  userId              String               @map("user_id")
+  registerSessionId   String?              @map("register_session_id")
+  shiftType           String               @default("DAY") @map("shift_type") // DAY, EVENING, NIGHT, GENERAL
+  status              String               @default("OPEN") // OPEN, CLOSED
+  openingCash         Float                @default(0) @map("opening_cash")
+  closingCash         Float?               @map("closing_cash")
+  expectedCash        Float?               @map("expected_cash")
+  cashDifference      Float?               @map("cash_difference")
+  totalSalesCount     Int                  @default(0) @map("total_sales_count")
+  totalSalesAmount    Float                @default(0) @map("total_sales_amount")
+  totalCashSales      Float                @default(0) @map("total_cash_sales")
+  totalUpiSales       Float                @default(0) @map("total_upi_sales")
+  totalCardSales      Float                @default(0) @map("total_card_sales")
+  totalCreditSales    Float                @default(0) @map("total_credit_sales")
+  totalReturnsAmount  Float                @default(0) @map("total_returns_amount")
+  totalExpensesAmount Float                @default(0) @map("total_expenses_amount")
+  notes               String?
+  openedAt            DateTime             @default(now()) @map("opened_at")
+  closedAt            DateTime?            @map("closed_at")
+
+  branch          Branch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  user            User                 @relation("UserShifts", fields: [userId], references: [id], onDelete: Restrict)
+  registerSession CashRegisterSession? @relation(fields: [registerSessionId], references: [id], onDelete: SetNull)
 
   sales SalesInvoice[] @relation("ShiftSales")
 
   @@index([branchId, status])
   @@index([userId, status])
+  @@index([registerSessionId, status])
   @@map("cashier_shifts")
 }
 

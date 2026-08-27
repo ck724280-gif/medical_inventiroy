@@ -27,6 +27,14 @@ import {
   ChevronDown,
   Camera,
   Loader2,
+  Lock,
+  Unlock,
+  Sun,
+  Sunset,
+  Moon,
+  ArrowRightLeft,
+  Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 
 import { Sidebar } from '../../components/sidebar';
@@ -41,6 +49,8 @@ import { useBrandingStore } from '../../stores/branding-store';
 import { useCartStore, BatchOption } from '../../stores/cart-store';
 import { PaymentMode, PaperWidth, ThermalReceiptDataDto } from '@medical-inventory/shared-types';
 import { formatCurrency, formatDate } from '@medical-inventory/shared-utils';
+import { Button } from '../../components/ui/button';
+import Link from 'next/link';
 
 export default function PosPage() {
   const queryClient = useQueryClient();
@@ -82,6 +92,8 @@ export default function PosPage() {
   const [shiftNotes, setShiftNotes] = useState('');
   const [isClosingShift, setIsClosingShift] = useState(false);
   const [isOpenShiftLoading, setIsOpenShiftLoading] = useState(false);
+  const [shiftTypeInput, setShiftTypeInput] = useState<'DAY' | 'EVENING' | 'NIGHT' | 'GENERAL'>('DAY');
+  const [showRegisterClosedModal, setShowRegisterClosedModal] = useState(false);
 
   // Customer Add Form
   const [newCustomer, setNewCustomer] = useState({
@@ -1447,6 +1459,50 @@ export default function PosPage() {
                     );
                   })
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        
+        {/* Modal 2.5: Store Register Closed Alert */}
+        {showRegisterClosedModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="rounded-2xl border border-rose-500/30 bg-surface-overlay max-w-md w-full p-6 space-y-4 text-xs shadow-2xl text-center">
+              <div className="w-12 h-12 rounded-full bg-rose-500/10 text-status-error flex items-center justify-center mx-auto">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-text-primary">Store Cash Register is CLOSED</h3>
+                <p className="text-xs text-text-muted mt-1.5">
+                  Staff shifts (Day, Evening, Night) cannot be started because the store master cash register is currently closed.
+                </p>
+              </div>
+
+              <div className="p-3 bg-surface-raised rounded-xl text-left border border-border text-[11px] text-text-secondary space-y-1.5">
+                <div className="font-semibold text-text-primary flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-status-warning" />
+                  How to start billing:
+                </div>
+                <p>1. Go to the Cash Register page.</p>
+                <p>2. Open the Store Cash Register with the morning starting cash float.</p>
+                <p>3. Return here to start your Day, Evening, or Night shift session.</p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRegisterClosedModal(false)}
+                  className="px-4 py-2 rounded-xl bg-surface-raised border border-border text-text-secondary hover:bg-surface-hover transition cursor-pointer"
+                >
+                  Close
+                </button>
+                <Link href="/cash-register" className="flex-1">
+                  <Button variant="primary" className="w-full">
+                    <Unlock className="w-4 h-4 mr-1.5" />
+                    Open Store Cash Register
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>

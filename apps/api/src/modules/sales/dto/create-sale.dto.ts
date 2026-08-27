@@ -188,6 +188,10 @@ export class OpenShiftDto {
 
   @IsOptional()
   @IsString()
+  shiftType?: string; // DAY, EVENING, NIGHT, GENERAL
+
+  @IsOptional()
+  @IsString()
   notes?: string;
 }
 
@@ -196,6 +200,30 @@ export class CloseShiftDto {
   @IsNotEmpty({ message: 'Shift ID is required' })
   shiftId: string;
 
+  @IsNumber()
+  @Min(0, { message: 'Closing cash cannot be negative' })
+  closingCash: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class OpenRegisterDto {
+  @IsOptional()
+  @IsString()
+  branchId?: string;
+
+  @IsNumber()
+  @Min(0, { message: 'Opening float cannot be negative' })
+  openingFloat: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class CloseRegisterDto {
   @IsNumber()
   @Min(0, { message: 'Closing cash cannot be negative' })
   closingCash: number;
