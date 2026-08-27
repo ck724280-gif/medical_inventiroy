@@ -44,13 +44,41 @@ export class BranchesController {
     return this.branchesService.update(id, dto);
   }
 
+  // ── 24-Hour Grace Period Deletion Endpoints ───────────────
 
-  @Post(':id/secure-delete')
-  async secureDelete(
+  @Post(':id/schedule-delete')
+  async scheduleDelete(
+    @Param('id') id: string,
+    @Body() body: { email: string; password?: string; reason?: string }
+  ) {
+    return this.branchesService.scheduleBranchDeletion(id, body);
+  }
+
+  @Post(':id/restore')
+  async restoreBranch(@Param('id') id: string) {
+    return this.branchesService.restoreBranch(id);
+  }
+
+  @Post(':id/permanent-purge')
+  async permanentPurge(
     @Param('id') id: string,
     @Body() body: { email: string; password?: string }
   ) {
-    return this.branchesService.secureDelete(id, body);
+    return this.branchesService.permanentPurge(id, body);
+  }
+
+  @Post('purge-expired')
+  async purgeExpired() {
+    return this.branchesService.purgeExpiredBranches();
+  }
+
+  // Legacy secure-delete alias -> now triggers 24-hour grace period delete
+  @Post(':id/secure-delete')
+  async secureDelete(
+    @Param('id') id: string,
+    @Body() body: { email: string; password?: string; reason?: string }
+  ) {
+    return this.branchesService.scheduleBranchDeletion(id, body);
   }
 
   @Delete(':id')
@@ -70,4 +98,3 @@ export class BranchesController {
     return this.branchesService.updateSettings(id, dto);
   }
 }
-
