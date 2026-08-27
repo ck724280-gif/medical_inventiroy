@@ -73,9 +73,9 @@ async function main() {
     },
     {
       section: 'Operations',
-      menu: 'Sales Returns (Invoice Lookup Gap Test)',
+      menu: 'Sales Returns (Invoice Lookup)',
       route: '/sales-returns (lookup)',
-      endpoint: '/sales/by-invoice/INV-TEST-001',
+      endpoint: '/sales/by-invoice/INV-RX-2026-0001',
     },
     {
       section: 'Inventory',
