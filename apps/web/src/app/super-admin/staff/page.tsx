@@ -32,12 +32,13 @@ import { Button } from '../../../components/ui/button';
 import { Skeleton } from '../../../components/ui/skeleton';
 import { apiClient } from '../../../lib/api-client';
 import { formatDate } from '@medical-inventory/shared-utils';
+import { extractDataArray } from '../../../lib/utils';
 
 import { useAuthStore } from '../../../stores/auth-store';
 
 export default function SuperAdminStaffPage() {
   const handleSendStaffWhatsApp = (user: any) => {
-    if (!user.mobile) {
+    if (!user?.mobile) {
       alert('Staff member does not have a registered mobile number.');
       return;
     }
@@ -46,10 +47,10 @@ export default function SuperAdminStaffPage() {
     const defaultPassword = user.defaultPassword || 'Admin@123';
     const text = `🏥 *MedCare Pharmacy ERP — Staff Login Details*
 ━━━━━━━━━━━━━━━━━━━━━━━━
-👤 *Staff:* ${user.firstName} ${user.lastName || ''}
-🛡️ *Role:* ${user.role}
-🆔 *User ID:* ${user.id}
-📧 *Login Email:* ${user.email}
+👤 *Staff:* ${user.firstName || 'Staff'} ${user.lastName || ''}
+🛡️ *Role:* ${user.role || 'User'}
+🆔 *User ID:* ${user.id || 'N/A'}
+📧 *Login Email:* ${user.email || 'N/A'}
 🔑 *Password:* ${defaultPassword}
 🌐 *Web App URL:* ${getLoginUrl()}
 ━━━━━━━━━━━━━━━━━━━━━━━━
@@ -72,8 +73,8 @@ Please keep your login credentials secure.`;
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const copyToClipboard = (text: string, key: string) => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text);
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(() => {});
       setCopiedKey(key);
       setTimeout(() => setCopiedKey(null), 2500);
     }
@@ -87,17 +88,19 @@ Please keep your login credentials secure.`;
   };
 
   const copyFullCredentials = (user: any) => {
-    const defaultPassword = user.defaultPassword || 'Admin@123';
+    const defaultPassword = user?.defaultPassword || 'Admin@123';
     const text = `🏥 MedCare Pharmacy ERP — Staff Login Credentials
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👤 Staff Member : ${user.firstName} ${user.lastName || ''}
-🛡️ System Role  : ${user.role}
-🆔 User ID      : ${user.id}
-📧 Login Email  : ${user.email}
+👤 Staff Member : ${user?.firstName || 'Staff'} ${user?.lastName || ''}
+🛡️ System Role  : ${user?.role || 'User'}
+🆔 User ID      : ${user?.id || 'N/A'}
+📧 Login Email  : ${user?.email || 'N/A'}
 🔑 Password     : ${defaultPassword}
 🌐 Web App URL  : ${getLoginUrl()}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-    copyToClipboard(text, `full-${user.id}`);
+    if (user?.id) {
+      copyToClipboard(text, `full-${user.id}`);
+    }
   };
 
   const { data: staff, isLoading: isStaffLoading } = useQuery({
@@ -141,8 +144,8 @@ Please keep your login credentials secure.`;
     },
   });
 
-  const staffList: any[] = staff || [];
-  const branchList: any[] = branches || [];
+  const staffList = extractDataArray(staff);
+  const branchList = extractDataArray(branches);
 
   return (
     <div className="flex h-screen bg-surface-page text-text-primary overflow-hidden">

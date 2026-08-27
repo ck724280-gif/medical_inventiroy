@@ -264,18 +264,27 @@ export class SuperAdminService {
 
     return users.map((u) => ({
       id: u.id,
-      firstName: u.firstName,
-      lastName: u.lastName,
-      email: u.email,
-      mobile: u.mobile,
+      firstName: u.firstName || '',
+      lastName: u.lastName || '',
+      email: u.email || '',
+      mobile: u.mobile || '',
       role: u.roles?.[0]?.role?.name || 'User',
-      isActive: u.isActive,
+      isActive: u.isActive ?? true,
       primaryBranchId: u.branches?.[0]?.branchId || null,
-      assignedBranches: u.branches.map((m) => ({
-        branchId: m.branch.id,
-        branchName: m.branch.name,
-        branchCode: m.branch.code,
-      })),
+      primaryBranch: u.branches?.[0]?.branch
+        ? {
+            id: u.branches[0].branch.id,
+            name: u.branches[0].branch.name,
+            code: u.branches[0].branch.code,
+          }
+        : null,
+      assignedBranches: (u.branches || [])
+        .filter((m) => Boolean(m && m.branch))
+        .map((m) => ({
+          branchId: m.branch?.id || m.branchId,
+          branchName: m.branch?.name || 'Store Branch',
+          branchCode: m.branch?.code || 'MAIN',
+        })),
       createdAt: u.createdAt,
     }));
   }
