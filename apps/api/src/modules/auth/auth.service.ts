@@ -198,16 +198,16 @@ export class AuthService {
       branchId: primaryBranchId,
     };
     const accessToken = this.jwtService.sign(payload, {
-      expiresIn: process.env.JWT_EXPIRATION || '15m',
+      expiresIn: process.env.JWT_EXPIRATION || '365d',
     });
 
-    // Create Refresh Token (7 days)
-    const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    // Create Refresh Token (365 days / 1 Year Persistent)
+    const refreshTokenExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
     const refreshTokenString = this.jwtService.sign(
       { sub: user.id, type: 'refresh' },
       {
         secret: process.env.REFRESH_TOKEN_SECRET || 'medical-erp-dev-refresh-token-secret-key-32-chars',
-        expiresIn: process.env.REFRESH_TOKEN_EXPIRATION || '7d',
+        expiresIn: process.env.REFRESH_TOKEN_EXPIRATION || '365d',
       }
     );
 
@@ -223,7 +223,7 @@ export class AuthService {
     return {
       accessToken,
       refreshToken: refreshTokenString,
-      expiresIn: 900, // 15 minutes
+      expiresIn: 31536000, // 365 days in seconds
       user: {
         id: user.id,
         email: user.email,
@@ -283,14 +283,14 @@ export class AuthService {
 
       const payload = { sub: user.id, email: user.email };
       const newAccessToken = this.jwtService.sign(payload, {
-        expiresIn: process.env.JWT_EXPIRATION || '15m',
+        expiresIn: process.env.JWT_EXPIRATION || '365d',
       });
 
       const newRefreshTokenString = this.jwtService.sign(
         { sub: user.id, type: 'refresh' },
         {
           secret: process.env.REFRESH_TOKEN_SECRET || 'medical-erp-dev-refresh-token-secret-key-32-chars',
-          expiresIn: process.env.REFRESH_TOKEN_EXPIRATION || '7d',
+          expiresIn: process.env.REFRESH_TOKEN_EXPIRATION || '365d',
         }
       );
 
@@ -298,7 +298,7 @@ export class AuthService {
         data: {
           userId: user.id,
           token: newRefreshTokenString,
-          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
           deviceInfo: storedToken.deviceInfo,
         },
       });
@@ -318,7 +318,7 @@ export class AuthService {
       return {
         accessToken: newAccessToken,
         refreshToken: newRefreshTokenString,
-        expiresIn: 900,
+        expiresIn: 31536000,
         user: {
           id: user.id,
           email: user.email,

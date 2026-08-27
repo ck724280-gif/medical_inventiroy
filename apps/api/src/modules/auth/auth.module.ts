@@ -11,7 +11,7 @@ import { JwtStrategy } from './jwt.strategy';
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'medical-erp-dev-jwt-secret-key-at-least-32-characters',
       signOptions: {
-        expiresIn: process.env.JWT_EXPIRATION || '15m',
+        expiresIn: process.env.JWT_EXPIRATION || '365d',
       },
     }),
   ],

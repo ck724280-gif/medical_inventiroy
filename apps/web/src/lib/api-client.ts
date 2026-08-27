@@ -33,7 +33,7 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Auto-Refresh Token on 401
+// Response Interceptor: Auto-Refresh Token on 401 without forced auto-logout
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -56,20 +56,8 @@ apiClient.interceptors.response.use(
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return apiClient(originalRequest);
         } catch (refreshErr) {
-          // Token refresh failed - clean storage and redirect to login
-          localStorage.removeItem('medcare_access_token');
-          localStorage.removeItem('medcare_refresh_token');
-          localStorage.removeItem('medcare_user');
-          if (window.location.pathname !== '/login') {
-            window.location.href = '/login';
-          }
-        }
-      } else {
-        localStorage.removeItem('medcare_access_token');
-        localStorage.removeItem('medcare_refresh_token');
-        localStorage.removeItem('medcare_user');
-        if (window.location.pathname !== '/login') {
-          window.location.href = '/login';
+          // Keep session persistent, do NOT kick user to /login automatically
+          console.warn('[Auth] Token refresh attempt failed:', refreshErr);
         }
       }
     }
