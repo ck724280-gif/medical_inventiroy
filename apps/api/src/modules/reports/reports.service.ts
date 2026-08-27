@@ -118,8 +118,8 @@ export class ReportsService {
         category: true,
         manufacturer: true,
         batches: {
-          where: branchId
-            ? { OR: [{ branchId }, { branchId: null }] }
+          where: branchId && branchId !== 'all' && branchId !== 'ALL'
+            ? { branchId }
             : {},
         },
       },

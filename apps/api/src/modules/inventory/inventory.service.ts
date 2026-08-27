@@ -36,8 +36,8 @@ export class InventoryService {
           baseUnit: true,
           category: true,
           batches: {
-            where: query?.branchId
-              ? { OR: [{ branchId: query.branchId }, { branchId: null }] }
+            where: query?.branchId && query.branchId !== 'all' && query.branchId !== 'ALL'
+              ? { branchId: query.branchId }
               : {},
             orderBy: { expiryDate: 'asc' },
           },

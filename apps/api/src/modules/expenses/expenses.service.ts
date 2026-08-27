@@ -85,9 +85,7 @@ export class ExpensesService {
     const andConditions: any[] = [];
 
     if (resolvedBranchId) {
-      andConditions.push({
-        OR: [{ branchId: resolvedBranchId }, { branchId: null }],
-      });
+      andConditions.push({ branchId: resolvedBranchId });
     }
 
     if (query?.category && query.category.trim()) {

@@ -50,6 +50,15 @@ export class SalesController {
     return res.send(html);
   }
 
+  @Get('by-invoice/:invoiceNumber')
+  @RequirePermissions('sale.view')
+  async findByInvoiceNumber(
+    @Param('invoiceNumber') invoiceNumber: string,
+    @Query('branchId') branchId?: string
+  ) {
+    return this.salesService.findByInvoiceNumber(invoiceNumber, branchId);
+  }
+
   @Get(':id')
   @RequirePermissions('sale.view')
   async findOne(@Param('id') id: string) {

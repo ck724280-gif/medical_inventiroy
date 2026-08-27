@@ -58,9 +58,7 @@ export class SalesService {
     const andConditions: any[] = [];
 
     if (resolvedBranchId) {
-      andConditions.push({
-        OR: [{ branchId: resolvedBranchId }, { branchId: null }],
-      });
+      andConditions.push({ branchId: resolvedBranchId });
     }
 
     if (query?.customerId) {
@@ -107,6 +105,76 @@ export class SalesService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async findByInvoiceNumber(invoiceNumber: string, branchId?: string) {
+    if (!invoiceNumber || !invoiceNumber.trim()) {
+      throw new BadRequestException('Invoice number is required');
+    }
+
+    const trimmed = invoiceNumber.trim();
+    const resolvedBranchId = branchId ? await this.resolveBranchId(branchId) : undefined;
+
+    const where: any = {
+      OR: [
+        { invoiceNumber: { equals: trimmed, mode: 'insensitive' } },
+        { id: trimmed },
+      ],
+    };
+
+    if (resolvedBranchId) {
+      where.branchId = resolvedBranchId;
+    }
+
+    const sale = await this.prisma.salesInvoice.findFirst({
+      where,
+      include: {
+        customer: true,
+        branch: {
+          include: { settings: true },
+        },
+        createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+        prescriptionRecord: true,
+        items: {
+          include: {
+            medicine: {
+              select: {
+                id: true,
+                name: true,
+                genericName: true,
+                sku: true,
+                barcode: true,
+                dosageForm: true,
+                baseUnit: true,
+                drugSchedule: true,
+                isScheduleH: true,
+                isScheduleH1: true,
+                isScheduleX: true,
+              },
+            },
+            batch: {
+              select: {
+                id: true,
+                batchNumber: true,
+                expiryDate: true,
+                mrp: true,
+                sellingPrice: true,
+              },
+            },
+          },
+        },
+        payments: true,
+        returns: {
+          include: { items: true },
+        },
+      },
+    });
+
+    if (!sale) {
+      throw new NotFoundException(`Sales invoice #${trimmed} not found`);
+    }
+
+    return sale;
   }
 
   async findOne(id: string) {
